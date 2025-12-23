@@ -1,0 +1,892 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == 'admin@fluzio.com' ||
+              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN'));
+    }
+    
+    // RBAC: Check if user is any type of admin
+    function isAnyAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    // RBAC: Check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == 'SUPER_ADMIN' &&
+             get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    // RBAC: Check if user has specific admin role
+    function hasAdminRole(role) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == role &&
+             get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    function isBusiness() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'BUSINESS';
+    }
+    
+    function isBusinessAccount() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'business';
+    }
+    
+    function isCreatorAccount() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'creator';
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Anyone can create a user (for signup)
+      allow create: if true;
+      
+      // Anyone can read user profiles (for social features)
+      allow read: if true;
+      
+      // Users can update their own data
+      // Admins can update any user (for approval, etc.)
+      // Businesses can update points, level, and missionsCompleted fields (for mission rewards)
+      // Anyone authenticated can update creatorFavorites (for follow/unfollow)
+      // IMPORTANT: accountType is IMMUTABLE after creation - cannot be changed
+      allow update: if isAuthenticated() && 
+                       (isOwner(userId) || 
+                        isAdmin() ||
+                        (isBusiness() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'missionsCompleted'])) ||
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creatorFavorites'])) &&
+                       // Prevent accountType changes
+                       (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['accountType']) || 
+                        !exists(/databases/$(database)/documents/users/$(userId)));
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+      
+      // Subcollections within users
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+    
+    // Missions collection
+    match /missions/{missionId} {
+      // Anyone can read active missions
+      allow read: if true;
+      
+      // Only business accounts can create missions (not creators)
+      allow create: if isBusiness() && isBusinessAccount();
+      
+      // Mission owner or admin can update/delete (business accounts only)
+      allow update, delete: if isAuthenticated() && 
+                               (resource.data.businessId == request.auth.uid || isAdmin()) &&
+                               isBusinessAccount();
+    }
+    
+    // Applications collection - Creator applications to missions
+    match /applications/{applicationId} {
+      // Creators can read their own applications
+      // Businesses can read applications to their missions
+      // Admins can read all
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid || 
+                      isAdmin());
+      
+      // Only creator accounts can create applications
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Only business owners or admins can update application status
+      allow update: if isAuthenticated() && 
+                       (resource.data.businessId == request.auth.uid || isAdmin());
+      
+      // Only admins can delete applications
+      allow delete: if isAdmin();
+    }
+    
+    // Participations collection
+    match /participations/{participationId} {
+      // Allow read for individual documents
+      allow get: if isAuthenticated() && 
+                    (resource.data.userId == request.auth.uid || 
+                     resource.data.businessId == request.auth.uid ||
+                     isAdmin());
+      
+      // Allow list queries for businesses and admins
+      // Businesses can list participations filtered by their businessId
+      allow list: if isAuthenticated() && (isBusiness() || isAdmin());
+      
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+                       (resource.data.userId == request.auth.uid || 
+                        resource.data.businessId == request.auth.uid);
+      allow delete: if false;
+    }
+    
+    // Check-ins collection - Customer location visits
+    match /checkIns/{checkInId} {
+      // Users can read their own check-ins (get individual doc)
+      // Businesses can read check-ins at their location (get individual doc)
+      // Admins can read all
+      allow get: if isAuthenticated() && 
+                    (resource.data.userId == request.auth.uid || 
+                     resource.data.businessId == request.auth.uid ||
+                     isAdmin());
+      
+      // Allow list queries for businesses and admins
+      // Businesses can list check-ins filtered by their businessId
+      allow list: if isAuthenticated() && (isBusiness() || isAdmin());
+      
+      // Authenticated users can create check-ins
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Users can update their own check-ins
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      allow delete: if false;
+    }
+    
+    // Conversations collection - participants can access
+    match /conversations/{conversationId} {
+      // Allow read if user is authenticated (list queries will be filtered by participants in query)
+      allow read: if isAuthenticated();
+      
+      // Allow create if authenticated and user is in participants list
+      allow create: if isAuthenticated() &&
+                       request.resource.data.participants.hasAny([request.auth.uid]);
+      
+      // Allow update if user is a participant (for updating lastMessage, etc)
+      allow update: if isAuthenticated() && 
+                       (resource.data.participants.hasAny([request.auth.uid]) ||
+                        request.resource.data.participants.hasAny([request.auth.uid]));
+      
+      // Allow delete if user is a participant
+      allow delete: if isAuthenticated() && 
+                       resource.data.participants.hasAny([request.auth.uid]);
+      
+      // Messages subcollection within conversations
+      match /messages/{messageId} {
+        // Allow read if user is authenticated (queries will filter by conversation)
+        allow read: if isAuthenticated();
+        
+        // Allow create if authenticated and senderId matches auth uid
+        allow create: if isAuthenticated() &&
+                         request.resource.data.senderId == request.auth.uid;
+        
+        // Allow update/delete of own messages
+        allow update, delete: if isAuthenticated() &&
+                                 resource.data.senderId == request.auth.uid;
+      }
+    }
+    
+    match /squads/{squadId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isBusiness();
+      allow delete: if false;
+    }
+    
+    // Customer Squads - City-based customer groups
+    match /customerSquads/{squadId} {
+      // Any authenticated user can read squads
+      allow read: if isAuthenticated();
+      
+      // Any authenticated customer can create or join a squad
+      allow create: if isAuthenticated();
+      
+      // Allow update if:
+      // 1. User is already a member (for updating meetups, challenges, attendance)
+      // 2. User is being added to members array (joining squad)
+      allow update: if isAuthenticated() && 
+                       (resource.data.members.hasAny([request.auth.uid]) ||
+                        request.resource.data.members.hasAny([request.auth.uid]));
+      
+      // No deletes
+      allow delete: if false;
+    }
+    
+    match /notifications/{notificationId} {
+      // Allow read if authenticated (checking userId in query)
+      allow read: if isAuthenticated();
+      
+      // Allow update/delete only for own notifications
+      allow update, delete: if isAuthenticated() && 
+                                     resource.data.userId == request.auth.uid;
+      
+      // Allow create from backend or authenticated users
+      allow create: if true;
+    }
+    
+    // Notification Preferences collection
+    match /notificationPreferences/{userId} {
+      // Users can read and write their own notification preferences
+      allow read, write: if isAuthenticated() && userId == request.auth.uid;
+      
+      // Authenticated users can read other users' preferences (needed for notifications)
+      allow read: if isAuthenticated();
+      
+      // Admins can read/write all preferences
+      allow read, write: if isAdmin();
+    }
+    
+    // Events collection
+    match /events/{eventId} {
+      allow read: if true; // Anyone can read events
+      allow create, update: if isBusiness();
+      allow delete: if isAuthenticated() && resource.data.businessId == request.auth.uid;
+    }
+    
+    // User progressions/analytics
+    match /progressions/{progressionId} {
+      // Allow users to read their own progression data
+      allow read: if isAuthenticated() && progressionId == request.auth.uid;
+      // Allow authenticated users to create/update their own progression
+      allow create, update: if isAuthenticated() && progressionId == request.auth.uid;
+      // Admins can read/write all
+      allow read, write: if isAdmin();
+      allow delete: if false;
+    }
+    
+    // Gamification - Daily streaks, challenges, leaderboards
+    match /gamification/{userId} {
+      // Users can read their own gamification data
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      // Users can create/update their own gamification data
+      allow create, update: if isAuthenticated() && userId == request.auth.uid;
+      // Admins can read/write all
+      allow read, write: if isAdmin();
+      allow delete: if false;
+    }
+    
+    // Customer Interactions - tracking check-ins and engagement
+    match /customerInteractions/{interactionId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated(); // Users can track their own interactions
+      allow delete: if false;
+    }
+    
+    // Meetup Chats - group chat for meetups
+    match /meetupChats/{chatId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+      
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAuthenticated();
+      }
+    }
+    
+    // User behavior tracking
+    match /userBehavior/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create, update: if isAuthenticated(); // Allow backend to update
+      allow delete: if false;
+    }
+    
+    // Analytics data
+    match /analytics/{analyticsId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid);
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+    
+    // Social connections
+    match /friendships/{friendshipId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    match /friendRequests/{requestId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+    
+    // Business followers
+    match /businessFollows/{followId} {
+      allow read: if true; // Anyone can see who follows a business
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    match /followers/{followerId} {
+      allow read: if true; // Anyone can see who follows a business
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Projects
+    match /projects/{projectId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+    
+    // ===== REWARDS & POINTS ECONOMY SECURITY RULES =====
+    
+    // Rewards collection - Businesses create rewards, anyone can read
+    match /rewards/{rewardId} {
+      // Anyone can read active rewards
+      allow read: if isAuthenticated();
+      
+      // Only businesses can create rewards, and businessId must match auth uid
+      allow create: if isAuthenticated() && 
+                       isBusiness() &&
+                       request.resource.data.businessId == request.auth.uid;
+      
+      // Business owner can update their rewards
+      // Customers can increment claimedCount when redeeming
+      allow update: if isAuthenticated() && 
+                       (resource.data.businessId == request.auth.uid ||
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedCount']));
+      
+      // Only the business owner can delete their rewards
+      allow delete: if isAuthenticated() && 
+                       resource.data.businessId == request.auth.uid;
+    }
+    
+    // Redemptions collection
+    match /redemptions/{redemptionId} {
+      // Customer can read their own redemptions
+      // Business can read redemptions of their rewards
+      // Admin can read all redemptions
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid ||
+                      isAdmin());
+      
+      // Authenticated users can create redemptions (userId must match)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Business can update redemption status (mark as used)
+      allow update: if isAuthenticated() && 
+                       resource.data.businessId == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'usedAt']);
+      
+      // No deletes
+      allow delete: if false;
+    }
+    
+    // Points Transactions collection
+    match /points_transactions/{transactionId} {
+      // Users can only read their own transaction history
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Authenticated users can create transactions for themselves
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // No updates or deletes (audit trail integrity)
+      allow update, delete: if false;
+    }
+    
+    // Points Purchases collection - BACKEND ONLY writes, read by business
+    match /points_purchases/{purchaseId} {
+      // Businesses can only read their own purchase history
+      allow read: if isAuthenticated() && 
+                     resource.data.businessId == request.auth.uid;
+      
+      // ONLY backend can write purchases
+      // Prevents fraudulent marketplace purchases
+      allow write: if false;
+    }
+    
+    // Reviews collection - Users can create reviews, anyone can read
+    match /reviews/{reviewId} {
+      // Anyone can read reviews
+      allow read: if true;
+      
+      // Authenticated users can create reviews
+      allow create: if isAuthenticated() &&
+                       request.resource.data.reviewerId == request.auth.uid;
+      
+      // Users can update their own reviews
+      allow update: if isAuthenticated() && 
+                       resource.data.reviewerId == request.auth.uid;
+      
+      // Users can delete their own reviews
+      allow delete: if isAuthenticated() && 
+                       resource.data.reviewerId == request.auth.uid;
+    }
+    
+    // Messages collection - Only participants can access
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.senderId == request.auth.uid || 
+                      resource.data.receiverId == request.auth.uid);
+      
+      allow create: if isAuthenticated() &&
+                       request.resource.data.senderId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       (resource.data.senderId == request.auth.uid || 
+                        resource.data.receiverId == request.auth.uid);
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.senderId == request.auth.uid;
+    }
+    
+    // User Settings/Preferences - Private to user
+    match /userSettings/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow write: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Blocked Users - Private to user
+    match /blockedUsers/{blockId} {
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // Reports/Flags - Anyone can create, admins can read
+    match /reports/{reportId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if false; // Admin only (handled server-side)
+    }
+    
+    // Admin-only collections
+    match /adminLogs/{logId} {
+      allow read, write: if false; // Backend only
+    }
+    
+    match /systemMetrics/{metricId} {
+      allow read, write: if false; // Backend only
+    }
+    
+    // Service Providers - Public read, authenticated write
+    match /service_providers/{providerId} {
+      // Anyone authenticated can read service providers
+      allow read: if isAuthenticated();
+      
+      // Service providers can create/update their own profiles
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // Premium Events - Public read, business write
+    match /premium_events/{eventId} {
+      // Anyone authenticated can read events
+      allow read: if isAuthenticated();
+      
+      // Businesses can create events
+      allow create: if isAuthenticated() && isBusiness();
+      
+      // Event creator can update/delete
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.organizerId == request.auth.uid;
+    }
+    
+    // Projects - Partnership projects for cost splitting
+    match /projects/{projectId} {
+      // Anyone authenticated can read projects
+      allow read: if isAuthenticated();
+      
+      // Businesses can create projects
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizerId == request.auth.uid;
+      
+      // Project organizer can update/delete
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.organizerId == request.auth.uid;
+    }
+    
+    // Level Up Requests - Admin approval for business level upgrades
+    match /levelUpRequests/{requestId} {
+      // Businesses can read their own requests, any admin can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.businessId == request.auth.uid || isAnyAdmin());
+      
+      // Businesses can create requests
+      allow create: if isAuthenticated() &&
+                       request.resource.data.businessId == request.auth.uid;
+      
+      // Any admin can update (approve/reject), only super admin can delete
+      allow update: if isAnyAdmin();
+      allow delete: if isSuperAdmin();
+    }
+    
+    // Verification Requests - Admin approval for business verification
+    match /verificationRequests/{requestId} {
+      // Businesses can read their own requests, any admin can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.userId == request.auth.uid || isAnyAdmin());
+      
+      // Businesses can create requests
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Any admin can update (approve/reject), only super admin can delete
+      allow update: if isAnyAdmin();
+      allow delete: if isSuperAdmin();
+    }
+    
+    // Instagram Follow Verifications
+    match /instagramFollowVerifications/{verificationId} {
+      // Users can read their own verifications
+      allow read: if isAuthenticated() &&
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Users can create verifications
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Only system can update
+      allow update: if true; // Webhook updates
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Top Creators & Regulars - Leaderboards
+    match /topCreators/{creatorId} {
+      allow read: if true; // Public leaderboard
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
+    match /topRegulars/{regularId} {
+      allow read: if true; // Public leaderboard
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
+    // RBAC: AdminUsers collection - Super Admin only
+    match /adminUsers/{adminId} {
+      // TEMPORARY: Allow all access for initial Super Admin creation
+      // TODO: Lock this down after Super Admin is created
+      allow read, write: if true;
+    }
+    
+    // RBAC: AdminLogs collection - Read-only for admins
+    match /adminLogs/{logId} {
+      allow read: if isAnyAdmin();
+      allow write: if false; // Only backend can write
+    }
+    
+    // Platform Settings - Super Admin only
+    match /platformSettings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin(); // Changed from isAdmin to isSuperAdmin
+    }
+    
+    // Admin Events - Platform-wide events created by admins
+    match /adminEvents/{eventId} {
+      // Anyone authenticated can read admin events
+      allow read: if isAuthenticated();
+      
+      // Any admin can create/update events
+      // Only super admin, country admin, or city admin can delete
+      allow create, update: if isAnyAdmin();
+      allow delete: if isSuperAdmin() || 
+                       hasAdminRole('COUNTRY_ADMIN') || 
+                       hasAdminRole('CITY_ADMIN');
+    }
+    
+    // Level 1 Subscriptions - Aspiring business subscriptions
+    match /level1Subscriptions/{userId} {
+      // Users can read their own subscription
+      allow read: if isAuthenticated() && 
+                     (userId == request.auth.uid || isAdmin());
+      
+      // Users can create their own subscription
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Users can update their own subscription
+      // Cloud functions can also update (for monthly resets)
+      allow update: if isAuthenticated() && 
+                       (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Level 2 Subscriptions - Established business subscriptions
+    match /level2Subscriptions/{userId} {
+      // Users can read their own subscription
+      allow read: if isAuthenticated() && 
+                     (userId == request.auth.uid || isAdmin());
+      
+      // Users can create their own subscription
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Users can update their own subscription
+      // Cloud functions can also update (for monthly resets)
+      allow update: if isAuthenticated() && 
+                       (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Event Registrations - Track user registrations for premium events
+    match /eventRegistrations/{registrationId} {
+      // Users can read their own registrations
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Users can create their own registrations
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Only admins can update/delete registrations
+      allow update, delete: if isAdmin();
+    }
+    
+    // Activity Proposals - Squad activity voting
+    match /activityProposals/{proposalId} {
+      // Squad members can read proposals for their conversations
+      allow read: if isAuthenticated();
+      
+      // Squad members can create proposals
+      allow create: if isAuthenticated() && 
+                       request.resource.data.proposedBy == request.auth.uid;
+      
+      // Squad members can update votes
+      allow update: if isAuthenticated();
+      
+      // Only proposal creator or admin can delete
+      allow delete: if isAuthenticated() && 
+                       (resource.data.proposedBy == request.auth.uid || isAdmin());
+    }
+    
+    // Website Feedback - Anonymous feedback from customers
+    match /websiteFeedback/{feedbackId} {
+      // Customers can create feedback
+      allow create: if isAuthenticated();
+      
+      // Business owners can read their own feedback
+      allow read: if isAuthenticated() && 
+                     (isBusiness() && resource.data.businessId == request.auth.uid) ||
+                     isAdmin();
+      
+      // No updates or deletes (feedback is permanent)
+      allow update, delete: if false;
+    }
+    
+    // Meetups collection
+    match /meetups/{meetupId} {
+      // Anyone can read meetups
+      allow read: if true;
+      
+      // Only admins, businesses, and creators can create meetups
+      allow create: if isAuthenticated() && (isAdmin() || isBusiness() || isCreatorAccount());
+      
+      // Owner or admin can update
+      allow update: if isAuthenticated() && (isAdmin() || 
+                       resource.data.organizerId == request.auth.uid);
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Collaboration offers collection
+    match /collaboration_offers/{offerId} {
+      // Anyone can read active offers
+      allow read: if true;
+      
+      // Authenticated users can create offers
+      allow create: if isAuthenticated();
+      
+      // Owner or admin can update/delete
+      allow update, delete: if isAuthenticated() && (isAdmin() || 
+                               resource.data.creatorId == request.auth.uid);
+    }
+    
+    // Collaboration requests collection
+    match /collaboration_requests/{requestId} {
+      // Only receiver can read their requests
+      allow read: if isAuthenticated() && 
+                     (resource.data.receiverId == request.auth.uid ||
+                      resource.data.senderId == request.auth.uid ||
+                      isAdmin());
+      
+      // Authenticated users can create requests
+      allow create: if isAuthenticated();
+      
+      // Owner or admin can update/delete
+      allow update, delete: if isAuthenticated() && (isAdmin() || 
+                               resource.data.senderId == request.auth.uid);
+    }
+    
+    // Participations collection (mission completions)
+    match /participations/{participationId} {
+      // Users can read their own participations, businesses can read participations for their missions
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid ||
+                      resource.data.businessId == request.auth.uid ||
+                      isAdmin());
+      
+      // System creates participations (through cloud functions or backend)
+      allow create: if isAuthenticated();
+      
+      // Only admin can update/delete
+      allow update, delete: if isAdmin();
+    }
+    
+    // Redemptions collection (reward redemptions)
+    match /redemptions/{redemptionId} {
+      // Users can read their own redemptions, businesses can read redemptions for their rewards
+      allow read: if isAuthenticated() && 
+                     (resource.data.customerId == request.auth.uid ||
+                      resource.data.businessId == request.auth.uid ||
+                      isAdmin());
+      
+      // Authenticated users can create redemptions
+      allow create: if isAuthenticated();
+      
+      // Business or admin can update (for fulfillment status)
+      allow update: if isAuthenticated() && (isAdmin() || 
+                       resource.data.businessId == request.auth.uid);
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Creator insights collection (tracking data for businesses)
+    match /creatorInsights/{insightId} {
+      // Businesses can read insights for their business
+      allow read: if isAuthenticated() && 
+                     (resource.data.businessId == request.auth.uid || isAdmin());
+      
+      // Only cloud functions can write (via Admin SDK)
+      allow write: if false;
+    }
+    
+    // Regular customer insights collection (tracking data for businesses)
+    match /regularInsights/{insightId} {
+      // Businesses can read insights for their business
+      allow read: if isAuthenticated() && 
+                     (resource.data.businessId == request.auth.uid || isAdmin());
+      
+      // Only cloud functions can write (via Admin SDK)
+      allow write: if false;
+    }
+    
+    // Mission Activations - Business mission configurations
+    match /missionActivations/{activationId} {
+      // Businesses can read their own mission activations
+      // Customers can read active mission configurations (needed for check-in verification)
+      // Format: {businessId}_MISSION_ID
+      allow read: if isAuthenticated() && 
+                     (activationId.matches('^' + request.auth.uid + '_.*') || 
+                      resource.data.businessId == request.auth.uid ||
+                      resource.data.isActive == true ||
+                      isAdmin());
+      
+      // Only cloud functions can write mission activations (via Admin SDK and activation endpoint)
+      allow create, update: if false;
+      
+      // No deletes
+      allow delete: if false;
+    }
+    
+    // Project Applications collection (creator applications to project roles)
+    match /projectApplications/{applicationId} {
+      // Creators can read their own applications
+      // Business owners can read applications for their projects
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid ||
+                      exists(/databases/$(database)/documents/projects/$(resource.data.projectId)) &&
+                      get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.leadBusinessId == request.auth.uid ||
+                      isAdmin());
+      
+      // Creators can create applications (must be authenticated and must be their own creatorId)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.creatorId == request.auth.uid &&
+                       request.resource.data.status == 'PENDING';
+      
+      // Creators can update their own applications (for withdrawing)
+      // Businesses can update applications for their projects (for accepting/rejecting)
+      allow update: if isAuthenticated() && 
+                       (
+                         // Creator withdrawing their own application
+                         (resource.data.creatorId == request.auth.uid &&
+                          resource.data.status == 'PENDING' &&
+                          request.resource.data.status == 'WITHDRAWN') ||
+                         // Business accepting/rejecting application for their project
+                         (exists(/databases/$(database)/documents/projects/$(resource.data.projectId)) &&
+                          get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.leadBusinessId == request.auth.uid &&
+                          resource.data.status == 'PENDING' &&
+                          request.resource.data.status in ['ACCEPTED', 'REJECTED']) ||
+                         // Admin can update anything
+                         isAdmin()
+                       );
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Creator Plus Subscriptions collection
+    match /creatorPlusSubscriptions/{userId} {
+      // Users can read their own subscription
+      // Admins can read all subscriptions
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid == userId || isAdmin());
+      
+      // Users can create their own subscription (must be ACTIVE status initially)
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == userId &&
+                       request.resource.data.status == 'ACTIVE' &&
+                       request.resource.data.tier == 'CREATOR_PLUS';
+      
+      // Users can update their own subscription (for cancellation or renewal)
+      // Admins can update any subscription
+      allow update: if isAuthenticated() && 
+                       (request.auth.uid == userId || isAdmin());
+      
+      // Subscriptions should never be deleted, only cancelled (set status to CANCELLED)
+      // Only admins can delete for exceptional cases
+      allow delete: if isAdmin();
+    }
+    
+    // Default deny for any unspecified collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

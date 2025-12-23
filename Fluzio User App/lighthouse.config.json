@@ -1,0 +1,54 @@
+{
+  "extends": "lighthouse:default",
+  "settings": {
+    "onlyCategories": ["performance", "accessibility", "best-practices", "seo"],
+    "skipAudits": ["uses-http2"],
+    "throttling": {
+      "rttMs": 40,
+      "throughputKbps": 10240,
+      "cpuSlowdownMultiplier": 1
+    },
+    "screenEmulation": {
+      "mobile": true,
+      "width": 412,
+      "height": 823,
+      "deviceScaleFactor": 2.625
+    }
+  },
+  "audits": [
+    "first-contentful-paint",
+    "largest-contentful-paint",
+    "cumulative-layout-shift",
+    "total-blocking-time",
+    "speed-index",
+    "interactive",
+    "bootup-time",
+    "mainthread-work-breakdown",
+    "network-requests",
+    "network-rtt",
+    "network-server-latency",
+    "font-display",
+    "resource-summary",
+    "third-party-summary",
+    "unused-css-rules",
+    "unused-javascript",
+    "modern-image-formats",
+    "uses-optimized-images",
+    "uses-text-compression",
+    "uses-rel-preconnect",
+    "efficient-animated-content"
+  ],
+  "categories": {
+    "performance": {
+      "title": "Performance",
+      "auditRefs": [
+        { "id": "first-contentful-paint", "weight": 10 },
+        { "id": "largest-contentful-paint", "weight": 25 },
+        { "id": "cumulative-layout-shift", "weight": 15 },
+        { "id": "total-blocking-time", "weight": 30 },
+        { "id": "speed-index", "weight": 10 },
+        { "id": "interactive", "weight": 10 }
+      ]
+    }
+  }
+}

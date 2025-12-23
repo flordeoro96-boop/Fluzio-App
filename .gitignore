@@ -1,0 +1,20 @@
+# dependencies & builds
+node_modules
+.next
+dist
+out
+
+# environment variables / secrets
+.env
+.env.local
+.env.*.local
+
+# firebase
+.firebase
+firebase-debug.log
+
+# editor & OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Super Admin - Fluzio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #6C4BFF; }
+        button {
+            background: #6C4BFF;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #5a3dd9; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { 
+            background: #e3f2fd; 
+            padding: 15px; 
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2196f3;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔴 Create Super Admin</h1>
+        
+        <div class="info">
+            <strong>UID:</strong> CJDGOcJEBJPDgMVyupbqFHYJxRi2<br>
+            <strong>Email:</strong> admin@fluzio.com<br>
+            <strong>Role:</strong> SUPER_ADMIN
+        </div>
+
+        <button onclick="checkIfExists()">1. Check if Admin Exists</button>
+        <button onclick="createAdmin()">2. Create Super Admin</button>
+        <button onclick="viewAllAdmins()">3. View All Admins</button>
+
+        <div id="output" style="margin-top: 20px;"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCmh-gI9u3sEE6ArzqYW1DWfR_rcdI3gjg",
+            authDomain: "fluzio-13af2.firebaseapp.com",
+            projectId: "fluzio-13af2",
+            storageBucket: "fluzio-13af2.firebasestorage.app",
+            messagingSenderId: "828439477852",
+            appId: "1:828439477852:web:1d23c0dd5f98b17b0d6ed1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        function output(message, type = 'info') {
+            const div = document.getElementById('output');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
+            div.innerHTML += `<p class="${className}">${message}</p>`;
+        }
+
+        window.checkIfExists = async function() {
+            document.getElementById('output').innerHTML = '<p>🔍 Checking if admin exists...</p>';
+            
+            try {
+                const adminDoc = await getDoc(doc(db, 'adminUsers', 'CJDGOcJEBJPDgMVyupbqFHYJxRi2'));
+                
+                if (adminDoc.exists()) {
+                    output('✅ Admin document EXISTS!', 'success');
+                    output('Admin Data:', 'success');
+                    output('<pre>' + JSON.stringify(adminDoc.data(), null, 2) + '</pre>');
+                } else {
+                    output('❌ Admin document DOES NOT EXIST', 'error');
+                    output('Click "2. Create Super Admin" to create it', 'info');
+                }
+            } catch (error) {
+                output('❌ Error checking admin: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+
+        window.createAdmin = async function() {
+            document.getElementById('output').innerHTML = '<p>🔧 Creating Super Admin...</p>';
+            
+            try {
+                const adminData = {
+                    userId: 'CJDGOcJEBJPDgMVyupbqFHYJxRi2',
+                    email: 'admin@fluzio.com',
+                    role: 'SUPER_ADMIN',
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                    createdBy: 'SYSTEM_INIT',
+                    lastLoginAt: new Date().toISOString(),
+                    notes: 'Initial Super Admin created via setup tool'
+                };
+
+                await setDoc(doc(db, 'adminUsers', 'CJDGOcJEBJPDgMVyupbqFHYJxRi2'), adminData);
+                
+                output('✅ Super Admin created successfully!', 'success');
+                output('Admin Data:', 'success');
+                output('<pre>' + JSON.stringify(adminData, null, 2) + '</pre>');
+                output('🎉 You can now log in with admin@fluzio.com', 'success');
+                
+            } catch (error) {
+                output('❌ Error creating admin: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+
+        window.viewAllAdmins = async function() {
+            document.getElementById('output').innerHTML = '<p>📋 Loading all admins...</p>';
+            
+            try {
+                const snapshot = await getDocs(collection(db, 'adminUsers'));
+                
+                if (snapshot.empty) {
+                    output('⚠️ No admins found in collection', 'error');
+                } else {
+                    output(`✅ Found ${snapshot.size} admin(s):`, 'success');
+                    snapshot.forEach(doc => {
+                        output('<pre>' + JSON.stringify({ id: doc.id, ...doc.data() }, null, 2) + '</pre>');
+                    });
+                }
+            } catch (error) {
+                output('❌ Error loading admins: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>

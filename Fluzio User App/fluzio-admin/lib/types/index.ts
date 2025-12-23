@@ -1,0 +1,478 @@
+// Core TypeScript types for Fluzio Admin
+import { Timestamp } from 'firebase/firestore';
+
+// ============ ADMIN ROLES ============
+export enum AdminRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  COUNTRY_ADMIN = 'COUNTRY_ADMIN',
+  FINANCE = 'FINANCE',
+  MODERATOR = 'MODERATOR',
+  OPS_SUPPORT = 'OPS_SUPPORT',
+  ANALYST_READONLY = 'ANALYST_READONLY',
+}
+
+export type AdminStatus = 'ACTIVE' | 'SUSPENDED';
+
+export interface Admin {
+  uid: string;
+  email: string;
+  role: AdminRole;
+  countryScopes: string[]; // ["GLOBAL"] or ["DE", "AE"]
+  status: AdminStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============ COUNTRY ============
+export enum CountryStatus {
+  SETUP = 'SETUP',
+  PENDING_LAUNCH = 'PENDING_LAUNCH',
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+}
+
+export interface LaunchChecklistItem {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  completedAt?: Date;
+  completedBy?: string;
+  required: boolean;
+}
+
+export interface Country {
+  id: string;
+  code: string; // "DE", "AE"
+  name: string;
+  flag?: string;
+  status: CountryStatus;
+  currency: string;
+  language: string;
+  timezone: string;
+
+  settings?: {
+    enableBusinessVerification?: boolean;
+    enableCreatorPayouts?: boolean;
+    enableEvents?: boolean;
+    autoApproveMissions?: boolean;
+  };
+
+  stats?: {
+    totalUsers: number;
+    activeBusinesses: number;
+    verifiedCreators: number;
+    activeMissions: number;
+  };
+
+  launchChecklist: LaunchChecklistItem[];
+  launchedAt?: Date;
+  suspensionReason?: string;
+  suspendedAt?: Date;
+  suspendedBy?: string;
+  
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+  updatedBy?: string;
+}
+
+// Legacy country interface for backward compatibility
+export interface LegacyCountry {
+  countryId: string; // "DE", "AE"
+  name: string;
+  status: 'PLANNED' | 'PRE_LAUNCH' | 'SOFT_LAUNCH' | 'OFFICIAL' | 'ACTIVE' | 'SCALE' | 'PAUSED';
+  currency: string;
+  language: string;
+  timeZone: string;
+
+  featureFlags: {
+    publicSignupEnabled: boolean;
+    missionsEnabled: boolean;
+    eventsEnabled: boolean;
+    payoutAutomationEnabled: boolean;
+    marketingToolsEnabled: boolean;
+  };
+
+  fees: {
+    subscription?: number;
+    commissionPct?: number;
+    eventTicketFeePct?: number;
+  };
+
+  payoutRules: {
+    minPayoutAmount: number;
+    newCreatorHoldDays: number;
+  };
+
+  moderationThresholds: {
+    strikeLimit: number;
+    autoSuspendDisputeRate: number;
+  };
+
+  allowedMissionTypes: string[];
+  allowedEventTypes: string[];
+
+  launch: {
+    readinessScore: number; // 0-100
+    launchDate?: Timestamp;
+    checklistByPhase: {
+      [phase: string]: {
+        items: ChecklistItem[];
+      };
+    };
+  };
+
+  admins: string[]; // adminIds
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  ownerAdminId?: string;
+  completed: boolean;
+  completedAt?: Timestamp;
+}
+
+// ============ BUSINESS ============
+export enum BusinessTier {
+  FREE = 'FREE',
+  SILVER = 'SILVER',
+  GOLD = 'GOLD',
+  PLATINUM = 'PLATINUM',
+}
+
+export enum VerificationStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+export interface Business {
+  id: string;
+  countryCode: string;
+  name: string;
+  industry: string;
+  description?: string;
+  
+  // Tier & Status
+  tier: BusinessTier;
+  status: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  verified: boolean;
+  verificationStatus: VerificationStatus;
+  verificationNotes?: string;
+  
+  // Contact
+  email: string;
+  phoneNumber?: string;
+  website?: string;
+  address?: string;
+  
+  // Owner
+  ownerName: string;
+  ownerEmail: string;
+  
+  // Metrics
+  stats: {
+    totalMissions: number;
+    activeMissions: number;
+    totalRedemptions: number;
+    totalSpent: number;
+  };
+  
+  // Moderation
+  riskScore: number; // 0-100
+  disputeCount: number;
+  suspensionReason?: string;
+  suspendedAt?: Date;
+  suspendedBy?: string;
+  
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+  verifiedAt?: Date;
+  verifiedBy?: string;
+}
+
+// ============ CREATOR ============
+export interface Creator {
+  id: string;
+  userId: string; // Reference to User document
+  countryCode: string;
+  
+  // Profile
+  displayName: string;
+  bio?: string;
+  profilePhoto?: string;
+  
+  // Status
+  verified: boolean;
+  verificationStatus: VerificationStatus;
+  verificationNotes?: string;
+  status: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  
+  // Social Media
+  instagramHandle?: string;
+  instagramFollowers?: number;
+  instagramVerified?: boolean;
+  tiktokHandle?: string;
+  tiktokFollowers?: number;
+  youtubeHandle?: string;
+  youtubeSubscribers?: number;
+  
+  // Performance
+  trustScore: number; // 0-100
+  riskScore: number; // 0-100
+  
+  // Stats
+  stats: {
+    totalMissions: number;
+    completedMissions: number;
+    totalEarnings: number;
+    pendingPayout: number;
+    averageRating: number;
+    totalReviews: number;
+  };
+  
+  // Payouts
+  payoutFrozen: boolean;
+  payoutFrozenReason?: string;
+  
+  // Moderation
+  disputeCount: number;
+  suspensionReason?: string;
+  suspendedAt?: Date;
+  suspendedBy?: string;
+  
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+  verifiedAt?: Date;
+  verifiedBy?: string;
+}
+
+// ============ CUSTOMER ============
+export interface Customer {
+  id: string;
+  countryId: string;
+  displayName?: string;
+  consent: {
+    marketing: boolean;
+  };
+  status: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============ MISSION ============
+export type MissionStatus =
+  | 'DRAFT'
+  | 'LIVE'
+  | 'COMPLETED'
+  | 'DISPUTED'
+  | 'CANCELLED';
+
+export interface Mission {
+  id: string;
+  countryId: string;
+  businessId: string;
+  creatorIds: string[];
+  status: MissionStatus;
+  missionType: string;
+  budget: number;
+  dispute: {
+    isDisputed: boolean;
+    reason?: string;
+    resolution?: {
+      refundPercent?: number;
+      payoutAction?: 'HOLD' | 'RELEASE' | 'PARTIAL';
+      adminReason?: string;
+      resolvedAt?: Timestamp;
+    };
+  };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============ EVENT ============
+export type EventType = 'FUN_MEETUP' | 'BUSINESS_EVENT' | 'HYBRID';
+export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED';
+export type TicketMode = 'FREE' | 'PAID';
+
+export interface Event {
+  id: string;
+  countryId: string;
+  type: EventType;
+  title: string;
+  organizerBusinessId?: string;
+  capacity: number;
+  budget?: number;
+  ticketing: {
+    mode: TicketMode;
+    price?: number;
+    tierGate?: string[];
+  };
+  attendanceCount: number;
+  status: EventStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============ TRANSACTION ============
+export type TransactionType =
+  | 'SUBSCRIPTION'
+  | 'MISSION_PAYMENT'
+  | 'EVENT_TICKET'
+  | 'PAYOUT'
+  | 'REFUND'
+  | 'FEE';
+
+export type EntityType = 'BUSINESS' | 'CUSTOMER' | 'PLATFORM' | 'CREATOR';
+
+export interface Transaction {
+  id: string;
+  countryId: string;
+  type: TransactionType;
+  amount: number;
+  currency: string;
+  sourceEntityType: EntityType;
+  sourceEntityId: string;
+  destEntityType: EntityType;
+  destEntityId: string;
+  meta?: Record<string, any>;
+  createdAt: Timestamp;
+}
+
+// ============ PAYOUT ============
+export type PayoutStatus = 'PENDING' | 'HELD' | 'FAILED' | 'PAID';
+
+export interface Payout {
+  id: string;
+  countryId: string;
+  creatorId: string;
+  amount: number;
+  currency: string;
+  status: PayoutStatus;
+  failReason?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============ MODERATION ============
+export type ModerationReportStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED';
+export type ModerationEntityType = 'BUSINESS' | 'CREATOR' | 'MISSION' | 'EVENT';
+
+export interface ModerationReport {
+  id: string;
+  countryId: string;
+  entityType: ModerationEntityType;
+  entityId: string;
+  reason: string;
+  status: ModerationReportStatus;
+  strikesAdded?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============ POLICY (Governance) ============
+export interface Policy {
+  id: string;
+  version: number;
+  thresholds: {
+    eventApprovalLimit: number; // e.g., 20000
+    payoutReleaseTrustMin: number; // e.g., 70
+    highRiskScore: number; // e.g., 80
+  };
+  updatedAt: Timestamp;
+  updatedByAdminId: string;
+}
+
+// ============ AUDIT LOG ============
+export interface AuditLog {
+  id: string;
+  actorAdminId: string;
+  actorRole: string;
+  countryScopeUsed?: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  before?: Record<string, any>;
+  after?: Record<string, any>;
+  reason?: string;
+  createdAt: Timestamp;
+}
+
+// ============ USER ============
+export enum UserRole {
+  CUSTOMER = 'CUSTOMER',
+  CREATOR = 'CREATOR',
+}
+
+export interface User {
+  id: string;
+  email: string;
+  phoneNumber?: string;
+  displayName: string;
+  profilePhoto?: string;
+  role: UserRole;
+  countryCode: string;
+  
+  // Account status
+  status: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  kycVerified: boolean;
+  
+  // Points & Activity
+  totalPoints: number;
+  lifetimePoints: number;
+  currentStreak: number;
+  longestStreak: number;
+  
+  // Stats
+  stats: {
+    missionsCompleted: number;
+    eventsAttended: number;
+    rewardsRedeemed: number;
+    referralsCount: number;
+  };
+  
+  // Creator-specific (if role is CREATOR)
+  creatorProfile?: {
+    verified: boolean;
+    trustScore: number;
+    instagramHandle?: string;
+    instagramFollowers?: number;
+    tiktokHandle?: string;
+    youtubeHandle?: string;
+    totalEarnings: number;
+    pendingPayout: number;
+  };
+  
+  // Moderation
+  strikes: number;
+  lastStrikeAt?: Date;
+  suspensionReason?: string;
+  suspendedAt?: Date;
+  suspendedBy?: string;
+  
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt?: Date;
+}
+
+// ============ POLICY ENGINE ============
+export interface PolicyContext {
+  entity?: any;
+  admin?: Admin;
+  thresholds?: Policy['thresholds'];
+  [key: string]: any;
+}
+
+export interface PolicyDecision {
+  allowed: boolean;
+  reason?: string;
+}

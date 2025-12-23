@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Missions - Add isCreatorOnly Field</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .instructions {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 10px 0;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Mission Visibility Fix</h1>
+        <p class="subtitle">Add isCreatorOnly field to all missions manually via Firebase Console</p>
+        
+        <div class="instructions">
+            <h3>📋 Quick Fix Instructions (5 minutes):</h3>
+            <ol>
+                <li>Open <a href="https://console.firebase.google.com/project/fluzio-13af2/firestore/databases/-default-/data/~2Fmissions" target="_blank">Firebase Console - Missions Collection</a></li>
+                <li>Click on each mission document (you should see 12 missions)</li>
+                <li>For each mission that's missing <span class="code">isCreatorOnly</span> field:
+                    <ul>
+                        <li>Click "Add field" button</li>
+                        <li>Field name: <span class="code">isCreatorOnly</span></li>
+                        <li>Type: <strong>boolean</strong></li>
+                        <li>Value: <strong>false</strong></li>
+                        <li>Click "Add"</li>
+                    </ul>
+                </li>
+                <li>Repeat for all missions</li>
+                <li>Done! Test by logging in as customer and checking missions list</li>
+            </ol>
+            
+            <p><strong>Why this is needed:</strong> Missions created by businesses (like "flor de oro") don't have the <span class="code">isCreatorOnly</span> field, so the Firestore query filters them out when customers try to view missions.</p>
+            
+            <p><strong>After fixing:</strong> All future missions will automatically have this field (already fixed in code ✅), and existing missions will be visible once you add the field.</p>
+        </div>
+    </div>
+</body>
+</html>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .info { background: #e3f2fd; color: #1976d2; }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        .error { background: #ffebee; color: #c62828; }
+        .warning { background: #fff3e0; color: #f57c00; }
+        .mission-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .mission-title {
+            font-weight: bold;
+            color: #333;
+        }
+        .mission-business {
+            color: #666;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+        .mission-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .status-fixed { background: #4caf50; color: white; }
+        .status-pending { background: #ff9800; color: white; }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Mission Visibility Fix</h1>
+        <p class="subtitle">Add isCreatorOnly field to all missions so they're visible to customers</p>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Admin Email:</label>
+            <input type="email" id="emailInput" value="admin@fluzio.com" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; margin-bottom: 10px;">
+            
+            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Admin Password:</label>
+            <input type="password" id="passwordInput" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px;">
+        </div>
+        
+        <button id="loginBtn" onclick="loginAsAdmin()">1. Login as Admin</button>
+        <button id="fixBtn" onclick="fixMissions()" disabled>2. Fix All Missions</button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, getDocs, doc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCmh-gI9u3sEE6ArzqYW1DWfR_rcdI3gjg",
+            authDomain: "fluzio-13af2.firebaseapp.com",
+            projectId: "fluzio-13af2",
+            storageBucket: "fluzio-13af2.firebasestorage.app",
+            messagingSenderId: "828439477852",
+            appId: "1:828439477852:web:1d23c0dd5f98b17b0d6ed1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.loginAsAdmin = async function() {
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            
+            if (!email || !password) {
+                alert('Please enter both email and password');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'info';
+            statusDiv.innerHTML = '🔄 Logging in...';
+            
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                statusDiv.className = 'success';
+                statusDiv.innerHTML = '✅ Logged in as: ' + email;
+                document.getElementById('fixBtn').disabled = false;
+                document.getElementById('loginBtn').textContent = '✓ Logged In';
+            } catch (error) {
+                statusDiv.className = 'error';
+                statusDiv.innerHTML = '❌ Login failed: ' + error.message;
+                console.error('Login error:', error);
+            }
+        };
+
+        window.fixMissions = async function() {
+            const statusDiv = document.getElementById('status');
+            const fixBtn = document.getElementById('fixBtn');
+            
+            fixBtn.disabled = true;
+            statusDiv.className = 'info';
+            statusDiv.innerHTML = '🔄 Fetching missions from database...<br><br>';
+            
+            try {
+                const missionsRef = collection(db, 'missions');
+                const snapshot = await getDocs(missionsRef);
+                
+                statusDiv.innerHTML += `Found ${snapshot.size} missions in database<br><br>`;
+                
+                let updatedCount = 0;
+                let alreadySetCount = 0;
+                let errorCount = 0;
+                let missionsHTML = '';
+                
+                for (const missionDoc of snapshot.docs) {
+                    const data = missionDoc.data();
+                    const missionTitle = data.title || 'Untitled';
+                    const businessName = data.businessName || 'Unknown Business';
+                    
+                    missionsHTML += `<div class="mission-item">
+                        <div class="mission-title">${missionTitle}</div>
+                        <div class="mission-business">Business: ${businessName} | Status: ${data.lifecycleStatus || 'N/A'}</div>`;
+                    
+                    // Check if isCreatorOnly field exists
+                    if (data.isCreatorOnly === undefined || data.isCreatorOnly === null) {
+                        try {
+                            await updateDoc(doc(db, 'missions', missionDoc.id), {
+                                isCreatorOnly: false
+                            });
+                            
+                            missionsHTML += `<span class="mission-status status-fixed">✅ FIXED - Added isCreatorOnly: false</span>`;
+                            updatedCount++;
+                        } catch (error) {
+                            missionsHTML += `<span class="mission-status status-pending">❌ ERROR: ${error.message}</span>`;
+                            errorCount++;
+                        }
+                    } else {
+                        missionsHTML += `<span class="mission-status status-fixed">✓ Already has isCreatorOnly: ${data.isCreatorOnly}</span>`;
+                        alreadySetCount++;
+                    }
+                    
+                    missionsHTML += '</div>';
+                }
+                
+                statusDiv.className = updatedCount > 0 ? 'success' : 'info';
+                statusDiv.innerHTML = `
+                    <strong>🎉 Mission Fix Complete!</strong><br><br>
+                    <strong>Summary:</strong><br>
+                    Total missions: ${snapshot.size}<br>
+                    ✅ Updated: ${updatedCount}<br>
+                    ✓ Already set: ${alreadySetCount}<br>
+                    ${errorCount > 0 ? `❌ Errors: ${errorCount}<br>` : ''}
+                    <br><br>
+                    ${missionsHTML}
+                    <br><br>
+                    ${updatedCount > 0 ? '<strong>🎉 All business missions should now be visible to customer accounts!</strong><br>Test by logging in as a customer and checking the missions list.' : ''}
+                `;
+            } catch (error) {
+                statusDiv.className = 'error';
+                statusDiv.innerHTML = '❌ Error: ' + error.message + '<br><br>Make sure you are logged in as admin.';
+            } finally {
+                fixBtn.disabled = false;
+            }
+        };
+
+        // Check if already logged in
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('status').className = 'success';
+                document.getElementById('status').innerHTML = '✅ Already logged in as: ' + user.email;
+                document.getElementById('fixBtn').disabled = false;
+                document.getElementById('loginBtn').textContent = '✓ Logged In';
+            }
+        });
+    </script>
+</body>
+</html>

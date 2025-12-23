@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Super Admin - Fluzio RBAC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        
+        .step h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .step p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin: 15px 0;
+        }
+        
+        label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-size: 12px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .code-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            overflow-x: auto;
+            white-space: pre;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .code-output.show {
+            display: block;
+        }
+        
+        .copy-btn {
+            background: #28a745;
+            padding: 8px 16px;
+            font-size: 14px;
+            margin-top: 10px;
+            width: auto;
+        }
+        
+        .copy-btn:hover {
+            background: #218838;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .success.show {
+            display: block;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 20px;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #17a2b8;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Create Super Admin</h1>
+        <p class="subtitle">Fluzio RBAC System - Initial Setup</p>
+        
+        <div class="warning">
+            <strong>⚠️ Important:</strong> You must be logged into Fluzio to get your user ID. Open the app first and check the console for your UID.
+        </div>
+        
+        <div class="step">
+            <h3>Step 1: Get Your User ID</h3>
+            <p>Open Fluzio in another tab, open browser console (F12), and run:</p>
+            <div class="code-output show">firebase.auth().currentUser.uid</div>
+            
+            <div class="input-group">
+                <label>Your Firebase User ID:</label>
+                <input type="text" id="userId" placeholder="e.g., abc123xyz456..." />
+            </div>
+            
+            <div class="input-group">
+                <label>Your Email:</label>
+                <input type="email" id="userEmail" placeholder="admin@fluzio.com" />
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Generate Firestore Document</h3>
+            <p>Click the button below to generate the JSON for your Super Admin document:</p>
+            <button onclick="generateAdminDoc()">Generate Super Admin Document</button>
+            
+            <div class="code-output" id="firestoreDoc"></div>
+            <button class="copy-btn" id="copyBtn" onclick="copyToClipboard()" style="display: none;">
+                📋 Copy to Clipboard
+            </button>
+            
+            <div class="info" id="instructionsBox" style="display: none;">
+                <strong>Next Steps:</strong><br>
+                1. Go to <a href="https://console.firebase.google.com/project/fluzio-13af2/firestore" target="_blank">Firebase Console</a><br>
+                2. Navigate to Firestore Database → adminUsers collection<br>
+                3. Click "Add Document"<br>
+                4. Set Document ID to your User ID (shown above)<br>
+                5. Paste the JSON fields above<br>
+                6. Click Save
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Firebase Console Command (Alternative)</h3>
+            <p>Or paste this into Firebase Console's Cloud Firestore → Run Query:</p>
+            <button onclick="generateFirebaseCommand()">Generate Firebase Console Command</button>
+            <textarea id="firebaseCommand" readonly style="display: none;"></textarea>
+        </div>
+        
+        <div class="success" id="successMsg">
+            <strong>✅ Success!</strong> Your Super Admin document has been generated. Follow the instructions above to add it to Firestore.
+        </div>
+    </div>
+
+    <script type="module">
+        window.generateAdminDoc = function() {
+            const userId = document.getElementById('userId').value.trim();
+            const userEmail = document.getElementById('userEmail').value.trim();
+            
+            if (!userId) {
+                alert('Please enter your User ID');
+                return;
+            }
+            
+            if (!userEmail) {
+                alert('Please enter your email');
+                return;
+            }
+            
+            const now = new Date().toISOString();
+            
+            const adminDoc = {
+                userId: userId,
+                email: userEmail,
+                role: "SUPER_ADMIN",
+                isActive: true,
+                createdAt: now,
+                createdBy: "SYSTEM_INIT",
+                lastLoginAt: now,
+                notes: "Initial Super Admin created during RBAC implementation"
+            };
+            
+            const docElement = document.getElementById('firestoreDoc');
+            docElement.textContent = JSON.stringify(adminDoc, null, 2);
+            docElement.classList.add('show');
+            
+            document.getElementById('copyBtn').style.display = 'inline-block';
+            document.getElementById('instructionsBox').style.display = 'block';
+            document.getElementById('successMsg').classList.add('show');
+        };
+        
+        window.generateFirebaseCommand = function() {
+            const userId = document.getElementById('userId').value.trim();
+            const userEmail = document.getElementById('userEmail').value.trim();
+            
+            if (!userId) {
+                alert('Please enter your User ID');
+                return;
+            }
+            
+            if (!userEmail) {
+                alert('Please enter your email');
+                return;
+            }
+            
+            const now = new Date().toISOString();
+            
+            const command = `// Paste this into Firebase Console Cloud Shell
+const admin = require('firebase-admin');
+const db = admin.firestore();
+
+db.collection('adminUsers').doc('${userId}').set({
+  userId: '${userId}',
+  email: '${userEmail}',
+  role: 'SUPER_ADMIN',
+  isActive: true,
+  createdAt: '${now}',
+  createdBy: 'SYSTEM_INIT',
+  lastLoginAt: '${now}',
+  notes: 'Initial Super Admin created during RBAC implementation'
+}).then(() => {
+  console.log('Super Admin created successfully!');
+}).catch((error) => {
+  console.error('Error creating Super Admin:', error);
+});`;
+            
+            const cmdElement = document.getElementById('firebaseCommand');
+            cmdElement.value = command;
+            cmdElement.style.display = 'block';
+        };
+        
+        window.copyToClipboard = function() {
+            const text = document.getElementById('firestoreDoc').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copyBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        };
+    </script>
+</body>
+</html>

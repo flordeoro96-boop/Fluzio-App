@@ -1,0 +1,437 @@
+/**
+ * Business Squad Screen
+ * Cycle-based collaboration groups for local businesses
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  Users,
+  MessageCircle,
+  Plus,
+  ChevronRight,
+  Sparkles,
+  Coffee,
+  Repeat,
+  Lightbulb,
+  CheckCircle
+} from 'lucide-react';
+import { User, Squad as SquadType } from '../../types';
+import { getSquadForUser } from '../../services/squadService';
+import { getUserById } from '../../services/userService';
+import { createConversation, getConversations, getConversationData } from '../../services/conversationService';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../services/AuthContext';
+
+interface BusinessSquadScreenProps {
+  user: User;
+  onNavigate: (route: string) => void;
+}
+
+interface SquadDisplay {
+  id: string;
+  name: string;
+  city: string;
+  cycle: string;
+  nextMatch: string;
+  cycleEnd: string;
+  currentMembers: number;
+  maxMembers: number;
+  members: SquadMember[];
+  hasGroupChat: boolean;
+  chatId?: string | null;
+}
+
+interface SquadMember {
+  id: string;
+  name: string;
+  avatar: string;
+  businessName?: string;
+}
+
+interface ActivitySuggestion {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  emoji: string;
+}
+
+const activitySuggestions: ActivitySuggestion[] = [
+  {
+    id: '1',
+    title: 'Host a Coffee Meetup',
+    description: 'Meet at a local coffee shop to share ideas.',
+    icon: 'coffee',
+    emoji: '☕'
+  },
+  {
+    id: '2',
+    title: 'Cross-Promote Each Other',
+    description: "Highlight each other's businesses on social media.",
+    icon: 'repeat',
+    emoji: '🔄'
+  },
+  {
+    id: '3',
+    title: 'Organize a Mini Workshop',
+    description: 'Hold a workshop to exchange expertise.',
+    icon: 'lightbulb',
+    emoji: '💡'
+  }
+];
+
+export const BusinessSquadScreen: React.FC<BusinessSquadScreenProps> = ({
+  user,
+  onNavigate
+}) => {
+  const [squad, setSquad] = useState<SquadDisplay | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<ActivitySuggestion[]>([]);
+
+  useEffect(() => {
+    loadSquadData();
+  }, [user.id]);
+
+  const loadSquadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch real squad data from Firestore
+      const squadData = await getSquadForUser(user.id);
+      
+      if (!squadData) {
+        // Create display squad if user doesn't have one yet
+        const displaySquad: SquadDisplay = {
+          id: 'pending',
+          name: `${user.currentCity || 'Munich'} Squad`,
+          city: user.currentCity || 'Munich',
+          cycle: 'December Cycle',
+          nextMatch: 'Dec 5',
+          cycleEnd: 'Dec 31',
+          currentMembers: 1,
+          maxMembers: 4,
+          members: [
+            {
+              id: user.id,
+              name: user.name,
+              avatar: user.avatarUrl
+            }
+          ],
+          hasGroupChat: false,
+          chatId: null
+        };
+        setSquad(displaySquad);
+        return;
+      }
+
+      // Convert Firestore squad to display format
+      const memberDetails = await Promise.all(
+        squadData.members.map(async (memberId) => {
+          const memberUser = await getUserById(memberId);
+          return {
+            id: memberId,
+            name: memberUser?.name || 'Unknown',
+            avatar: memberUser?.avatarUrl || '',
+            businessName: memberUser?.name || 'Unknown Business'
+          };
+        })
+      );
+
+      const displaySquad: SquadDisplay = {
+        id: squadData.id,
+        name: `${user.currentCity || 'Munich'} Squad`,
+        city: user.currentCity || 'Munich',
+        cycle: squadData.month || 'December Cycle',
+        nextMatch: (squadData.schedule as any)?.nextMatch || 'TBD',
+        cycleEnd: (squadData.schedule as any)?.cycleEnd || 'Dec 31',
+        currentMembers: squadData.members.length,
+        maxMembers: 4,
+        members: memberDetails,
+        hasGroupChat: !!squadData.chatId,
+        chatId: squadData.chatId
+      };
+
+      setSquad(displaySquad);
+    } catch (error) {
+      console.error('[BusinessSquad] Error loading squad:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAISuggestions = async () => {
+    if (!squad || loadingAI) return;
+    
+    setLoadingAI(true);
+    try {
+      const response = await fetch('https://us-central1-fluzio-13af2.cloudfunctions.net/suggestsquadactivity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city: squad.city,
+          month: squad.cycle,
+          squadSize: squad.currentMembers,
+          previousActivities: []
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.funMeetup && data.workMeetup) {
+        // Combine fun and work suggestions
+        const suggestions: ActivitySuggestion[] = [];
+        
+        data.funMeetup.suggestions?.forEach((s: any, idx: number) => {
+          suggestions.push({
+            id: `fun-${idx}`,
+            title: s.title,
+            description: s.description,
+            icon: 'coffee',
+            emoji: '☕'
+          });
+        });
+        
+        data.workMeetup.suggestions?.forEach((s: any, idx: number) => {
+          suggestions.push({
+            id: `work-${idx}`,
+            title: s.title,
+            description: s.description,
+            icon: 'lightbulb',
+            emoji: '💡'
+          });
+        });
+        
+        setAiSuggestions(suggestions.slice(0, 3)); // Show top 3
+      }
+    } catch (error) {
+      console.error('[Squad] Error getting AI suggestions:', error);
+      alert('Failed to generate suggestions. Please try again.');
+    } finally {
+      setLoadingAI(false);
+    }
+  };
+
+  const getIconForActivity = (iconName: string) => {
+    switch (iconName) {
+      case 'coffee': return Coffee;
+      case 'repeat': return Repeat;
+      case 'lightbulb': return Lightbulb;
+      default: return Sparkles;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white pb-24">
+      {/* My Squad Content */}
+      {squad && (
+        <div className="p-4 space-y-4">
+          {/* Squad Card */}
+          <div className="bg-gradient-to-br from-blue-400 via-purple-400 to-purple-500 rounded-3xl p-6 text-white shadow-xl">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  {squad.name}
+                  <CheckCircle className="w-5 h-5" />
+                </h2>
+                <p className="text-white/90 text-lg font-medium">{squad.cycle}</p>
+              </div>
+              <div className="bg-white/30 backdrop-blur-sm px-4 py-2 rounded-full">
+                <p className="text-sm font-semibold">
+                  {squad.currentMembers}/{squad.maxMembers}
+                </p>
+                <p className="text-xs">Members</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 text-sm mb-4 text-white/90">
+              <span>Next match: {squad.nextMatch}</span>
+              <span>|</span>
+              <span>Cycle ends: {squad.cycleEnd}</span>
+            </div>
+
+            {/* Member Avatars */}
+            <div className="flex items-center gap-4">
+              <div className="flex -space-x-3">
+                {squad.members.map((member) => (
+                  <img
+                    key={member.id}
+                    src={member.avatar}
+                    alt={member.name}
+                    className="w-12 h-12 rounded-full border-4 border-white object-cover"
+                  />
+                ))}
+                {[...Array(squad.maxMembers - squad.currentMembers)].map((_, idx) => (
+                  <div
+                    key={`placeholder-${idx}`}
+                    className="w-12 h-12 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm flex items-center justify-center"
+                  >
+                    <Users className="w-5 h-5 text-white/50" />
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={async () => {
+                  if (!squad || !user.id) return;
+                  
+                  try {
+                    let chatId = squad.chatId;
+                    
+                    // Check if conversation exists
+                    if (chatId) {
+                      const existingConversation = await getConversationData(chatId);
+                      if (!existingConversation) {
+                        console.log('[Squad] Chat ID exists but conversation missing, recreating...');
+                        chatId = null;
+                      }
+                    }
+                    
+                    // Create group chat if it doesn't exist
+                    if (!chatId) {
+                      console.log('[Squad] Creating squad group chat...');
+                      
+                      const participantIds = squad.members.map(m => m.id);
+                      const participantNames: Record<string, string> = {};
+                      const participantAvatars: Record<string, string> = {};
+                      const participantRoles: Record<string, string> = {};
+                      
+                      squad.members.forEach(member => {
+                        participantNames[member.id] = member.name;
+                        participantAvatars[member.id] = member.avatar || '';
+                        participantRoles[member.id] = 'BUSINESS';
+                      });
+                      
+                      chatId = await createConversation(
+                        participantIds,
+                        participantNames,
+                        participantAvatars,
+                        participantRoles,
+                        `${squad.city} Business Squad`
+                      );
+                      
+                      // Update squad with chatId
+                      await updateDoc(doc(db, 'squads', squad.id), {
+                        chatId: chatId
+                      });
+                      
+                      // Update local state
+                      setSquad({ ...squad, chatId, hasGroupChat: true });
+                    }
+                    
+                    // Navigate to chat
+                    onNavigate(`/chat/${chatId}`);
+                  } catch (error) {
+                    console.error('[Squad] Error opening chat:', error);
+                    alert('Failed to open squad chat. Please try again.');
+                  }
+                }}
+                className="ml-auto bg-gradient-to-r from-[#4A2B7C] to-[#2D1B4E] px-6 py-3 rounded-full font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+              >
+                <MessageCircle className="w-5 h-5" />
+                {squad.chatId ? 'Open Group Chat' : 'Create Group Chat'}
+              </button>
+            </div>
+          </div>
+
+          {/* First Member Card */}
+          {squad.currentMembers === 1 && (
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+              <h3 className="text-xl font-bold text-[#1E0E62] mb-3 flex items-center gap-2">
+                You're the first member 🎉
+              </h3>
+              <p className="text-gray-600 mb-2">
+                We'll automatically add up to 3 businesses that match your profile in {squad.city}.
+              </p>
+              <p className="text-gray-600 mb-4">
+                Sit tight — or invite someone you trust.
+              </p>
+
+              <button 
+                onClick={() => {
+                  alert('📧 Invite feature coming soon! You\'ll be able to invite trusted businesses to join your Squad.');
+                }}
+                className="w-full bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all mb-3"
+              >
+                <Plus className="w-5 h-5" />
+                Invite a Business
+              </button>
+
+              <button className="text-purple-600 font-medium text-sm flex items-center gap-1 hover:gap-2 transition-all">
+                See how it works
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Grow Your Squad Section */}
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+            <h3 className="text-xl font-bold text-[#1E0E62] mb-2">
+              Grow Your Squad Together
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Your Squad meets once per cycle to exchange ideas, explore collaborations, and grow together.
+            </p>
+
+            {/* Activity Suggestions Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-bold text-[#1E0E62]">Activity Suggestions</h4>
+                <p className="text-sm text-gray-500">Suggested activities for your squad</p>
+              </div>
+              <button 
+                onClick={handleAISuggestions}
+                disabled={loadingAI}
+                className="bg-gradient-to-r from-blue-400 to-purple-500 text-white px-5 py-2.5 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loadingAI ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Get AI Suggestions
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Activity Cards */}
+            <div className="space-y-3">
+              {(aiSuggestions.length > 0 ? aiSuggestions : activitySuggestions).map((activity) => {
+                const IconComponent = getIconForActivity(activity.icon);
+                return (
+                  <button
+                    key={activity.id}
+                    className="w-full flex items-start gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all text-left group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                      <span className="text-2xl">{activity.emoji}</span>
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="font-bold text-[#1E0E62] mb-1 flex items-center gap-2">
+                        {activity.title}
+                      </h5>
+                      <p className="text-sm text-gray-600">{activity.description}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-purple-600 transition-colors" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

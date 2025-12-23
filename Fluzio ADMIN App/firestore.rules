@@ -1,0 +1,408 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isBusiness() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'BUSINESS';
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Anyone can create a user (for signup)
+      allow create: if true;
+      
+      // Anyone can read user profiles (for social features)
+      allow read: if true;
+      
+      // Users can update their own data
+      // Businesses can update points and level fields (for mission rewards)
+      // Anyone authenticated can update creatorFavorites (for follow/unfollow)
+      allow update: if isAuthenticated() && 
+                       (isOwner(userId) || 
+                        (isBusiness() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level'])) ||
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creatorFavorites']));
+      
+      // Only admins can delete
+      allow delete: if false;
+      
+      // Subcollections within users
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+    
+    // Missions collection
+    match /missions/{missionId} {
+      // Anyone can read active missions
+      allow read: if true;
+      
+      // Only businesses can create missions
+      allow create: if isBusiness();
+      
+      // Only mission owner can update/delete
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.businessId == request.auth.uid;
+    }
+    
+    // Participations collection
+    match /participations/{participationId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+                       (resource.data.userId == request.auth.uid || 
+                        resource.data.businessId == request.auth.uid);
+      allow delete: if false;
+    }
+    
+    // Conversations collection - participants can access
+    match /conversations/{conversationId} {
+      // Allow read if user is authenticated and is a participant
+      allow read: if isAuthenticated() && 
+                     (resource.data.participants.hasAny([request.auth.uid]));
+      
+      // Allow create if authenticated and user is in participants list
+      allow create: if isAuthenticated() &&
+                       request.resource.data.participants.hasAny([request.auth.uid]);
+      
+      // Allow update if user is a participant (for updating lastMessage, etc)
+      allow update: if isAuthenticated() && 
+                       (resource.data.participants.hasAny([request.auth.uid]) ||
+                        request.resource.data.participants.hasAny([request.auth.uid]));
+      
+      allow delete: if false;
+      
+      // Messages subcollection within conversations
+      match /messages/{messageId} {
+        // Allow read if user is a participant of the parent conversation
+        allow read: if isAuthenticated() &&
+                       get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
+        
+        // Allow create if authenticated and senderId matches auth uid
+        allow create: if isAuthenticated() &&
+                         request.resource.data.senderId == request.auth.uid;
+        
+        // Allow update/delete of own messages
+        allow update, delete: if isAuthenticated() &&
+                                 resource.data.senderId == request.auth.uid;
+      }
+    }
+    
+    match /squads/{squadId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isBusiness();
+      allow delete: if false;
+    }
+    
+    match /notifications/{notificationId} {
+      // Allow read if authenticated (checking userId in query)
+      allow read: if isAuthenticated();
+      
+      // Allow update/delete only for own notifications
+      allow update, delete: if isAuthenticated() && 
+                                     resource.data.userId == request.auth.uid;
+      
+      // Allow create from backend or authenticated users
+      allow create: if true;
+    }
+    
+    // Events collection
+    match /events/{eventId} {
+      allow read: if true; // Anyone can read events
+      allow create, update: if isBusiness();
+      allow delete: if isAuthenticated() && resource.data.businessId == request.auth.uid;
+    }
+    
+    // User progressions/analytics
+    match /progressions/{progressionId} {
+      allow read: if isAuthenticated();
+      allow create, update: if true; // Allow backend to create/update
+      allow delete: if false;
+    }
+    
+    // Customer Interactions - tracking check-ins and engagement
+    match /customerInteractions/{interactionId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated(); // Users can track their own interactions
+      allow delete: if false;
+    }
+    
+    // Meetup Chats - group chat for meetups
+    match /meetupChats/{chatId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+      
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAuthenticated();
+      }
+    }
+    
+    // User behavior tracking
+    match /userBehavior/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create, update: if isAuthenticated(); // Allow backend to update
+      allow delete: if false;
+    }
+    
+    // Analytics data
+    match /analytics/{analyticsId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid);
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+    
+    // Social connections
+    match /friendships/{friendshipId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    match /friendRequests/{requestId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+    
+    // Business followers
+    match /businessFollows/{followId} {
+      allow read: if true; // Anyone can see who follows a business
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    match /followers/{followerId} {
+      allow read: if true; // Anyone can see who follows a business
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Projects
+    match /projects/{projectId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+    
+    // ===== REWARDS & POINTS ECONOMY SECURITY RULES =====
+    
+    // Rewards collection - Businesses create rewards, anyone can read
+    match /rewards/{rewardId} {
+      // Anyone can read active rewards
+      allow read: if isAuthenticated();
+      
+      // Only businesses can create rewards, and businessId must match auth uid
+      allow create: if isAuthenticated() && 
+                       isBusiness() &&
+                       request.resource.data.businessId == request.auth.uid;
+      
+      // Business owner can update their rewards
+      // Customers can increment claimedCount when redeeming
+      allow update: if isAuthenticated() && 
+                       (resource.data.businessId == request.auth.uid ||
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedCount']));
+      
+      // Only the business owner can delete their rewards
+      allow delete: if isAuthenticated() && 
+                       resource.data.businessId == request.auth.uid;
+    }
+    
+    // Redemptions collection
+    match /redemptions/{redemptionId} {
+      // Customer can read their own redemptions
+      // Business can read redemptions of their rewards
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid);
+      
+      // Authenticated users can create redemptions (userId must match)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Business can update redemption status (mark as used)
+      allow update: if isAuthenticated() && 
+                       resource.data.businessId == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'usedAt']);
+      
+      // No deletes
+      allow delete: if false;
+    }
+    
+    // Points Transactions collection
+    match /points_transactions/{transactionId} {
+      // Users can only read their own transaction history
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Authenticated users can create transactions for themselves
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // No updates or deletes (audit trail integrity)
+      allow update, delete: if false;
+    }
+    
+    // Points Purchases collection - BACKEND ONLY writes, read by business
+    match /points_purchases/{purchaseId} {
+      // Businesses can only read their own purchase history
+      allow read: if isAuthenticated() && 
+                     resource.data.businessId == request.auth.uid;
+      
+      // ONLY backend can write purchases
+      // Prevents fraudulent marketplace purchases
+      allow write: if false;
+    }
+    
+    // Reviews collection - Users can create reviews, anyone can read
+    match /reviews/{reviewId} {
+      // Anyone can read reviews
+      allow read: if true;
+      
+      // Authenticated users can create reviews
+      allow create: if isAuthenticated() &&
+                       request.resource.data.reviewerId == request.auth.uid;
+      
+      // Users can update their own reviews
+      allow update: if isAuthenticated() && 
+                       resource.data.reviewerId == request.auth.uid;
+      
+      // Users can delete their own reviews
+      allow delete: if isAuthenticated() && 
+                       resource.data.reviewerId == request.auth.uid;
+    }
+    
+    // Messages collection - Only participants can access
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.senderId == request.auth.uid || 
+                      resource.data.receiverId == request.auth.uid);
+      
+      allow create: if isAuthenticated() &&
+                       request.resource.data.senderId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       (resource.data.senderId == request.auth.uid || 
+                        resource.data.receiverId == request.auth.uid);
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.senderId == request.auth.uid;
+    }
+    
+    // User Settings/Preferences - Private to user
+    match /userSettings/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow write: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Blocked Users - Private to user
+    match /blockedUsers/{blockId} {
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // Reports/Flags - Anyone can create, admins can read
+    match /reports/{reportId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if false; // Admin only (handled server-side)
+    }
+    
+    // Admin-only collections
+    match /adminLogs/{logId} {
+      allow read, write: if false; // Backend only
+    }
+    
+    match /systemMetrics/{metricId} {
+      allow read, write: if false; // Backend only
+    }
+    
+    // Service Providers - Public read, authenticated write
+    match /service_providers/{providerId} {
+      // Anyone authenticated can read service providers
+      allow read: if isAuthenticated();
+      
+      // Service providers can create/update their own profiles
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // Premium Events - Public read, business write
+    match /premium_events/{eventId} {
+      // Anyone authenticated can read events
+      allow read: if isAuthenticated();
+      
+      // Businesses can create events
+      allow create: if isAuthenticated() && isBusiness();
+      
+      // Event creator can update/delete
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.organizerId == request.auth.uid;
+    }
+    
+    // Projects - Partnership projects for cost splitting
+    match /projects/{projectId} {
+      // Anyone authenticated can read projects
+      allow read: if isAuthenticated();
+      
+      // Businesses can create projects
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizerId == request.auth.uid;
+      
+      // Project organizer can update/delete
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.organizerId == request.auth.uid;
+    }
+    
+    // ============ ADMIN COLLECTIONS ============
+    // Admins collection - for admin panel access
+    match /admins/{adminId} {
+      // Allow authenticated users to read their own admin document
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      // Admin mutations handled by server-side code only
+      allow write: if false;
+    }
+    
+    // Admin-managed collections (read-only from client, managed via server actions)
+    match /countries/{document=**} {
+      allow read: if request.auth != null && 
+                     exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow write: if false;
+    }
+    
+    // Default deny for any unspecified collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

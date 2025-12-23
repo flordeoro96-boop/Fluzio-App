@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Copy of Fluzio",
+  "description": "A gamified collaboration platform connecting businesses and creators with a professional community feel.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

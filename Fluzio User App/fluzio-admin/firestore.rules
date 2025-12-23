@@ -1,0 +1,210 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============ HELPER FUNCTIONS ============
+    
+    // Check if user is an admin
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // Get admin data
+    function getAdmin() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+    
+    // Check if admin is SUPER_ADMIN
+    function isSuperAdmin() {
+      return isAdmin() && getAdmin().role == 'SUPER_ADMIN' && getAdmin().status == 'ACTIVE';
+    }
+    
+    // Check if admin is ACTIVE
+    function isActiveAdmin() {
+      return isAdmin() && getAdmin().status == 'ACTIVE';
+    }
+    
+    // Check if admin has GLOBAL scope
+    function hasGlobalScope() {
+      return isActiveAdmin() && 'GLOBAL' in getAdmin().countryScopes;
+    }
+    
+    // Check if admin has access to specific country
+    function hasCountryAccess(countryId) {
+      return isActiveAdmin() && (
+        hasGlobalScope() || 
+        countryId in getAdmin().countryScopes
+      );
+    }
+    
+    // Check if admin has specific role
+    function hasRole(role) {
+      return isActiveAdmin() && getAdmin().role == role;
+    }
+    
+    // Check if admin has one of the specified roles
+    function hasAnyRole(roles) {
+      return isActiveAdmin() && getAdmin().role in roles;
+    }
+    
+    // ============ ADMINS COLLECTION ============
+    match /admins/{adminId} {
+      // Allow authenticated users to read their own admin document (updated 2025-12-23)
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      
+      // SUPER_ADMIN can read all admins
+      allow read: if isSuperAdmin();
+      
+      // SUPER_ADMIN can create/update/delete admins
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+    // ============ COUNTRIES COLLECTION ============
+    match /countries/{countryId} {
+      // Admins can read countries they have access to
+      allow read: if hasCountryAccess(countryId);
+      
+      // SUPER_ADMIN can read all countries
+      allow read: if isSuperAdmin();
+      
+      // Only SUPER_ADMIN can create/delete countries
+      allow create, delete: if isSuperAdmin();
+      
+      // SUPER_ADMIN and COUNTRY_ADMIN can update countries (but not phase changes)
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'COUNTRY_ADMIN']) && hasCountryAccess(countryId);
+      
+      // Phase changes require SUPER_ADMIN
+      allow update: if isSuperAdmin() && 
+        request.resource.data.status != resource.data.status;
+    }
+    
+    // ============ BUSINESSES COLLECTION ============
+    match /businesses/{businessId} {
+      // Admins can read businesses in their countries
+      allow read: if hasCountryAccess(resource.data.countryId);
+      
+      // SUPER_ADMIN, COUNTRY_ADMIN, OPS_SUPPORT can update businesses
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'COUNTRY_ADMIN', 'OPS_SUPPORT']) && 
+        hasCountryAccess(resource.data.countryId);
+      
+      // Creating/deleting businesses should be done via server actions, not client
+      allow create, delete: if false;
+    }
+    
+    // ============ CREATORS COLLECTION ============
+    match /creators/{creatorId} {
+      // Admins can read creators in their countries
+      allow read: if hasCountryAccess(resource.data.countryId);
+      
+      // SUPER_ADMIN, COUNTRY_ADMIN, FINANCE, MODERATOR can update creators
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'COUNTRY_ADMIN', 'FINANCE', 'MODERATOR']) && 
+        hasCountryAccess(resource.data.countryId);
+      
+      // Creating/deleting creators should be done via server actions
+      allow create, delete: if false;
+    }
+    
+    // ============ CUSTOMERS COLLECTION ============
+    match /customers/{customerId} {
+      // Admins can read customers in their countries
+      allow read: if hasCountryAccess(resource.data.countryId);
+      
+      // No direct updates to customers from admin (use server actions)
+      allow create, update, delete: if false;
+    }
+    
+    // ============ MISSIONS COLLECTION ============
+    match /missions/{missionId} {
+      // Admins can read missions in their countries
+      allow read: if hasCountryAccess(resource.data.countryId);
+      
+      // SUPER_ADMIN, COUNTRY_ADMIN, OPS_SUPPORT can update missions
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'COUNTRY_ADMIN', 'OPS_SUPPORT']) && 
+        hasCountryAccess(resource.data.countryId);
+      
+      // Creating/deleting missions via server actions only
+      allow create, delete: if false;
+    }
+    
+    // ============ EVENTS COLLECTION ============
+    match /events/{eventId} {
+      // Admins can read events in their countries
+      allow read: if hasCountryAccess(resource.data.countryId);
+      
+      // SUPER_ADMIN, COUNTRY_ADMIN can update events
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'COUNTRY_ADMIN']) && 
+        hasCountryAccess(resource.data.countryId);
+      
+      // Creating/deleting events via server actions only
+      allow create, delete: if false;
+    }
+    
+    // ============ TRANSACTIONS COLLECTION ============
+    match /transactions/{transactionId} {
+      // SUPER_ADMIN, FINANCE, ANALYST_READONLY can read transactions
+      allow read: if hasAnyRole(['SUPER_ADMIN', 'FINANCE', 'ANALYST_READONLY']) && 
+        (hasGlobalScope() || hasCountryAccess(resource.data.countryId));
+      
+      // No direct writes to transactions (server-side only)
+      allow create, update, delete: if false;
+    }
+    
+    // ============ PAYOUTS COLLECTION ============
+    match /payouts/{payoutId} {
+      // SUPER_ADMIN, FINANCE can read payouts
+      allow read: if hasAnyRole(['SUPER_ADMIN', 'FINANCE']) && 
+        (hasGlobalScope() || hasCountryAccess(resource.data.countryId));
+      
+      // SUPER_ADMIN, FINANCE can update payout status
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'FINANCE']) && 
+        hasCountryAccess(resource.data.countryId);
+      
+      // Creating/deleting payouts via server actions only
+      allow create, delete: if false;
+    }
+    
+    // ============ MODERATION REPORTS COLLECTION ============
+    match /moderationReports/{reportId} {
+      // SUPER_ADMIN, MODERATOR, COUNTRY_ADMIN can read reports
+      allow read: if hasAnyRole(['SUPER_ADMIN', 'MODERATOR', 'COUNTRY_ADMIN']) && 
+        (hasGlobalScope() || hasCountryAccess(resource.data.countryId));
+      
+      // SUPER_ADMIN, MODERATOR, COUNTRY_ADMIN can update reports
+      allow update: if hasAnyRole(['SUPER_ADMIN', 'MODERATOR', 'COUNTRY_ADMIN']) && 
+        hasCountryAccess(resource.data.countryId);
+      
+      // Creating/deleting reports via server actions only
+      allow create, delete: if false;
+    }
+    
+    // ============ POLICIES COLLECTION ============
+    match /policies/{policyId} {
+      // All admins can read policies
+      allow read: if isActiveAdmin();
+      
+      // Only SUPER_ADMIN can create/update policies
+      allow create, update: if isSuperAdmin();
+      
+      // Policies cannot be deleted (version history)
+      allow delete: if false;
+    }
+    
+    // ============ AUDIT LOGS COLLECTION ============
+    match /auditLogs/{logId} {
+      // Only SUPER_ADMIN can read audit logs
+      allow read: if isSuperAdmin();
+      
+      // Audit logs are write-only (via server actions)
+      // Cannot be updated or deleted (immutable)
+      allow create: if false;  // Server-side only
+      allow update, delete: if false;  // Immutable
+    }
+    
+    // ============ DEFAULT DENY ============
+    // Deny access to any other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
