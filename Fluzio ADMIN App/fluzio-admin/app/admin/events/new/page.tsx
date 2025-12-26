@@ -66,7 +66,7 @@ export default function NewEventPage() {
           category: parsed.category || parsed.categories?.[0] || 'MEETUP',
           categories: parsed.categories || [],
           targetAudience: parsed.targetAudience || [],
-          ticketingMode: parsed.ticketing?.mode || 'FREE',
+          ticketingMode: (parsed.ticketing?.mode === 'PAID' ? 'PAID' : 'FREE') as 'FREE' | 'PAID',
           ticketingPrice: parsed.ticketing?.price?.toString() || '',
           requirements: parsed.requirements || '',
           benefits: parsed.benefits || '',
