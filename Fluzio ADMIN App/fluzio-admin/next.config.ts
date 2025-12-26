@@ -6,6 +6,20 @@ const nextConfig: NextConfig = {
     '@google-cloud/firestore',
     '@opentelemetry/api',
   ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'oaidalleapiprodscus.blob.core.windows.net',
+        pathname: '/private/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.blob.core.windows.net',
+        pathname: '/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;
