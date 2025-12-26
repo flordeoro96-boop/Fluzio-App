@@ -20,6 +20,7 @@ export default function NewEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [aiImageUrl, setAiImageUrl] = useState<string | null>(null);
   const [aiEventData, setAiEventData] = useState<any>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -129,6 +130,50 @@ export default function NewEventPage() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setError('Invalid file type. Only JPG, PNG, WebP, and GIF are allowed.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      setError(null);
+
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to upload image');
+      }
+
+      const data = await response.json();
+      setFormData({ ...formData, imageUrl: data.url });
+    } catch (err: any) {
+      console.error('[handleImageUpload] Error:', err);
+      setError(err.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -185,19 +230,50 @@ export default function NewEventPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Image URL Upload */}
+            {/* Image Upload */}
             <div>
-              <Label htmlFor="imageUrl">Event Banner Image URL</Label>
-              <Input
-                id="imageUrl"
-                type="url"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                placeholder="https://example.com/event-banner.jpg"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Enter a direct URL to an image (JPG, PNG, WebP)
-              </p>
+              <Label htmlFor="imageUpload">Event Banner Image</Label>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    id="imageUpload"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('imageUpload')?.click()}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        📁 Choose Image
+                      </>
+                    )}
+                  </Button>
+                  <span className="text-sm text-gray-500">
+                    {formData.imageUrl ? '✓ Image uploaded' : 'JPG, PNG, WebP, GIF (max 5MB)'}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  Or paste image URL:
+                </div>
+                <Input
+                  type="url"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://example.com/event-banner.jpg"
+                />
+              </div>
             </div>
 
             <div>
