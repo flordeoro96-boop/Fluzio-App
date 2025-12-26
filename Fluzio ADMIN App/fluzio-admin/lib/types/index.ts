@@ -371,9 +371,22 @@ export interface Event {
   countryId: string;
   type: EventType;
   title: string;
+  description?: string;
   organizerBusinessId?: string;
+  location?: string;
+  city?: string;
+  venue?: string;
+  address?: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  duration?: number;
   capacity: number;
   budget?: number;
+  imageUrl?: string;
+  categories?: string[];
+  targetAudience?: string[];
   ticketing: {
     mode: TicketMode;
     price?: number;
@@ -381,6 +394,7 @@ export interface Event {
   };
   attendanceCount: number;
   status: EventStatus;
+  highlights?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
