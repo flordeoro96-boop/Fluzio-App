@@ -325,3 +325,92 @@ export async function createEventAction(eventData: {
     throw new Error(error.message || 'Failed to create event');
   }
 }
+
+export async function updateEventAction(
+  eventId: string,
+  eventData: {
+    title?: string;
+    description?: string;
+    type?: string;
+    category?: string;
+    location?: string;
+    city?: string;
+    startDate?: string;
+    startTime?: string;
+    endDate?: string;
+    endTime?: string;
+    capacity?: number;
+    imageUrl?: string;
+    ticketing?: {
+      mode: 'FREE' | 'PAID';
+      price?: number;
+    };
+  }
+) {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    if (!admin) {
+      throw new Error('Unauthorized');
+    }
+
+    // Check permission
+    if (!['SUPER_ADMIN', 'COUNTRY_ADMIN', 'CONTENT_MODERATOR'].includes(admin.role)) {
+      throw new Error('Insufficient permissions');
+    }
+
+    const adminDb = getAdminDb();
+    const eventRef = adminDb.collection('events').doc(eventId);
+    const eventDoc = await eventRef.get();
+
+    if (!eventDoc.exists) {
+      throw new Error('Event not found');
+    }
+
+    const event = { id: eventDoc.id, ...eventDoc.data() } as Event;
+
+    // Validate country scope
+    if (!admin.countryScopes.includes('GLOBAL') && !admin.countryScopes.includes(event.countryId)) {
+      throw new Error('Cannot edit events outside your country scope');
+    }
+
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    if (eventData.title !== undefined) updateData.title = eventData.title;
+    if (eventData.description !== undefined) updateData.description = eventData.description;
+    if (eventData.type !== undefined) updateData.type = eventData.type;
+    if (eventData.category !== undefined) updateData.category = eventData.category;
+    if (eventData.location !== undefined) updateData.location = eventData.location;
+    if (eventData.city !== undefined) updateData.city = eventData.city;
+    if (eventData.startDate !== undefined) updateData.startDate = eventData.startDate;
+    if (eventData.startTime !== undefined) updateData.startTime = eventData.startTime;
+    if (eventData.endDate !== undefined) updateData.endDate = eventData.endDate;
+    if (eventData.endTime !== undefined) updateData.endTime = eventData.endTime;
+    if (eventData.capacity !== undefined) updateData.capacity = eventData.capacity;
+    if (eventData.imageUrl !== undefined) updateData.imageUrl = eventData.imageUrl;
+    if (eventData.ticketing !== undefined) updateData.ticketing = eventData.ticketing;
+
+    await eventRef.update(updateData);
+
+    // Write audit log
+    await writeAuditLog({
+      adminId: admin.uid,
+      action: 'UPDATE_EVENT',
+      resource: 'EVENT',
+      resourceId: eventId,
+      details: {
+        actorRole: admin.role,
+        countryScopeUsed: event.countryId,
+        updatedFields: Object.keys(updateData),
+      },
+      ipAddress: 'server',
+      userAgent: 'admin-app',
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[updateEventAction] Error:', error);
+    throw new Error(error.message || 'Failed to update event');
+  }
+}

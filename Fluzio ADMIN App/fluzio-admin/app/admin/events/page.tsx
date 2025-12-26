@@ -36,6 +36,7 @@ import {
   AlertCircle,
   Trash2,
   Sparkles,
+  Edit,
 } from 'lucide-react';
 import { Event, EventStatus } from '@/lib/types';
 import { getEventsAction, updateEventStatusAction, deleteEventAction } from './actions';
@@ -412,6 +413,14 @@ Event Configuration:
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/admin/events/${event.id}`)}
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
