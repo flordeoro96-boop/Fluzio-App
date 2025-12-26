@@ -379,7 +379,7 @@ export default function NewEventPage() {
                   id="ticketingMode"
                   required
                   value={formData.ticketingMode}
-                  onChange={(e) => setFormData({ ...formData, ticketingMode: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, ticketingMode: e.target.value as 'FREE' | 'PAID' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
                   <option value="FREE">Free</option>
