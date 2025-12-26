@@ -10,16 +10,39 @@ function getAdminApp(): App {
   if (adminApp) return adminApp;
 
   if (getApps().length === 0) {
-    // Parse private key (handles escaped newlines from .env)
-    const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    try {
+      // Parse private key (handles escaped newlines from .env)
+      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
+      
+      // Validate required environment variables
+      if (!process.env.FIREBASE_ADMIN_PROJECT_ID) {
+        throw new Error('FIREBASE_ADMIN_PROJECT_ID environment variable is required');
+      }
+      if (!process.env.FIREBASE_ADMIN_CLIENT_EMAIL) {
+        throw new Error('FIREBASE_ADMIN_CLIENT_EMAIL environment variable is required');
+      }
+      if (!privateKey || privateKey === 'undefined') {
+        throw new Error('FIREBASE_ADMIN_PRIVATE_KEY environment variable is required');
+      }
 
-    adminApp = initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: privateKey,
-      }),
-    });
+      console.log('Initializing Firebase Admin SDK...');
+      console.log('Project ID:', process.env.FIREBASE_ADMIN_PROJECT_ID);
+      console.log('Client Email:', process.env.FIREBASE_ADMIN_CLIENT_EMAIL);
+      console.log('Private Key length:', privateKey.length);
+
+      adminApp = initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+          privateKey: privateKey,
+        }),
+      });
+
+      console.log('✅ Firebase Admin SDK initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize Firebase Admin SDK:', error);
+      throw error;
+    }
   } else {
     adminApp = getApps()[0];
   }

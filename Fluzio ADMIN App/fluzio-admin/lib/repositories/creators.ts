@@ -70,16 +70,45 @@ export async function getCreators(
 
 export async function getCreatorById(creatorId: string): Promise<Creator | null> {
   try {
-    const doc = await db.collection('creators').doc(creatorId).get();
+    // Load from users collection instead of creators collection
+    const doc = await db.collection('users').doc(creatorId).get();
 
     if (!doc.exists) {
       return null;
     }
 
     const data = doc.data()!;
+    
+    // Check if it's actually a creator
+    if (data.role !== 'CREATOR') {
+      return null;
+    }
+    
+    // Map user data to creator format
     return {
       id: doc.id,
-      ...data,
+      userId: doc.id,
+      countryCode: data.countryCode || 'DE',
+      displayName: data.name || data.handle || data.displayName || data.email?.split('@')[0] || 'Unknown',
+      bio: data.bio || '',
+      profilePhoto: data.profilePhoto || data.photoURL,
+      verified: data.creatorProfile?.verified || data.verified || false,
+      verificationStatus: (data.verificationStatus || data.approvalStatus || 'PENDING') as VerificationStatus,
+      status: data.status || 'ACTIVE',
+      instagramHandle: data.creatorProfile?.instagramHandle,
+      instagramFollowers: data.creatorProfile?.instagramFollowers || 0,
+      trustScore: data.creatorProfile?.trustScore || 50,
+      riskScore: 0,
+      stats: {
+        totalMissions: 0,
+        completedMissions: 0,
+        totalEarnings: data.creatorProfile?.totalEarnings || 0,
+        pendingPayout: data.creatorProfile?.pendingPayout || 0,
+        averageRating: 0,
+        totalReviews: 0,
+      },
+      payoutFrozen: false,
+      disputeCount: 0,
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date()),
       verifiedAt: data.verifiedAt?.toDate ? data.verifiedAt.toDate() : data.verifiedAt,
@@ -98,9 +127,12 @@ export async function verifyCreator(
   notes?: string
 ): Promise<void> {
   try {
-    await db.collection('creators').doc(creatorId).update({
+    // Update in users collection
+    await db.collection('users').doc(creatorId).update({
       verified: approved,
+      'creatorProfile.verified': approved,
       verificationStatus: approved ? VerificationStatus.APPROVED : VerificationStatus.REJECTED,
+      approvalStatus: approved ? VerificationStatus.APPROVED : VerificationStatus.REJECTED,
       verificationNotes: notes || null,
       verifiedAt: approved ? new Date() : null,
       verifiedBy: approved ? adminId : null,
@@ -117,8 +149,9 @@ export async function updateTrustScore(
   trustScore: number
 ): Promise<void> {
   try {
-    await db.collection('creators').doc(creatorId).update({
-      trustScore: Math.max(0, Math.min(100, trustScore)), // Clamp between 0-100
+    const clampedScore = Math.max(0, Math.min(100, trustScore));
+    await db.collection('users').doc(creatorId).update({
+      'creatorProfile.trustScore': clampedScore,
       updatedAt: new Date(),
     });
   } catch (error) {
@@ -133,7 +166,7 @@ export async function freezePayout(
   adminId: string
 ): Promise<void> {
   try {
-    await db.collection('creators').doc(creatorId).update({
+    await db.collection('users').doc(creatorId).update({
       payoutFrozen: true,
       payoutFrozenReason: reason,
       updatedAt: new Date(),
@@ -146,7 +179,7 @@ export async function freezePayout(
 
 export async function unfreezePayout(creatorId: string): Promise<void> {
   try {
-    await db.collection('creators').doc(creatorId).update({
+    await db.collection('users').doc(creatorId).update({
       payoutFrozen: false,
       payoutFrozenReason: null,
       updatedAt: new Date(),
@@ -163,7 +196,7 @@ export async function suspendCreator(
   adminId: string
 ): Promise<void> {
   try {
-    await db.collection('creators').doc(creatorId).update({
+    await db.collection('users').doc(creatorId).update({
       status: 'SUSPENDED',
       suspensionReason: reason,
       suspendedAt: new Date(),
@@ -178,7 +211,7 @@ export async function suspendCreator(
 
 export async function unsuspendCreator(creatorId: string): Promise<void> {
   try {
-    await db.collection('creators').doc(creatorId).update({
+    await db.collection('users').doc(creatorId).update({
       status: 'ACTIVE',
       suspensionReason: null,
       suspendedAt: null,

@@ -32,12 +32,15 @@ import {
   Search,
   Menu,
   X,
+  CheckCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { AdminRole } from '@/lib/types';
+import NotificationBell from '@/components/NotificationBell';
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { name: 'Approvals', href: '/admin/approvals', icon: CheckCircle, badge: true },
   { name: 'Countries', href: '/admin/countries', icon: Globe },
   { name: 'Users', href: '/admin/users', icon: Users },
   { name: 'Businesses', href: '/admin/businesses', icon: Briefcase },
@@ -207,11 +210,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {getRoleDisplay()}
               </Badge>
 
-              {/* Alerts */}
-              <Button variant="ghost" size="sm" className="relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </Button>
+              {/* Notifications */}
+              <NotificationBell />
 
               <Separator orientation="vertical" className="h-6" />
 

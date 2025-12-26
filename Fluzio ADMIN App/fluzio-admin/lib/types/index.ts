@@ -31,6 +31,40 @@ export enum CountryStatus {
   SUSPENDED = 'SUSPENDED',
 }
 
+// ============ CITY ============
+export enum CityStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
+
+export interface City {
+  id: string; // Auto-generated Firestore doc ID
+  name: string; // Normalized name: "Munich", "Dubai"
+  countryCode: string; // "DE", "AE"
+  status: CityStatus;
+  
+  // Auto-aggregated stats (computed via backend functions)
+  stats: {
+    totalUsers: number;
+    activeBusinesses: number;
+    aspiringBusinesses: number;
+    verifiedCreators: number;
+    customers: number;
+    activeMissions: number;
+    lastUpdated: Date;
+  };
+  
+  // Normalized address data
+  googlePlaceId?: string; // For verification if needed
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface LaunchChecklistItem {
   id: string;
   title: string;
@@ -41,15 +75,29 @@ export interface LaunchChecklistItem {
   required: boolean;
 }
 
+export interface StatusHistoryItem {
+  status: CountryStatus | string;
+  changedAt: Date;
+  changedBy: string; // "system" or admin UID
+  reason?: string;
+}
+
 export interface Country {
   id: string;
   code: string; // "DE", "AE"
+  countryId?: string; // Firestore uses this field - same as code
   name: string;
   flag?: string;
   status: CountryStatus;
   currency: string;
   language: string;
   timezone: string;
+
+  // Auto-creation tracking
+  autoCreated?: boolean;
+  needsReview?: boolean; // Flag for unknown countries
+  firstUserId?: string;
+  firstUserName?: string;
 
   settings?: {
     enableBusinessVerification?: boolean;
@@ -61,11 +109,14 @@ export interface Country {
   stats?: {
     totalUsers: number;
     activeBusinesses: number;
+    aspiringBusinesses: number;
     verifiedCreators: number;
+    customers: number;
     activeMissions: number;
   };
 
   launchChecklist: LaunchChecklistItem[];
+  statusHistory?: StatusHistoryItem[]; // Track status changes
   launchedAt?: Date;
   suspensionReason?: string;
   suspendedAt?: Date;
@@ -269,6 +320,10 @@ export interface Customer {
 // ============ MISSION ============
 export type MissionStatus =
   | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'FLAGGED'
   | 'LIVE'
   | 'COMPLETED'
   | 'DISPUTED'
@@ -278,10 +333,15 @@ export interface Mission {
   id: string;
   countryId: string;
   businessId: string;
+  businessName?: string;
   creatorIds: string[];
   status: MissionStatus;
+  title?: string;
+  description?: string;
   missionType: string;
+  location?: string;
   budget: number;
+  pointsReward?: number;
   dispute: {
     isDisputed: boolean;
     reason?: string;
@@ -292,6 +352,11 @@ export interface Mission {
       resolvedAt?: Timestamp;
     };
   };
+  rejectionReason?: string;
+  rejectedAt?: Date;
+  rejectedBy?: string;
+  approvedAt?: Date;
+  approvedBy?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -407,7 +472,9 @@ export interface AuditLog {
 // ============ USER ============
 export enum UserRole {
   CUSTOMER = 'CUSTOMER',
+  MEMBER = 'MEMBER', // Legacy role from User App, treat as customer
   CREATOR = 'CREATOR',
+  BUSINESS = 'BUSINESS',
 }
 
 export interface User {
@@ -462,6 +529,37 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
+}
+
+// ============ NOTIFICATIONS ============
+export type NotificationType = 
+  | 'NEW_COUNTRY' 
+  | 'STATUS_CHANGE' 
+  | 'NEW_BUSINESS' 
+  | 'VERIFICATION_REQUEST'
+  | 'SYSTEM_ALERT';
+
+export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  priority: NotificationPriority;
+  read: boolean;
+  
+  // Context data
+  countryCode?: string;
+  countryName?: string;
+  firstUserId?: string;
+  firstUserName?: string;
+  needsReview?: boolean;
+  
+  // Metadata
+  createdAt: Date;
+  readAt?: Date;
+  actionUrl?: string;
 }
 
 // ============ POLICY ENGINE ============

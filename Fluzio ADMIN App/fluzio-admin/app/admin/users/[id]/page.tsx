@@ -257,9 +257,9 @@ export default function UserDetailPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Current Streak</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{user.currentStreak} days</div>
+            <div className="text-2xl font-bold">{user.currentStreak || 0} days</div>
             <p className="text-xs text-gray-500 mt-1">
-              Longest: {user.longestStreak} days
+              Longest: {user.longestStreak || 0} days
             </p>
           </CardContent>
         </Card>
@@ -270,7 +270,7 @@ export default function UserDetailPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Missions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{user.stats.missionsCompleted}</div>
+            <div className="text-2xl font-bold">{user.stats?.missionsCompleted || 0}</div>
             <p className="text-xs text-gray-500 mt-1">Completed</p>
           </CardContent>
         </Card>
@@ -281,7 +281,7 @@ export default function UserDetailPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Rewards</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{user.stats.rewardsRedeemed}</div>
+            <div className="text-2xl font-bold">{user.stats?.rewardsRedeemed || 0}</div>
             <p className="text-xs text-gray-500 mt-1">Redeemed</p>
           </CardContent>
         </Card>

@@ -1,0 +1,37 @@
+﻿
+            {/* Gender Targeting */}
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Gender Targeting</Label>
+              <div className="grid grid-cols-3 gap-3">
+                <Button
+                  type="button"
+                  variant={aiGenderTarget === 'MIXED' ? 'default' : 'outline'}
+                  onClick={() => setAiGenderTarget('MIXED')}
+                  className="h-auto py-3 flex-col"
+                >
+                  <span className="text-2xl mb-1">ðŸ‘¥</span>
+                  <span className="text-xs">Mixed</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={aiGenderTarget === 'MALE_ONLY' ? 'default' : 'outline'}
+                  onClick={() => setAiGenderTarget('MALE_ONLY')}
+                  className="h-auto py-3 flex-col"
+                >
+                  <span className="text-2xl mb-1">ðŸ‘¨</span>
+                  <span className="text-xs">Male Only</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={aiGenderTarget === 'FEMALE_ONLY' ? 'default' : 'outline'}
+                  onClick={() => setAiGenderTarget('FEMALE_ONLY')}
+                  className="h-auto py-3 flex-col"
+                >
+                  <span className="text-2xl mb-1">ðŸ‘©</span>
+                  <span className="text-xs">Female Only</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Ticketing */
+            <div>

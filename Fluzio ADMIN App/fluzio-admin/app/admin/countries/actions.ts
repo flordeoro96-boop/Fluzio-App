@@ -1,6 +1,6 @@
 'use server';
 
-import { getAdminAuth } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
 import { getAdminById } from '@/lib/repositories/admins';
 import { canAccess, Resource, Action } from '@/lib/permissions/rbac';
 import { writeAuditLog } from '@/lib/repositories/audit';
@@ -14,6 +14,7 @@ import {
   launchCountry,
   suspendCountry,
 } from '@/lib/repositories/countries';
+import { getCitiesByCountry, getAllCities } from '@/lib/repositories/cities';
 import {
   createCountrySchema,
   updateCountrySchema,
@@ -22,8 +23,9 @@ import {
   UpdateCountryInput,
   SuspendCountryInput,
 } from '@/lib/schemas/country';
-import { Country, CountryStatus, LaunchChecklistItem } from '@/lib/types';
+import { Country, CountryStatus, LaunchChecklistItem, City, CityStatus } from '@/lib/types';
 import { cookies } from 'next/headers';
+import { standardizeCityName } from '@/lib/utils/cityStandardization';
 
 async function getAuthenticatedAdmin() {
   try {
@@ -156,10 +158,12 @@ export async function getCountryByIdAction(countryId: string): Promise<Country |
   const country = await getCountryById(countryId);
 
   // Check country scope
+  const countryCode = country?.countryId || country?.code || country?.id;
   if (
     country &&
+    countryCode &&
     !admin.countryScopes.includes('GLOBAL') &&
-    !admin.countryScopes.includes(country.code)
+    !admin.countryScopes.includes(countryCode)
   ) {
     throw new Error('Access denied to this country');
   }
@@ -283,7 +287,7 @@ export async function launchCountryAction(countryId: string): Promise<void> {
     resource: 'countries',
     resourceId: countryId,
     details: {
-      countryCode: country.code,
+      countryCode: country.countryId || country.code || countryId,
       countryName: country.name,
     },
     ipAddress: '',
@@ -330,4 +334,261 @@ export async function suspendCountryAction(
     ipAddress: '',
     userAgent: '',
   });
+}
+
+// ============================================================================
+// CITY ACTIONS
+// ============================================================================
+
+export async function getCitiesByCountryAction(
+  countryCode: string,
+  status?: CityStatus
+): Promise<City[]> {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    
+    // Check if admin has access to this country
+    if (
+      !admin.countryScopes.includes('GLOBAL') &&
+      !admin.countryScopes.includes(countryCode)
+    ) {
+      throw new Error('Access denied to this country');
+    }
+
+    // Query users directly and group by city
+    const phoneCode = COUNTRY_PHONE_CODES[countryCode];
+    const usersSnapshot = await db.collection('users')
+      .where('countryCode', '==', phoneCode)
+      .limit(1000)
+      .get();
+    
+    // Group users by city (using standardized names)
+    const cityMap = new Map<string, any>();
+    
+    usersSnapshot.docs.forEach(doc => {
+      const user = doc.data();
+      const rawCityName = user.city || user.homeCity || user.geo?.city;
+      
+      if (!rawCityName) return;
+      
+      // Standardize the city name to English
+      const standardizedCity = standardizeCityName(rawCityName);
+      
+      if (!cityMap.has(standardizedCity)) {
+        cityMap.set(standardizedCity, {
+          id: standardizedCity.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase(),
+          name: standardizedCity, // Use standardized English name
+          countryCode,
+          status: 'ACTIVE' as CityStatus,
+          stats: {
+            totalUsers: 0,
+            activeBusinesses: 0,
+            verifiedCreators: 0,
+            members: 0,
+            activeMissions: 0,
+            lastUpdated: new Date(),
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      
+      const cityData = cityMap.get(standardizedCity)!;
+      cityData.stats.totalUsers++;
+      
+      if (user.role === 'BUSINESS' || user.accountType === 'business') {
+        cityData.stats.activeBusinesses++;
+      } else if (user.role === 'CREATOR' || user.accountType === 'creator') {
+        cityData.stats.verifiedCreators++;
+      } else if (user.role === 'MEMBER' || user.accountType === 'member') {
+        cityData.stats.members++;
+      }
+    });
+    
+    // Convert to array and sort by name
+    return Array.from(cityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    
+  } catch (error: any) {
+    console.error('[getCitiesByCountryAction] Error:', error);
+    throw error;
+  }
+}
+
+// Map country ISO codes to phone codes
+const COUNTRY_PHONE_CODES: Record<string, string> = {
+  'DE': '+49',
+  'AE': '+971',
+  'US': '+1',
+  'GB': '+44',
+  'FR': '+33',
+  'ES': '+34',
+  'IT': '+39',
+  'PA': '+507',
+};
+
+export async function getAllCitiesAction(limit?: number): Promise<City[]> {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    
+    // Only GLOBAL admins can view all cities
+    if (!admin.countryScopes.includes('GLOBAL')) {
+      throw new Error('Access denied - GLOBAL scope required');
+    }
+
+    return await getAllCities(limit);
+  } catch (error: any) {
+    console.error('[getAllCitiesAction] Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Get Businesses by Country
+// ============================================================================
+
+export async function getBusinessesByCountryAction(
+  countryCode: string,
+  limit: number = 100
+): Promise<any[]> {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    
+    // Check if admin has access to this country
+    if (
+      !admin.countryScopes.includes('GLOBAL') &&
+      !admin.countryScopes.includes(countryCode)
+    ) {
+      throw new Error('Access denied to this country');
+    }
+
+    const phoneCode = COUNTRY_PHONE_CODES[countryCode];
+    const usersSnapshot = await db.collection('users')
+      .where('countryCode', '==', phoneCode)
+      .where('role', '==', 'BUSINESS')
+      .limit(limit)
+      .get();
+    
+    const businesses = usersSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name,
+        email: data.email,
+        photoUrl: data.photoUrl,
+        city: data.city,
+        homeCity: data.homeCity,
+        category: data.category,
+        businessLevel: data.businessLevel,
+        level: data.level,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      };
+    });
+
+    return businesses;
+  } catch (error: any) {
+    console.error('[getBusinessesByCountryAction] Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Get Creators by Country
+// ============================================================================
+
+export async function getCreatorsByCountryAction(
+  countryCode: string,
+  limit: number = 100
+): Promise<any[]> {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    
+    // Check if admin has access to this country
+    if (
+      !admin.countryScopes.includes('GLOBAL') &&
+      !admin.countryScopes.includes(countryCode)
+    ) {
+      throw new Error('Access denied to this country');
+    }
+
+    const phoneCode = COUNTRY_PHONE_CODES[countryCode];
+    const usersSnapshot = await db.collection('users')
+      .where('countryCode', '==', phoneCode)
+      .where('role', '==', 'CREATOR')
+      .limit(limit)
+      .get();
+    
+    const creators = usersSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name,
+        email: data.email,
+        photoUrl: data.photoUrl,
+        city: data.city,
+        homeCity: data.homeCity,
+        category: data.category,
+        verificationStatus: data.verificationStatus,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      };
+    });
+
+    return creators;
+  } catch (error: any) {
+    console.error('[getCreatorsByCountryAction] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update country metadata (for unknown countries that need review)
+ */
+export async function updateCountryMetadataAction(
+  countryCode: string,
+  metadata: {
+    name: string;
+    flag: string;
+    currency: string;
+    language: string;
+    timezone: string;
+  }
+): Promise<void> {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    
+    // Check if admin has access to this country
+    if (
+      !admin.countryScopes.includes('GLOBAL') &&
+      !admin.countryScopes.includes(countryCode)
+    ) {
+      throw new Error('Access denied to this country');
+    }
+
+    const countryRef = db.collection('countries').doc(countryCode);
+    const countryDoc = await countryRef.get();
+    
+    if (!countryDoc.exists) {
+      throw new Error('Country not found');
+    }
+
+    await countryRef.update({
+      ...metadata,
+      needsReview: false, // Clear the review flag
+      updatedAt: new Date(),
+      updatedBy: admin.uid,
+    });
+
+    // Log the action
+    await writeAuditLog({
+      action: 'UPDATE_COUNTRY_METADATA',
+      resource: Resource.COUNTRIES,
+      resourceId: countryCode,
+      adminId: admin.uid,
+      details: `Updated metadata for ${countryCode}: ${metadata.name}`,
+      ipAddress: 'system', // Server-side action
+      userAgent: 'Admin Dashboard',
+    });
+  } catch (error: any) {
+    console.error('[updateCountryMetadataAction] Error:', error);
+    throw error;
+  }
 }

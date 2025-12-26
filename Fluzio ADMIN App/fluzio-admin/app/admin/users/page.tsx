@@ -47,14 +47,48 @@ export default function UsersPage() {
       
       const filters: any = {};
       
-      if (roleFilter !== 'ALL') filters.role = roleFilter;
+      if (roleFilter !== 'ALL') {
+        filters.role = roleFilter;
+      }
+      // Don't force CUSTOMER filter - let it show all for now
+      
       if (statusFilter !== 'ALL') filters.status = statusFilter;
       if (kycFilter !== 'ALL') filters.kycVerified = kycFilter === 'VERIFIED';
       if (searchQuery) filters.searchQuery = searchQuery;
       
+      console.log('🔍 Loading users with filters:', filters);
       const data = await getUsersAction(filters);
-      setUsers(data);
+      console.log('📦 Total users received from database:', data.length);
+      console.log('👥 User roles breakdown:', {
+        total: data.length,
+        customers: data.filter(u => u.role === UserRole.CUSTOMER).length,
+        members: data.filter(u => u.role === UserRole.MEMBER).length,
+        creators: data.filter(u => u.role === UserRole.CREATOR).length,
+        businesses: data.filter(u => u.role === UserRole.BUSINESS).length,
+        admins: data.filter(u => (u as any).role === 'SUPER_ADMIN' || (u as any).role === 'ADMIN').length,
+      });
+      console.log('🔍 Unknown users (not CUSTOMER/MEMBER/CREATOR/BUSINESS):', 
+        data.filter(u => 
+          u.role !== UserRole.CUSTOMER && 
+          u.role !== UserRole.MEMBER &&
+          u.role !== UserRole.CREATOR && 
+          u.role !== UserRole.BUSINESS &&
+          (u as any).role !== 'SUPER_ADMIN' &&
+          (u as any).role !== 'ADMIN'
+        ).map(u => ({ id: u.id, email: u.email, role: u.role, accountType: (u as any).accountType }))
+      );
+      
+      // Filter: Show CUSTOMER and MEMBER (legacy), exclude CREATOR, BUSINESS, and admin roles
+      const customersOnly = data.filter(u => {
+        const role = (u as any).role;
+        return (u.role === UserRole.CUSTOMER || u.role === UserRole.MEMBER) && 
+               role !== 'SUPER_ADMIN' && 
+               role !== 'ADMIN';
+      });
+      console.log('✅ After filtering - showing customers only:', customersOnly.length);
+      setUsers(customersOnly);
     } catch (err: any) {
+      console.error('❌ Error loading users:', err);
       setError(err.message || 'Failed to load users');
     } finally {
       setLoading(false);
@@ -126,12 +160,12 @@ export default function UsersPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Users</h1>
-        <p className="text-gray-600 mt-2">Manage user accounts and permissions</p>
+        <p className="text-gray-600 mt-2">Regular customer accounts (Creators and Businesses are in separate tabs)</p>
       </div>
 
       {/* Filters */}
       <div className="mb-6 bg-white p-4 rounded-lg border space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div className="lg:col-span-2">
             <div className="flex gap-2">
@@ -147,7 +181,8 @@ export default function UsersPage() {
             </div>
           </div>
 
-          {/* Role Filter */}
+          {/* Role Filter - Hidden since we only show customers */}
+          {/* 
           <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as any)}>
             <SelectTrigger>
               <SelectValue placeholder="Role" />
@@ -158,6 +193,7 @@ export default function UsersPage() {
               <SelectItem value={UserRole.CREATOR}>Creators</SelectItem>
             </SelectContent>
           </Select>
+          */}
 
           {/* Status Filter */}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -240,12 +276,12 @@ export default function UsersPage() {
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
                           <span className="text-blue-600 font-semibold">
-                            {user.displayName?.charAt(0).toUpperCase() || 'U'}
+                            {user.displayName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}
                           </span>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {user.displayName || 'Unknown'}
+                            {user.displayName || user.email?.split('@')[0] || 'Unknown'}
                           </div>
                           <div className="text-sm text-gray-500">{user.email}</div>
                         </div>

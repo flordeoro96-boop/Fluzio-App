@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getBusinessesAction } from './actions';
-import { Business, BusinessTier, VerificationStatus } from '@/lib/types';
+import { Business, BusinessTier, VerificationStatus, UserRole } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -46,20 +46,90 @@ export default function BusinessesPage() {
       setLoading(true);
       setError('');
 
-      const filters: any = {};
-
-      if (tierFilter !== 'ALL') filters.tier = tierFilter as BusinessTier;
-      if (statusFilter !== 'ALL') filters.status = statusFilter;
-      if (verificationFilter !== 'ALL') {
-        if (verificationFilter === 'VERIFIED') filters.verified = true;
-        else if (verificationFilter === 'UNVERIFIED') filters.verified = false;
-        else filters.verificationStatus = verificationFilter as VerificationStatus;
+      console.log('🏢 Loading businesses (users with BUSINESS role)...');
+      
+      // Load from users collection with BUSINESS role filter
+      const { getUsersAction } = await import('../users/actions');
+      const allUsers = await getUsersAction({ role: UserRole.BUSINESS });
+      
+      // Map user data to business format (using available User fields)
+      if (allUsers.length > 0) {
+        console.log('📋 Sample user data:', allUsers[0]);
+        console.log('📋 Sample subscriptionLevel:', (allUsers[0] as any)?.subscriptionLevel);
+        console.log('📋 Sample subscription?.tier:', (allUsers[0] as any)?.subscription?.tier);
       }
-      if (searchQuery) filters.searchQuery = searchQuery;
-
-      const data = await getBusinessesAction(filters);
-      setBusinesses(data);
+      const businessesData = allUsers.map((user: any) => {
+        try {
+          const tier = (user?.subscriptionLevel || user?.subscription?.tier || 'FREE') as BusinessTier;
+          console.log(`🏷️ User ${user.id}: subscriptionLevel=${user.subscriptionLevel}, subscription?.tier=${user.subscription?.tier}, final tier=${tier}`);
+          return {
+            id: user.id,
+            countryCode: user.countryCode || 'DE',
+            name: user.name || user.handle || user.legalName || user.displayName || user.email?.split('@')[0] || 'Unknown Business',
+            industry: user.category || user.subCategory || 'Other',
+            description: user.description || '',
+            tier,
+            status: user.status || 'ACTIVE',
+            verified: user.kycVerified || false,
+            verificationStatus: (user.verificationStatus || user.approvalStatus || 'PENDING') as VerificationStatus,
+            email: user.email,
+            phoneNumber: user.phone || user.phoneNumber,
+            website: user.website,
+            address: user.street && user.city ? `${user.street}, ${user.city}` : user.address,
+            ownerName: user.name || user.handle || user.displayName || user.email?.split('@')[0] || 'Unknown',
+            ownerEmail: user.email,
+            stats: {
+              totalMissions: 0,
+              activeMissions: 0,
+              totalRedemptions: 0,
+              totalSpent: 0,
+            },
+            riskScore: 0,
+            disputeCount: 0,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+          };
+        } catch (err) {
+          console.error('Error mapping user to business:', err, user);
+          // Return a fallback business object
+          return {
+            id: user?.id || 'unknown',
+            countryCode: 'DE',
+            name: 'Error Loading Business',
+            industry: 'Other',
+            description: '',
+            tier: 'FREE' as BusinessTier,
+            status: 'ACTIVE',
+            verified: false,
+            verificationStatus: 'PENDING' as VerificationStatus,
+            email: user?.email || '',
+            phoneNumber: '',
+            website: '',
+            address: '',
+            ownerName: 'Unknown',
+            ownerEmail: user?.email || '',
+            stats: { totalMissions: 0, activeMissions: 0, totalRedemptions: 0, totalSpent: 0 },
+            riskScore: 0,
+            disputeCount: 0,
+            createdAt: user?.createdAt || new Date().toISOString(),
+            updatedAt: user?.updatedAt || new Date().toISOString(),
+          };
+        }
+      });
+      
+      console.log('📦 Total businesses received:', businessesData.length);
+      console.log('� All tiers:', businessesData.map(b => b.tier));
+      console.log('�🔍 Businesses breakdown:', {
+        total: businessesData.length,
+        free: businessesData.filter(b => b.tier === 'FREE').length,
+        silver: businessesData.filter(b => b.tier === 'SILVER').length,
+        gold: businessesData.filter(b => b.tier === 'GOLD').length,
+        platinum: businessesData.filter(b => b.tier === 'PLATINUM').length,
+        pending: businessesData.filter(b => b.verificationStatus === 'PENDING').length,
+      });
+      setBusinesses(businessesData);
     } catch (err: any) {
+      console.error('❌ Error loading businesses:', err);
       setError(err.message || 'Failed to load businesses');
     } finally {
       setLoading(false);

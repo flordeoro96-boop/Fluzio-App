@@ -966,4 +966,6 @@ Event Configuration:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
 }

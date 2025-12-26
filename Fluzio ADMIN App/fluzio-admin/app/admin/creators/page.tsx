@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getCreatorsAction } from './actions';
-import { Creator, VerificationStatus } from '@/lib/types';
+import { Creator, VerificationStatus, UserRole } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,10 +97,52 @@ export default function CreatorsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getCreatorsAction();
-      setCreators(data);
-      setFilteredCreators(data);
+      console.log('🎨 Loading creators (users with CREATOR role)...');
+      
+      // Load from users collection with CREATOR role filter
+      const { getUsersAction } = await import('../users/actions');
+      const allUsers = await getUsersAction({ role: UserRole.CREATOR });
+      
+      // Map user data to creator format (using available User fields)
+      const creatorsData = allUsers.map((user: any) => ({
+        id: user.id,
+        userId: user.id,
+        countryCode: user.countryCode || 'DE',
+        displayName: user.name || user.handle || user.displayName || user.email?.split('@')[0] || 'Unknown',
+        bio: user.bio || '',
+        profilePhoto: user.profilePhoto || user.photoURL,
+        verified: user.creatorProfile?.verified || user.verified || false,
+        verificationStatus: (user.verificationStatus || user.approvalStatus || 'PENDING') as VerificationStatus,
+        status: user.status || 'ACTIVE',
+        instagramHandle: user.creatorProfile?.instagramHandle,
+        instagramFollowers: user.creatorProfile?.instagramFollowers || 0,
+        trustScore: user.creatorProfile?.trustScore || 50,
+        riskScore: 0,
+        stats: {
+          totalMissions: 0,
+          completedMissions: 0,
+          totalEarnings: user.creatorProfile?.totalEarnings || 0,
+          pendingPayout: user.creatorProfile?.pendingPayout || 0,
+          averageRating: 0,
+          totalReviews: 0,
+        },
+        payoutFrozen: false,
+        disputeCount: 0,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }));
+      
+      console.log('📦 Total creators received:', creatorsData.length);
+      console.log('🔍 Creators verification status:', {
+        total: creatorsData.length,
+        pending: creatorsData.filter(c => c.verificationStatus === 'PENDING').length,
+        approved: creatorsData.filter(c => c.verificationStatus === 'APPROVED').length,
+        rejected: creatorsData.filter(c => c.verificationStatus === 'REJECTED').length,
+      });
+      setCreators(creatorsData);
+      setFilteredCreators(creatorsData);
     } catch (err: any) {
+      console.error('❌ Error loading creators:', err);
       setError(err.message || 'Failed to load creators');
     } finally {
       setLoading(false);

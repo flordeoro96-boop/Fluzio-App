@@ -78,14 +78,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
 
       if (firebaseUser) {
-        // Get and store ID token
+        // Get ID token and create session cookie
         const idToken = await firebaseUser.getIdToken();
-        document.cookie = `idToken=${idToken}; path=/; max-age=3600; SameSite=Strict`;
+        
+        // Create session cookie via API
+        try {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+        } catch (error) {
+          console.error('Failed to create session cookie:', error);
+        }
         
         await loadAdminData(firebaseUser.uid);
       } else {
-        // Remove token cookie
-        document.cookie = 'idToken=; path=/; max-age=0';
+        // Remove session cookie
+        try {
+          await fetch('/api/auth/session', { method: 'DELETE' });
+        } catch (error) {
+          console.error('Failed to delete session cookie:', error);
+        }
         setAdmin(null);
       }
 
@@ -95,20 +109,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Refresh token every 50 minutes (before 1 hour expiry)
+  // Refresh token and session every 50 minutes
   useEffect(() => {
     if (!user) return;
 
-    const refreshToken = async () => {
+    const refreshSession = async () => {
       try {
         const idToken = await user.getIdToken(true); // Force refresh
-        document.cookie = `idToken=${idToken}; path=/; max-age=3600; SameSite=Strict`;
+        
+        // Refresh session cookie
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken }),
+        });
       } catch (error) {
-        console.error('Token refresh error:', error);
+        console.error('Session refresh error:', error);
       }
     };
 
-    const interval = setInterval(refreshToken, 50 * 60 * 1000); // 50 minutes
+    const interval = setInterval(refreshSession, 50 * 60 * 1000); // 50 minutes
 
     return () => clearInterval(interval);
   }, [user]);
@@ -117,9 +137,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // Get the ID token and store it in a cookie for server actions
+      // Get the ID token and create session cookie
       const idToken = await userCredential.user.getIdToken();
-      document.cookie = `idToken=${idToken}; path=/; max-age=3600; SameSite=Strict`;
+      
+      // Create session cookie via API
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create session');
+      }
       
       const adminData = await loadAdminData(userCredential.user.uid);
       
@@ -136,8 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      // Remove the ID token cookie
-      document.cookie = 'idToken=; path=/; max-age=0';
+      // Remove the session cookie
+      await fetch('/api/auth/session', { method: 'DELETE' });
       
       await firebaseSignOut(auth);
       setUser(null);

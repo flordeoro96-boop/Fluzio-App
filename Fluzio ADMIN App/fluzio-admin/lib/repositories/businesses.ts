@@ -70,16 +70,45 @@ export async function getBusinesses(
 
 export async function getBusinessById(businessId: string): Promise<Business | null> {
   try {
-    const doc = await db.collection('businesses').doc(businessId).get();
+    // Load from users collection instead of businesses collection
+    const doc = await db.collection('users').doc(businessId).get();
 
     if (!doc.exists) {
       return null;
     }
 
     const data = doc.data()!;
+    
+    // Check if it's actually a business
+    if (data.role !== 'BUSINESS') {
+      return null;
+    }
+    
+    // Map user data to business format
     return {
       id: doc.id,
-      ...data,
+      countryCode: data.countryCode || 'DE',
+      name: data.name || data.handle || data.legalName || data.displayName || data.email?.split('@')[0] || 'Unknown Business',
+      industry: data.category || data.subCategory || 'Other',
+      description: data.description || '',
+      tier: (data.subscriptionLevel || data.subscription?.tier || 'FREE') as BusinessTier,
+      status: data.status || 'ACTIVE',
+      verified: data.kycVerified || false,
+      verificationStatus: (data.verificationStatus || data.approvalStatus || 'PENDING') as VerificationStatus,
+      email: data.email,
+      phoneNumber: data.phone || data.phoneNumber,
+      website: data.website,
+      address: data.street && data.city ? `${data.street}, ${data.city}` : data.address,
+      ownerName: data.name || data.handle || data.displayName || data.email?.split('@')[0] || 'Unknown',
+      ownerEmail: data.email,
+      stats: {
+        totalMissions: 0,
+        activeMissions: 0,
+        totalRedemptions: 0,
+        totalSpent: 0,
+      },
+      riskScore: 0,
+      disputeCount: 0,
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date()),
       verifiedAt: data.verifiedAt?.toDate ? data.verifiedAt.toDate() : data.verifiedAt,
@@ -96,8 +125,10 @@ export async function updateBusinessTier(
   tier: BusinessTier
 ): Promise<void> {
   try {
-    await db.collection('businesses').doc(businessId).update({
-      tier,
+    // Update in users collection
+    await db.collection('users').doc(businessId).update({
+      subscriptionLevel: tier,
+      'subscription.tier': tier,
       updatedAt: new Date(),
     });
   } catch (error) {
@@ -113,9 +144,11 @@ export async function verifyBusiness(
   notes?: string
 ): Promise<void> {
   try {
-    await db.collection('businesses').doc(businessId).update({
-      verified: approved,
+    // Update in users collection
+    await db.collection('users').doc(businessId).update({
+      kycVerified: approved,
       verificationStatus: approved ? VerificationStatus.APPROVED : VerificationStatus.REJECTED,
+      approvalStatus: approved ? VerificationStatus.APPROVED : VerificationStatus.REJECTED,
       verificationNotes: notes || null,
       verifiedAt: approved ? new Date() : null,
       verifiedBy: approved ? adminId : null,
@@ -133,7 +166,8 @@ export async function suspendBusiness(
   adminId: string
 ): Promise<void> {
   try {
-    await db.collection('businesses').doc(businessId).update({
+    // Update in users collection
+    await db.collection('users').doc(businessId).update({
       status: 'SUSPENDED',
       suspensionReason: reason,
       suspendedAt: new Date(),
@@ -148,7 +182,8 @@ export async function suspendBusiness(
 
 export async function unsuspendBusiness(businessId: string): Promise<void> {
   try {
-    await db.collection('businesses').doc(businessId).update({
+    // Update in users collection
+    await db.collection('users').doc(businessId).update({
       status: 'ACTIVE',
       suspensionReason: null,
       suspendedAt: null,
