@@ -8,28 +8,38 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertCircle } from 'lucide-react';
+import { createEventAction } from '../actions';
+import Image from 'next/image';
 
 export default function NewEventPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAIGenerated, setIsAIGenerated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aiImageUrl, setAiImageUrl] = useState<string | null>(null);
+  const [aiEventData, setAiEventData] = useState<any>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     location: '',
+    city: '',
     startDate: '',
+    startTime: '',
     endDate: '',
+    endTime: '',
     capacity: '',
     countryId: 'DE',
     type: 'FUN_MEETUP',
     category: 'MEETUP',
+    categories: [] as string[],
     targetAudience: [] as string[],
-    ticketingMode: 'FREE',
+    ticketingMode: 'FREE' as 'FREE' | 'PAID',
     ticketingPrice: '',
     requirements: '',
     benefits: '',
+    highlights: [] as string[],
   });
 
   useEffect(() => {
@@ -38,25 +48,39 @@ export default function NewEventPage() {
     if (aiData) {
       try {
         const parsed = JSON.parse(decodeURIComponent(aiData));
+        console.log('[NewEventPage] AI data:', parsed);
+        setAiEventData(parsed);
+        
         setFormData({
           title: parsed.title || '',
           description: parsed.description || '',
           location: parsed.location || '',
-          startDate: '',
-          endDate: '',
+          city: parsed.city || '',
+          startDate: parsed.startDate || '',
+          startTime: parsed.startTime || '',
+          endDate: parsed.endDate || '',
+          endTime: parsed.endTime || '',
           capacity: parsed.capacity?.toString() || '',
           countryId: parsed.countryId || 'DE',
           type: parsed.type || 'FUN_MEETUP',
-          category: parsed.category || 'MEETUP',
+          category: parsed.category || parsed.categories?.[0] || 'MEETUP',
+          categories: parsed.categories || [],
           targetAudience: parsed.targetAudience || [],
           ticketingMode: parsed.ticketing?.mode || 'FREE',
           ticketingPrice: parsed.ticketing?.price?.toString() || '',
           requirements: parsed.requirements || '',
           benefits: parsed.benefits || '',
+          highlights: parsed.highlights || [],
         });
+        
+        if (parsed.imageUrl) {
+          setAiImageUrl(parsed.imageUrl);
+        }
+        
         setIsAIGenerated(true);
       } catch (e) {
         console.error('Failed to parse AI data:', e);
+        setError('Failed to load AI-generated data');
       }
     }
   }, [searchParams]);
@@ -64,17 +88,44 @@ export default function NewEventPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     try {
-      // TODO: Implement event creation API call
-      console.log('Creating event:', formData);
+      console.log('[NewEventPage] Creating event with data:', formData);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      router.push('/admin/events');
-    } catch (error) {
-      console.error('Error creating event:', error);
+      const result = await createEventAction({
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        category: formData.category,
+        categories: formData.categories.length > 0 ? formData.categories : [formData.category],
+        location: formData.location,
+        city: formData.city,
+        startDate: formData.startDate,
+        startTime: formData.startTime,
+        endDate: formData.endDate,
+        endTime: formData.endTime,
+        duration: aiEventData?.duration || 1,
+        capacity: parseInt(formData.capacity) || 50,
+        countryId: formData.countryId,
+        imageUrl: aiImageUrl || '',
+        targetAudience: formData.targetAudience,
+        ticketing: {
+          mode: formData.ticketingMode,
+          price: formData.ticketingMode === 'PAID' ? parseFloat(formData.ticketingPrice) || 0 : 0,
+        },
+        highlights: formData.highlights,
+        requirements: formData.requirements,
+        benefits: formData.benefits,
+      });
+
+      if (result.success) {
+        console.log('[NewEventPage] Event created successfully:', result.eventId);
+        router.push('/admin/events');
+      }
+    } catch (error: any) {
+      console.error('[NewEventPage] Error creating event:', error);
+      setError(error.message || 'Failed to create event');
     } finally {
       setIsSubmitting(false);
     }
@@ -101,6 +152,37 @@ export default function NewEventPage() {
         </h1>
         <p className="text-gray-600 mt-2">Add a new event to the platform</p>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* AI Generated Image Preview */}
+      {aiImageUrl && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              AI-Generated Event Banner
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-gray-100">
+              <Image
+                src={aiImageUrl}
+                alt={formData.title || 'Event banner'}
+                fill
+                className="object-cover"
+                priority
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

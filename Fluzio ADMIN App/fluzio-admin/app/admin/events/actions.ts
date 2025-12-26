@@ -222,3 +222,106 @@ export async function deleteEventAction(eventId: string) {
     throw new Error(error.message || 'Failed to delete event');
   }
 }
+
+export async function createEventAction(eventData: {
+  title: string;
+  description?: string;
+  type: string;
+  category?: string;
+  categories?: string[];
+  location?: string;
+  city?: string;
+  venue?: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  duration?: number;
+  capacity: number;
+  countryId: string;
+  imageUrl?: string;
+  targetAudience?: string[];
+  ticketing: {
+    mode: 'FREE' | 'PAID';
+    price?: number;
+  };
+  highlights?: string[];
+  requirements?: string;
+  benefits?: string;
+}) {
+  try {
+    const admin = await getAuthenticatedAdmin();
+    if (!admin) {
+      throw new Error('Unauthorized');
+    }
+
+    // Check permission
+    if (!['SUPER_ADMIN', 'COUNTRY_ADMIN', 'CONTENT_MODERATOR'].includes(admin.role)) {
+      throw new Error('Insufficient permissions');
+    }
+
+    // Validate country scope
+    if (!admin.countryScopes.includes('GLOBAL') && !admin.countryScopes.includes(eventData.countryId)) {
+      throw new Error('Cannot create events in this country');
+    }
+
+    const adminDb = getAdminDb();
+    const eventRef = adminDb.collection('events').doc();
+
+    const event: any = {
+      id: eventRef.id,
+      title: eventData.title,
+      description: eventData.description || '',
+      type: eventData.type,
+      category: eventData.category || eventData.categories?.[0] || 'OTHER',
+      categories: eventData.categories || [eventData.category || 'OTHER'],
+      location: eventData.location || '',
+      city: eventData.city || '',
+      venue: eventData.venue || '',
+      startDate: eventData.startDate || '',
+      startTime: eventData.startTime || '',
+      endDate: eventData.endDate || '',
+      endTime: eventData.endTime || '',
+      duration: eventData.duration || 1,
+      capacity: eventData.capacity,
+      attendanceCount: 0,
+      countryId: eventData.countryId,
+      imageUrl: eventData.imageUrl || '',
+      targetAudience: eventData.targetAudience || ['CUSTOMERS'],
+      ticketing: {
+        mode: eventData.ticketing.mode,
+        price: eventData.ticketing.price || 0,
+        tierGate: [],
+      },
+      highlights: eventData.highlights || [],
+      status: 'DRAFT' as EventStatus,
+      organizerBusinessId: admin.uid,
+      budget: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await eventRef.set(event);
+
+    // Write audit log
+    await writeAuditLog({
+      adminId: admin.uid,
+      action: 'CREATE_EVENT',
+      resource: 'EVENT',
+      resourceId: eventRef.id,
+      details: {
+        actorRole: admin.role,
+        countryScopeUsed: eventData.countryId,
+        eventTitle: eventData.title,
+        eventType: eventData.type,
+      },
+      ipAddress: 'server',
+      userAgent: 'admin-app',
+    });
+
+    return { success: true, eventId: eventRef.id };
+  } catch (error: any) {
+    console.error('[createEventAction] Error:', error);
+    throw new Error(error.message || 'Failed to create event');
+  }
+}
