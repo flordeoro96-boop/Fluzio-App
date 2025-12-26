@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminApp } from '@/lib/firebase/admin';
+import getAdminApp from '@/lib/firebase/admin';
+import { getAdminAuth } from '@/lib/firebase/admin';
 import { getStorage } from 'firebase-admin/storage';
 import { cookies } from 'next/headers';
-import { getAdminAuth } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
