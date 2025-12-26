@@ -174,6 +174,10 @@ export default function NewEventPage() {
     }
   };
 
+  const handleRemoveImage = () => {
+    setFormData({ ...formData, imageUrl: '' });
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -260,6 +264,16 @@ export default function NewEventPage() {
                       </>
                     )}
                   </Button>
+                  {formData.imageUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRemoveImage}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      🗑️ Remove Image
+                    </Button>
+                  )}
                   <span className="text-sm text-gray-500">
                     {formData.imageUrl ? '✓ Image uploaded' : 'JPG, PNG, WebP, GIF (max 5MB)'}
                   </span>
