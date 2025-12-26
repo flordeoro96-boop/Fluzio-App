@@ -227,15 +227,10 @@ Event Configuration:
 
     try {
       setProcessing(true);
-      const result = await updateEventStatusAction(selectedEvent.id, newStatus);
-      
-      if (result.success) {
-        await loadEvents();
-        setShowStatusDialog(false);
-        setSelectedEvent(null);
-      } else {
-        setError(result.error || 'Failed to update status');
-      }
+      await updateEventStatusAction(selectedEvent.id, newStatus);
+      await loadEvents();
+      setShowStatusDialog(false);
+      setSelectedEvent(null);
     } catch (err: any) {
       setError(err.message || 'Failed to update status');
     } finally {
@@ -248,15 +243,10 @@ Event Configuration:
 
     try {
       setProcessing(true);
-      const result = await deleteEventAction(selectedEvent.id);
-      
-      if (result.success) {
-        await loadEvents();
-        setShowDeleteDialog(false);
-        setSelectedEvent(null);
-      } else {
-        setError(result.error || 'Failed to delete event');
-      }
+      await deleteEventAction(selectedEvent.id);
+      await loadEvents();
+      setShowDeleteDialog(false);
+      setSelectedEvent(null);
     } catch (err: any) {
       setError(err.message || 'Failed to delete event');
     } finally {
