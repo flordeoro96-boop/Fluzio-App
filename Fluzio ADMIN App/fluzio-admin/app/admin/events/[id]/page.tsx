@@ -186,6 +186,21 @@ export default function EditEventPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Image URL Upload */}
+            <div>
+              <Label htmlFor="imageUrl">Event Banner Image URL</Label>
+              <Input
+                id="imageUrl"
+                type="url"
+                value={formData.imageUrl}
+                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                placeholder="https://example.com/event-banner.jpg"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter a direct URL to an image (JPG, PNG, WebP)
+              </p>
+            </div>
+
             <div>
               <Label htmlFor="title">Event Title *</Label>
               <Input

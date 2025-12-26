@@ -68,7 +68,6 @@ export default function EventsPage() {
   const [aiStartDate, setAiStartDate] = useState<string>('');
   const [aiStartTime, setAiStartTime] = useState<string>('18:00');
   const [aiPriceTier, setAiPriceTier] = useState<string>('10');
-  const [aiGenerateImage, setAiGenerateImage] = useState<boolean>(true);
   const [newStatus, setNewStatus] = useState<EventStatus>('PUBLISHED');
   const [processing, setProcessing] = useState(false);
 
@@ -146,34 +145,6 @@ Event Configuration:
   const selectEventOption = async (selectedEvent: any, index: number) => {
     try {
       console.log('[selectEventOption] Starting:', index, selectedEvent);
-      setGeneratingAI(true);
-
-      let imageUrl = null;
-      if (aiGenerateImage) {
-        console.log('[selectEventOption] Generating image...');
-        try {
-          const imageResponse = await fetch('/api/ai/generate-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              eventTitle: selectedEvent.title,
-              eventType: aiEventType,
-              categories: aiCategories,
-              description: selectedEvent.description,
-            }),
-          });
-
-          if (imageResponse.ok) {
-            const imageData = await imageResponse.json();
-            if (imageData.success) {
-              imageUrl = imageData.imageUrl;
-              console.log('[selectEventOption] Image generated:', imageUrl);
-            }
-          }
-        } catch (imgErr) {
-          console.warn('[selectEventOption] Image generation failed:', imgErr);
-        }
-      }
 
       const eventData = {
         ...selectedEvent,
@@ -192,7 +163,6 @@ Event Configuration:
           price: aiTicketing === 'PAID' ? parseFloat(aiPriceTier) : 0
         },
         capacity: aiCapacity,
-        imageUrl: imageUrl || selectedEvent.imageUrl,
       };
       
       console.log('[selectEventOption] Redirecting...');
@@ -200,8 +170,6 @@ Event Configuration:
     } catch (err: any) {
       console.error('[selectEventOption] Error:', err);
       setError(err.message || 'Failed to process selected event');
-    } finally {
-      setGeneratingAI(false);
       setShowEventOptions(false);
       setAiPrompt('');
     }
@@ -838,25 +806,6 @@ Event Configuration:
                 <span>500</span>
               </div>
             </div>
-
-            {/* AI Image Generation */}
-            <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg">
-              <input
-                type="checkbox"
-                id="aiGenerateImage"
-                checked={aiGenerateImage}
-                onChange={(e) => setAiGenerateImage(e.target.checked)}
-                className="w-4 h-4"
-              />
-              <div className="flex-1">
-                <Label htmlFor="aiGenerateImage" className="font-medium cursor-pointer">
-                  Generate Event Banner with AI
-                </Label>
-                <p className="text-xs text-gray-600 mt-1">
-                  Uses DALL-E 3 to create a custom event banner image (~10 seconds)
-                </p>
-              </div>
-            </div>
           </div>
 
           <DialogFooter>
@@ -867,7 +816,7 @@ Event Configuration:
               {generatingAI ? (
                 <>
                   <span className="animate-spin mr-2">⚡</span>
-                  Generating 5 Options...
+                  Generating...
                 </>
               ) : (
                 <>
@@ -896,16 +845,6 @@ Event Configuration:
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            {generatingAI && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white p-6 rounded-lg flex flex-col items-center gap-3">
-                  <span className="animate-spin text-4xl">⚡</span>
-                  <p className="text-sm text-gray-600">
-                    {aiGenerateImage ? 'Generating event banner image...' : 'Preparing event...'}
-                  </p>
-                </div>
-              </div>
-            )}
             {generatedEventOptions.map((event, index) => (
               <Card 
                 key={index}

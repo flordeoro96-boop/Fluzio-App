@@ -40,6 +40,7 @@ export default function NewEventPage() {
     requirements: '',
     benefits: '',
     highlights: [] as string[],
+    imageUrl: '',
   });
 
   useEffect(() => {
@@ -71,11 +72,8 @@ export default function NewEventPage() {
           requirements: parsed.requirements || '',
           benefits: parsed.benefits || '',
           highlights: parsed.highlights || [],
+          imageUrl: parsed.imageUrl || '',
         });
-        
-        if (parsed.imageUrl) {
-          setAiImageUrl(parsed.imageUrl);
-        }
         
         setIsAIGenerated(true);
       } catch (e) {
@@ -108,7 +106,7 @@ export default function NewEventPage() {
         duration: aiEventData?.duration || 1,
         capacity: parseInt(formData.capacity) || 50,
         countryId: formData.countryId,
-        imageUrl: aiImageUrl || '',
+        imageUrl: formData.imageUrl || '',
         targetAudience: formData.targetAudience,
         ticketing: {
           mode: formData.ticketingMode,
@@ -161,19 +159,16 @@ export default function NewEventPage() {
         </div>
       )}
 
-      {/* AI Generated Image Preview */}
-      {aiImageUrl && (
+      {/* Event Banner Preview */}
+      {formData.imageUrl && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              AI-Generated Event Banner
-            </CardTitle>
+            <CardTitle>Event Banner Preview</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-gray-100">
               <Image
-                src={aiImageUrl}
+                src={formData.imageUrl}
                 alt={formData.title || 'Event banner'}
                 fill
                 className="object-cover"
@@ -190,6 +185,21 @@ export default function NewEventPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Image URL Upload */}
+            <div>
+              <Label htmlFor="imageUrl">Event Banner Image URL</Label>
+              <Input
+                id="imageUrl"
+                type="url"
+                value={formData.imageUrl}
+                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                placeholder="https://example.com/event-banner.jpg"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter a direct URL to an image (JPG, PNG, WebP)
+              </p>
+            </div>
+
             <div>
               <Label htmlFor="title">Event Title *</Label>
               <Input
