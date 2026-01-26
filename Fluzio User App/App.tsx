@@ -2357,11 +2357,25 @@ const App: React.FC = () => {
         try {
           console.log('🔍 [App] Checking if user is admin...');
           
+          // Verify Supabase session exists before querying
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            console.warn('⚠️ [App] No active Supabase session, skipping admin check');
+            proceedWithRegularUserFlow();
+            return;
+          }
+          
           // Check user_roles table in Supabase
           const { data: roles, error } = await supabase
             .from('user_roles')
             .select('role')
             .eq('user_id', userProfile.uid);
+          
+          if (error) {
+            console.warn('⚠️ [App] Could not check admin status:', error.message);
+            proceedWithRegularUserFlow();
+            return;
+          }
           
           const isAdmin = roles && roles.some((r: { role: string }) => r.role === 'admin');
           
@@ -2388,15 +2402,17 @@ const App: React.FC = () => {
           console.log('ℹ️ [App] Not an admin, proceeding with regular user flow');
         } catch (error) {
           console.error('❌ [App] Error checking admin status:', error);
+          // CRITICAL: Always proceed with regular flow even if admin check fails
         }
         
-        // Regular user flow - only runs if not admin
+        // Regular user flow - always runs unless admin detected
         proceedWithRegularUserFlow();
       };
       
       const proceedWithRegularUserFlow = () => {
-        // Find or create mock user based on Firebase UID
-        let mockUser = store.getUserByFirebaseUid(userProfile.uid);
+        try {
+          // Find or create mock user based on Firebase UID
+          let mockUser = store.getUserByFirebaseUid(userProfile.uid);
       
         if (!mockUser) {
           console.log('✨ [App] Creating NEW mock user for Firebase UID:', userProfile.uid);
@@ -2493,10 +2509,26 @@ const App: React.FC = () => {
           setActiveCustomerTab(CustomerTab.FEED);
           console.log('[App] 📍 Set initial tab to HOME for customer');
         }
+        } catch (error) {
+          console.error('❌ [App] Error in proceedWithRegularUserFlow:', error);
+          // Clear corrupted state and force re-login
+          console.log('🔄 [App] Clearing corrupted auth state and reloading...');
+          localStorage.removeItem('mockCurrentUser');
+          sessionStorage.clear();
+          setViewState(ViewState.LOGIN);
+          setUser(null);
+        }
       };
       
       // Start the async admin check
-      checkAdminAndProceed();
+      checkAdminAndProceed().catch((err) => {
+        console.error('❌ [App] Unhandled error in checkAdminAndProceed:', err);
+        // Force clean state
+        localStorage.removeItem('mockCurrentUser');
+        sessionStorage.clear();
+        setViewState(ViewState.LOGIN);
+        setUser(null);
+      });
     } else if (!user) {
       // No Firebase user and no mock user - show login
       setViewState(ViewState.LOGIN);
