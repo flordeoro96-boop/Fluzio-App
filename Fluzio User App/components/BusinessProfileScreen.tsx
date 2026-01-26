@@ -9,7 +9,6 @@ import { CollabOffers } from './business/CollabOffers';
 import { GoogleBusinessSync } from './GoogleBusinessSync';
 import { Edit, ArrowLeft } from 'lucide-react';
 import { Button } from './Common';
-import { socialAuthService } from '../services/socialAuthService';
 import { useAuth } from '../services/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -42,27 +41,6 @@ export const BusinessProfileScreen: React.FC<BusinessProfileScreenProps> = ({
     collabsCompleted: business.collabsCompleted
   });
 
-  // Google handlers
-  const handleConnectGoogle = async () => {
-    if (!isOwner) return;
-    console.log('[BusinessProfileScreen] 🔵 Connecting Google...');
-    try {
-      const result = await socialAuthService.linkGoogle();
-      if (result.success) {
-        alert('Google account connected successfully!');
-        await refreshUserProfile();
-        // Auto-open sync modal
-        console.log('[BusinessProfileScreen] 🚀 Opening Google Sync modal...');
-        setShowGoogleSync(true);
-      } else {
-        alert(result.error || 'Failed to connect Google account');
-      }
-    } catch (error: any) {
-      console.error('[BusinessProfileScreen] ❌ Google connection error:', error);
-      alert(error.message || 'Failed to connect Google account');
-    }
-  };
-
   const handleSyncGoogle = () => {
     console.log('[BusinessProfileScreen] 🚀 Opening Google Business Sync modal...');
     setShowGoogleSync(true);
@@ -72,58 +50,6 @@ export const BusinessProfileScreen: React.FC<BusinessProfileScreenProps> = ({
     console.log('[BusinessProfileScreen] ✅ Google Business sync completed!', data);
     await refreshUserProfile();
     alert(`✅ Successfully synced Google Business Profile!\n\n📊 Imported:\n- ${data.googleAttributes?.length || 0} trust badges\n- ${data.googlePhotos?.length || 0} photos\n- Rating: ${data.rating || 'N/A'}\n- ${data.reviewCount || 0} reviews`);
-  };
-
-  const handleDisconnectGoogle = async () => {
-    if (!isOwner) return;
-    const confirmed = confirm('Are you sure you want to disconnect your Google account?');
-    if (!confirmed) return;
-    
-    try {
-      const result = await socialAuthService.unlinkGoogle();
-      if (result.success) {
-        alert('Google account disconnected successfully');
-        await refreshUserProfile();
-      } else {
-        alert(result.error || 'Failed to disconnect Google account');
-      }
-    } catch (error: any) {
-      alert(error.message || 'Failed to disconnect Google account');
-    }
-  };
-
-  // Facebook handlers
-  const handleConnectFacebook = async () => {
-    if (!isOwner) return;
-    try {
-      const result = await socialAuthService.linkFacebook();
-      if (result.success) {
-        alert('Facebook account connected successfully!');
-        await refreshUserProfile();
-      } else {
-        alert(result.error || 'Failed to connect Facebook account');
-      }
-    } catch (error: any) {
-      alert(error.message || 'Failed to connect Facebook account');
-    }
-  };
-
-  const handleDisconnectFacebook = async () => {
-    if (!isOwner) return;
-    const confirmed = confirm('Are you sure you want to disconnect your Facebook account?');
-    if (!confirmed) return;
-    
-    try {
-      const result = await socialAuthService.unlinkFacebook();
-      if (result.success) {
-        alert('Facebook account disconnected successfully');
-        await refreshUserProfile();
-      } else {
-        alert(result.error || 'Failed to disconnect Facebook account');
-      }
-    } catch (error: any) {
-      alert(error.message || 'Failed to disconnect Facebook account');
-    }
   };
 
   // Instagram handlers (stubs)
@@ -215,17 +141,7 @@ export const BusinessProfileScreen: React.FC<BusinessProfileScreenProps> = ({
         <BusinessInfoPanel 
           business={business}
           isOwner={isOwner}
-          onConnectGoogle={isOwner ? handleConnectGoogle : undefined}
-          onDisconnectGoogle={isOwner ? handleDisconnectGoogle : undefined}
           onSyncGoogle={isOwner && business.socialAccounts?.google?.connected ? handleSyncGoogle : undefined}
-          onConnectFacebook={isOwner ? handleConnectFacebook : undefined}
-          onDisconnectFacebook={isOwner ? handleDisconnectFacebook : undefined}
-          onConnectInstagram={isOwner ? handleConnectInstagram : undefined}
-          onDisconnectInstagram={isOwner ? handleDisconnectInstagram : undefined}
-          onConnectTikTok={isOwner ? handleConnectTikTok : undefined}
-          onDisconnectTikTok={isOwner ? handleDisconnectTikTok : undefined}
-          onConnectLinkedIn={isOwner ? handleConnectLinkedIn : undefined}
-          onDisconnectLinkedIn={isOwner ? handleDisconnectLinkedIn : undefined}
         />
         
         {/* 6. Vibe Tags - personality descriptors */}

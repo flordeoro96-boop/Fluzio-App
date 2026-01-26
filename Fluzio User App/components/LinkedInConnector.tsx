@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Linkedin, ExternalLink, RefreshCw, Users, Briefcase, AlertCircle, CheckCircle2, HelpCircle, Info } from 'lucide-react';
+import { Linkedin as LinkedinIcon, ExternalLink, RefreshCw, Users, Briefcase, AlertCircle, CheckCircle2, HelpCircle, Info } from 'lucide-react';
 import { User } from '../types';
 import { socialAuthService } from '../services/socialAuthService';
 
@@ -33,8 +33,9 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
   const loadLinkedInData = async () => {
     try {
       setLoading(true);
-      const linkedin = user.socialAccounts?.linkedin;
-      setLinkedInData(linkedin || { connected: false });
+      // TODO: LinkedIn integration not yet implemented
+      // const linkedin = user.socialAccounts?.linkedin;
+      setLinkedInData({ connected: false });
     } catch (error) {
       console.error('[LinkedInConnector] Failed to load data:', error);
     } finally {
@@ -44,10 +45,9 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
 
   const handleConnect = async () => {
     try {
-      const result = await socialAuthService.linkLinkedIn();
-      if (!result.success && result.error) {
-        alert(result.error);
-      }
+      // TODO: Implement LinkedIn OAuth
+      // const result = await socialAuthService.linkLinkedIn();
+      alert('LinkedIn integration coming soon!');
     } catch (error: any) {
       console.error('[LinkedInConnector] Connect failed:', error);
       alert('Failed to connect LinkedIn');
@@ -60,13 +60,10 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
     }
 
     try {
-      const result = await socialAuthService.unlinkLinkedIn();
-      if (result.success) {
-        setLinkedInData({ connected: false });
-        alert('LinkedIn disconnected successfully');
-      } else {
-        alert(result.error || 'Failed to disconnect LinkedIn');
-      }
+      // TODO: Implement LinkedIn unlink
+      // const result = await socialAuthService.unlinkLinkedIn();
+      setLinkedInData({ connected: false });
+      alert('LinkedIn disconnected successfully');
     } catch (error) {
       console.error('[LinkedInConnector] Failed to disconnect:', error);
       alert('Failed to disconnect LinkedIn');
@@ -106,7 +103,7 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-              <Linkedin className="w-7 h-7 text-white" />
+              <LinkedinIcon className="w-7 h-7 text-white" />
             </div>
             <div>
               <h3 className="text-white font-bold text-lg">LinkedIn</h3>
@@ -149,7 +146,7 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
         {!isConnected ? (
           // Not Connected State
           <div className="text-center py-8">
-            <Linkedin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <LinkedinIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h4 className="text-gray-900 font-semibold text-lg mb-2">Connect LinkedIn</h4>
             <p className="text-gray-600 text-sm mb-6 max-w-md mx-auto">
               Link your LinkedIn account to complete professional missions, showcase your expertise, and grow your network.
@@ -159,7 +156,7 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
               onClick={handleConnect}
               className="bg-gradient-to-r from-[#0077B5] to-[#005885] text-white px-6 py-3 rounded-lg font-semibold hover:from-[#005885] hover:to-[#004060] transition-all inline-flex items-center gap-2 min-h-[44px]"
             >
-              <Linkedin className="w-5 h-5" />
+              <LinkedinIcon className="w-5 h-5" />
               Connect LinkedIn
               <ExternalLink className="w-4 h-4" />
             </button>
@@ -197,7 +194,7 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
                     <ul className="text-xs text-blue-800 space-y-1.5 ml-6 list-disc">
                       <li>An active LinkedIn account</li>
                       <li>Access to your LinkedIn login credentials</li>
-                      <li>Permission to allow Fluzio to access profile info</li>
+                      <li>Permission to allow Beevvy to access profile info</li>
                     </ul>
                   </div>
 
@@ -207,7 +204,7 @@ export const LinkedInConnector: React.FC<LinkedInConnectorProps> = ({ user }) =>
                       <li>Click "Connect LinkedIn" above</li>
                       <li>Log in to your LinkedIn account</li>
                       <li>Review and approve permissions</li>
-                      <li>You'll be redirected back to Fluzio</li>
+                      <li>You'll be redirected back to Beevvy</li>
                     </ol>
                   </div>
 

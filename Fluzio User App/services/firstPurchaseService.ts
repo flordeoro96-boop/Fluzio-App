@@ -16,7 +16,7 @@
  * - 7-day reward delay (prevents refund fraud)
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   doc, 
@@ -27,7 +27,7 @@ import {
   getDocs, 
   getDoc,
   Timestamp 
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { createNotification } from './notificationService';
 import { logPointsTransaction } from './pointsMarketplaceService';
 

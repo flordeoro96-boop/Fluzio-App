@@ -1,6 +1,6 @@
 
 import { Conversation, User, ActivityProposal } from '../types';
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   doc, 
@@ -12,7 +12,7 @@ import {
   getDocs,
   serverTimestamp,
   arrayUnion
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 
 /**
  * Squad chat and activity proposal service - Firestore integrated

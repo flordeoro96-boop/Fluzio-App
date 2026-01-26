@@ -474,7 +474,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ conversationId, currentU
                 const isMe = msg.senderId === currentUser.id;
                 const isSystem = msg.type === 'SYSTEM';
                 const isActivityProposal = msg.type === 'ACTIVITY_PROPOSAL';
-                const showAvatar = !isMe && !isSystem && !isActivityProposal && (index === 0 || messages[index-1].senderId !== msg.senderId);
+                const isActivitySelected = msg.type === 'ACTIVITY_SELECTED';
+                const showAvatar = !isMe && !isSystem && !isActivityProposal && !isActivitySelected && (index === 0 || messages[index-1].senderId !== msg.senderId);
 
                 if (isSystem) {
                     return (
@@ -482,6 +483,36 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ conversationId, currentU
                             <span className="px-3 py-1 bg-gray-200/60 rounded-full text-[10px] font-bold text-gray-500 uppercase tracking-wide shadow-sm">
                                 {msg.text}
                             </span>
+                        </div>
+                    );
+                }
+
+                // Activity Selected Card
+                if (isActivitySelected && msg.activityData) {
+                    return (
+                        <div key={msg.id} className="my-4">
+                            <div className="max-w-md mx-auto">
+                                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-5 border-2 border-purple-200 shadow-lg">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                                            <span className="text-3xl">{msg.activityData.emoji}</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-bold text-purple-600 uppercase tracking-wide">Squad Activity Selected</span>
+                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                            </div>
+                                            <h4 className="font-bold text-gray-900 text-lg mb-1">{msg.activityData.title}</h4>
+                                            <p className="text-sm text-gray-600 mb-2 leading-relaxed">{msg.activityData.description}</p>
+                                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                <span className="font-medium">Selected by {msg.activityData.selectedBy}</span>
+                                                <span>•</span>
+                                                <span>{format(new Date(msg.timestamp), 'HH:mm')}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     );
                 }

@@ -1,7 +1,7 @@
-import { db } from './AuthContext';
-import { doc, updateDoc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, updateDoc, getDoc, setDoc, Timestamp } from '../services/firestoreCompat';
 
-export type Level2Tier = 'FREE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+export type Level2Tier = 'STARTER' | 'SILVER' | 'GOLD' | 'PLATINUM';
 
 export interface Level2Benefits {
   // Mission Limits
@@ -47,7 +47,7 @@ export interface Level2Benefits {
 
 // Benefits configuration for each Level 2 tier
 export const LEVEL2_TIER_BENEFITS: Record<Level2Tier, Level2Benefits> = {
-  FREE: {
+  STARTER: {
     // Mission Limits
     maxActiveMissions: 1,
     maxParticipantsPerMonth: 20,
@@ -92,7 +92,7 @@ export const LEVEL2_TIER_BENEFITS: Record<Level2Tier, Level2Benefits> = {
   SILVER: {
     // Mission Limits
     maxActiveMissions: 3,
-    maxParticipantsPerMonth: 40,
+    maxParticipantsPerMonth: 500,
     maxParticipantsPerMission: 20,
     
     // Mission Types
@@ -134,7 +134,7 @@ export const LEVEL2_TIER_BENEFITS: Record<Level2Tier, Level2Benefits> = {
   GOLD: {
     // Mission Limits
     maxActiveMissions: 6,
-    maxParticipantsPerMonth: 120,
+    maxParticipantsPerMonth: 800,
     maxParticipantsPerMission: 30,
     
     // Mission Types
@@ -176,7 +176,7 @@ export const LEVEL2_TIER_BENEFITS: Record<Level2Tier, Level2Benefits> = {
   PLATINUM: {
     // Mission Limits
     maxActiveMissions: -1, // Unlimited with fair use
-    maxParticipantsPerMonth: 300,
+    maxParticipantsPerMonth: 1500,
     maxParticipantsPerMission: 50,
     
     // Mission Types
@@ -218,7 +218,7 @@ export const LEVEL2_TIER_BENEFITS: Record<Level2Tier, Level2Benefits> = {
 
 // Tier pricing in EUR
 export const LEVEL2_TIER_PRICING: Record<Level2Tier, number> = {
-  FREE: 0,
+  STARTER: 0,
   SILVER: 29,
   GOLD: 59,
   PLATINUM: 99
@@ -258,14 +258,19 @@ export interface Level2Subscription {
  * Get Level 2 subscription for a business
  */
 export const getLevel2Subscription = async (userId: string): Promise<Level2Subscription | null> => {
+  console.log(`[Level2Sub] 🔍 Fetching subscription for userId=${userId}`);
   try {
-    const subDoc = await getDoc(doc(db, 'level2Subscriptions', userId));
+    const docSnap = await getDoc(doc(db, 'level2Subscriptions', userId));
     
-    if (!subDoc.exists()) {
-      // Create default FREE subscription
+    if (!docSnap.exists()) {
+      // Check user's subscriptionLevel from users collection
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      const userTier = (userDoc.exists() ? userDoc.data()?.subscriptionLevel : null) as Level2Tier | null;
+      
+      // Create subscription with user's actual tier (or FREE as fallback)
       const defaultSub: Level2Subscription = {
         userId,
-        tier: 'FREE',
+        tier: userTier || 'STARTER',
         status: 'ACTIVE',
         startDate: new Date(),
         activeMissionsCount: 0,
@@ -284,7 +289,9 @@ export const getLevel2Subscription = async (userId: string): Promise<Level2Subsc
       return defaultSub;
     }
     
-    return subDoc.data() as Level2Subscription;
+    const subscription = docSnap.data() as Level2Subscription;
+    console.log(`[Level2Sub] Retrieved subscription for ${userId}, tier=${subscription.tier}`);
+    return subscription;
   } catch (error) {
     console.error('[getLevel2Subscription] Error:', error);
     return null;
@@ -360,14 +367,8 @@ export const canCreateMission = async (
     
     const benefits = LEVEL2_TIER_BENEFITS[subscription.tier];
     
-    // Check active missions limit
-    if (benefits.maxActiveMissions !== -1 && 
-        subscription.activeMissionsCount >= benefits.maxActiveMissions) {
-      return {
-        allowed: false,
-        reason: `You've reached your limit of ${benefits.maxActiveMissions} active mission(s). Upgrade for more!`
-      };
-    }
+    // ✅ REMOVED: Active mission limit check - now unlimited missions for all tiers
+    // Only limit is the monthly participant pool
     
     // Check mission type access
     if (missionType === 'VISIT' && !benefits.visitCheckInMissions) {

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Munich Business - Fluzio</title>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, GeoPoint } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDEhb7pxlRXnwmm2Ot3DkevVOEvQqgbfLI",
+            authDomain: "fluzio-13af2.firebaseapp.com",
+            projectId: "fluzio-13af2",
+            storageBucket: "fluzio-13af2.firebasestorage.app",
+            messagingSenderId: "1046842142672",
+            appId: "1:1046842142672:web:7cbbd9df5df9879513e59d",
+            measurementId: "G-E8G8BQD2B6"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const output = document.getElementById('output');
+            const fixBtn = document.getElementById('fixBtn');
+            const loading = document.getElementById('loading');
+
+            function log(message, type = 'info') {
+                const p = document.createElement('p');
+                p.className = type;
+                p.textContent = message;
+                output.appendChild(p);
+                output.scrollTop = output.scrollHeight;
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    log(`✅ Authenticated as: ${user.email}`, 'success');
+                    fixBtn.disabled = false;
+                } else {
+                    log('⚠️  Please log in to Fluzio first', 'warning');
+                    log('Open https://fluzio-13af2.web.app in another tab and log in, then refresh this page', 'info');
+                }
+            });
+
+            fixBtn.addEventListener('click', async () => {
+                output.innerHTML = '';
+                loading.style.display = 'block';
+                fixBtn.disabled = true;
+
+                try {
+                    log('🔍 Searching for Munich businesses...', 'info');
+
+                    const usersRef = collection(db, 'users');
+                    const munichQuery = query(usersRef, 
+                        where('role', '==', 'BUSINESS'),
+                        where('city', 'in', ['Munich', 'München', 'munich'])
+                    );
+
+                    const snapshot = await getDocs(munichQuery);
+
+                    if (snapshot.empty) {
+                        log('❌ No Munich businesses found with city filter', 'error');
+                        log('\n📋 Trying broader search...', 'info');
+
+                        const allBusinessQuery = query(usersRef, where('role', '==', 'BUSINESS'));
+                        const allBusinesses = await getDocs(allBusinessQuery);
+                        
+                        log(`\nFound ${allBusinesses.size} total businesses:`, 'info');
+                        
+                        allBusinesses.docs.forEach(doc => {
+                            const data = doc.data();
+                            log(`  • ${data.name} - City: ${data.city || 'NOT SET'}`, 'info');
+                        });
+
+                        return;
+                    }
+
+                    log(`✅ Found ${snapshot.size} Munich business(es)\n`, 'success');
+
+                    for (const docSnap of snapshot.docs) {
+                        const data = docSnap.data();
+                        const businessId = docSnap.id;
+
+                        log(`\n${'='.repeat(40)}`, 'info');
+                        log(`📍 Business: ${data.name}`, 'success');
+                        log(`   ID: ${businessId}`, 'info');
+                        log(`   City: ${data.city}`, 'info');
+                        log(`${'='.repeat(40)}`, 'info');
+
+                        const fixes = {};
+                        let needsFix = false;
+
+                        // Check geo location
+                        if (!data.geo || !data.geo.latitude || !data.geo.longitude) {
+                            log('   ❌ Missing geo location', 'error');
+                            // Munich center coordinates
+                            fixes.geo = new GeoPoint(48.1351, 11.5820);
+                            log('   → Will set Munich center coordinates', 'warning');
+                            needsFix = true;
+                        } else {
+                            log(`   ✅ Geo: ${data.geo.latitude}, ${data.geo.longitude}`, 'success');
+                        }
+
+                        // Check businessMode
+                        if (!data.businessMode) {
+                            log('   ❌ Missing businessMode', 'error');
+                            fixes.businessMode = 'PHYSICAL';
+                            log('   → Will set to PHYSICAL', 'warning');
+                            needsFix = true;
+                        } else if (data.businessMode === 'ONLINE') {
+                            log(`   ⚠️  businessMode: ${data.businessMode} (won't show on map)`, 'warning');
+                            log('   ℹ️  Change to PHYSICAL or HYBRID manually if needed', 'info');
+                        } else {
+                            log(`   ✅ businessMode: ${data.businessMode}`, 'success');
+                        }
+
+                        // Check isAspiringBusiness
+                        if (data.isAspiringBusiness === true) {
+                            log('   ❌ isAspiringBusiness flag is true', 'error');
+                            fixes.isAspiringBusiness = false;
+                            log('   → Will set to false', 'warning');
+                            needsFix = true;
+                        } else {
+                            log('   ✅ Not an aspiring business', 'success');
+                        }
+
+                        // Other fields
+                        log(`   Business Type: ${data.businessType || 'NOT SET'}`, 'info');
+                        log(`   Category: ${data.category || 'NOT SET'}`, 'info');
+                        log(`   Address: ${data.address || 'NOT SET'}`, 'info');
+                        log(`   Home City: ${data.homeCity || 'NOT SET'}`, 'info');
+
+                        // Apply fixes
+                        if (needsFix) {
+                            log(`\n🔧 Applying ${Object.keys(fixes).length} fix(es)...`, 'warning');
+
+                            const userDocRef = doc(db, 'users', businessId);
+                            await updateDoc(userDocRef, fixes);
+
+                            log('✅ FIXED! Business should now be visible', 'success');
+                            log('Updated fields:', 'info');
+                            Object.entries(fixes).forEach(([key, value]) => {
+                                if (key === 'geo') {
+                                    log(`   ${key}: ${value.latitude}, ${value.longitude}`, 'info');
+                                } else {
+                                    log(`   ${key}: ${value}`, 'info');
+                                }
+                            });
+                        } else {
+                            log('\n✅ No fixes needed - already configured correctly!', 'success');
+                        }
+
+                        // Recommendations
+                        if (!data.homeCity || data.homeCity !== 'Munich') {
+                            log('\n💡 Tip: Set homeCity to "Munich"', 'info');
+                        }
+                        if (!data.address) {
+                            log('💡 Tip: Add full address', 'info');
+                        }
+                    }
+
+                    log('\n' + '='.repeat(40), 'info');
+                    log('✅ Diagnostic complete!', 'success');
+                    log('='.repeat(40), 'info');
+                    log('\n🔄 Refresh the main app to see changes', 'success');
+
+                } catch (error) {
+                    log(`\n❌ Error: ${error.message}`, 'error');
+                    console.error(error);
+                } finally {
+                    loading.style.display = 'none';
+                    fixBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #output {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        #output p {
+            margin: 5px 0;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        .info { color: #17a2b8; }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix Munich Business Visibility</h1>
+        <p>This tool will diagnose and fix why your Munich restaurant isn't showing up on the customer map or list.</p>
+        
+        <p><strong>Common issues it fixes:</strong></p>
+        <ul>
+            <li>Missing geo location (latitude/longitude)</li>
+            <li>Missing businessMode (needs to be PHYSICAL or HYBRID)</li>
+            <li>isAspiringBusiness flag (filters you out)</li>
+        </ul>
+
+        <button id="fixBtn" disabled>Run Diagnostic & Fix</button>
+
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+
+        <div id="output"></div>
+    </div>
+</body>
+</html>

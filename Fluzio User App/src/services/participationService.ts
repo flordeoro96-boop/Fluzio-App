@@ -5,7 +5,7 @@
  * Replaces MockStore participation tracking
  */
 
-import { db } from '../../services/AuthContext';
+import { db } from '../../services/apiService';
 import { 
   collection, 
   query, 
@@ -18,7 +18,7 @@ import {
   getDoc,
   Timestamp,
   deleteDoc
-} from 'firebase/firestore';
+} from '../../services/firestoreCompat';
 import { trackMissionCompletion } from '../../services/customerTrackingService';
 import { notifyMissionApproved, notifyMissionRejected, notifyMissionApplication } from '../../services/notificationServiceEnhanced';
 import { logPointsTransaction } from '../../services/pointsMarketplaceService';
@@ -258,6 +258,38 @@ export const getParticipationsForBusiness = async (businessId: string): Promise<
   try {
     console.log('[ParticipationService] getParticipationsForBusiness called for businessId:', businessId);
     
+    // Try Supabase first (using snake_case column names)
+    try {
+      const { supabase } = await import('../../services/supabaseClient');
+      const { data: supabaseData, error } = await supabase
+        .from('participations')
+        .select('*')
+        .eq('business_id', businessId)
+        .order('applied_at', { ascending: false });
+      
+      if (!error && supabaseData) {
+        console.log('[ParticipationService] Found', supabaseData.length, 'participations from Supabase');
+        return supabaseData.map((row: any) => ({
+          id: row.id,
+          missionId: row.mission_id,
+          userId: row.user_id,
+          businessId: row.business_id,
+          status: row.status || 'PENDING',
+          appliedAt: row.applied_at || new Date().toISOString(),
+          approvedAt: row.approved_at,
+          completedAt: row.completed_at,
+          proofUrl: row.proof_url,
+          proofText: row.proof_text,
+          proofSubmittedAt: row.proof_submitted_at,
+          points: row.points,
+          feedback: row.feedback
+        }));
+      }
+    } catch (supabaseError) {
+      console.log('[ParticipationService] Supabase not available, falling back to Firebase');
+    }
+    
+    // Fallback to Firebase
     const q = query(
       participationsCol,
       where('businessId', '==', businessId),
@@ -377,21 +409,61 @@ export const approveParticipation = async (
     console.log('[ParticipationService] User ID:', userId);
     console.log('[ParticipationService] Mission ID:', missionId);
     
-    // Get mission to find reward points
+    // Get mission to find reward points and businessId
     const missionsCol = collection(db, 'missions');
     const missionRef = doc(missionsCol, missionId);
     const missionSnap = await getDoc(missionRef);
     
     let points = pointsOverride || 100; // Default to 100 if not specified
     let missionData: any = null;
+    let businessId: string | null = null;
     
     if (missionSnap.exists()) {
       missionData = missionSnap.data();
+      businessId = missionData.businessId;
       points = pointsOverride || missionData.reward?.points || missionData.points || 100;
       console.log('[ParticipationService] Mission reward points:', points);
+      console.log('[ParticipationService] Business ID:', businessId);
     } else {
       console.warn('[ParticipationService] Mission not found, using default points:', points);
     }
+    
+    // ============ PARTICIPANT POOL CHECK ============
+    // Check if business has available participant slots before approving
+    if (businessId) {
+      const { checkParticipantPoolAvailability, consumeParticipantSlot } = await import('../../services/participantPoolService');
+      
+      console.log('[ParticipationService] 🔍 Checking participant pool availability...');
+      const poolCheck = await checkParticipantPoolAvailability(businessId);
+      
+      if (!poolCheck.canParticipate) {
+        console.error('[ParticipationService] ❌ Participant pool depleted for business:', businessId);
+        console.error('[ParticipationService] Reason:', poolCheck.reason);
+        return {
+          success: false,
+          error: `POOL_DEPLETED: ${poolCheck.reason}. Pool resets on ${poolCheck.cycleResetDate?.toDate().toLocaleDateString()}`
+        };
+      }
+      
+      console.log('[ParticipationService] ✅ Pool available. Remaining slots:', poolCheck.remaining);
+      
+      // Consume a participant slot atomically
+      console.log('[ParticipationService] 🎫 Consuming participant slot...');
+      const slotResult = await consumeParticipantSlot(businessId, participationId);
+      
+      if (!slotResult.success) {
+        console.error('[ParticipationService] ❌ Failed to consume participant slot:', slotResult.error);
+        return {
+          success: false,
+          error: slotResult.error || 'Failed to consume participant slot'
+        };
+      }
+      
+      console.log('[ParticipationService] ✅ Participant slot consumed! Remaining:', slotResult.remaining);
+    } else {
+      console.warn('[ParticipationService] ⚠️ No businessId found, skipping pool check (backward compatibility)');
+    }
+    // ============ END POOL CHECK ============
     
     // Update participation status
     await updateDoc(docRef, {
@@ -542,6 +614,19 @@ export const rejectParticipation = async (
     const participation = participationSnap.data();
     const userId = participation.userId;
     const missionId = participation.missionId;
+    const previousStatus = participation.status;
+    
+    // Get businessId for pool refund
+    let businessId: string | null = null;
+    try {
+      const { getMissionById } = await import('../../services/missionService');
+      const mission = await getMissionById(missionId);
+      if (mission) {
+        businessId = mission.businessId;
+      }
+    } catch (error) {
+      console.warn('[ParticipationService] Could not fetch businessId for pool refund:', error);
+    }
     
     // Update participation status
     await updateDoc(docRef, {
@@ -550,8 +635,24 @@ export const rejectParticipation = async (
       feedback: feedback || 'Proof does not meet requirements'
     });
 
+    // ============ PARTICIPANT POOL REFUND ============
+    // If the participation was previously approved, refund the participant slot
+    if (previousStatus === 'APPROVED' && businessId) {
+      const { refundParticipantSlot } = await import('../../services/participantPoolService');
+      
+      console.log('[ParticipationService] 🔄 Refunding participant slot...');
+      const refundResult = await refundParticipantSlot(businessId, participationId);
+      
+      if (refundResult) {
+        console.log('[ParticipationService] ✅ Participant slot refunded successfully');
+      } else {
+        console.error('[ParticipationService] ❌ Failed to refund participant slot');
+      }
+    }
+    // ============ END POOL REFUND ============
+
     // Refund points if the participation was previously approved
-    if (participation.status === 'APPROVED' && participation.points) {
+    if (previousStatus === 'APPROVED' && participation.points) {
       try {
         const { refundPoints } = await import('../../services/pointsMarketplaceService');
         const { getMissionById } = await import('../../services/missionService');

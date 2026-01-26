@@ -41,6 +41,7 @@ import { updateUserLocation, watchUserLocation, stopWatchingLocation } from './s
 import { getParticipationsForBusiness, approveParticipation } from './src/services/participationService';
 import { Card, Button, Input, Select, TextArea, Badge, Modal } from './components/Common';
 import { MissionCard } from './components/MissionCard';
+import { ParticipantPoolStatus } from './components/ParticipantPoolStatus';
 import { SquadView } from './components/SquadView';
 import { MatchView } from './components/MatchView';
 import { ProjectList } from './components/ProjectList';
@@ -59,8 +60,10 @@ import { NotificationList } from './components/NotificationList';
 import { NotificationPreferences } from './components/notifications/NotificationPreferences';
 import { EnhancedNotificationList } from './components/notifications/EnhancedNotificationList';
 import { StandardMissionsList } from './components/StandardMissionsList';
+import { BusinessEngageScreen } from './components/BusinessEngageScreen';
 import { CustomerLayout, CustomerTab } from './components/CustomerLayout';
 import { MissionsScreen, CommunityScreen } from './components/CustomerScreens';
+import { CustomerEarnScreen } from './components/CustomerEarnScreen';
 import { ExploreScreen } from './components/ExploreScreen';
 import { RewardsScreen } from './components/RewardsScreen';
 import RewardsRedemption from './components/RewardsRedemption';
@@ -81,7 +84,6 @@ import { EditBusinessProfile } from './components/EditBusinessProfile';
 import { QRCodeView } from './components/QRCodeView';
 import { PasswordResetModal } from './components/PasswordResetModal';
 import { EmailVerificationBanner } from './components/EmailVerificationBanner';
-import { InstagramCallbackScreen } from './components/InstagramCallbackScreen';
 import { CustomerProfileModal } from './components/CustomerProfileModal';
 import { CustomerSettingsModal } from './components/CustomerSettingsModal';
 import { CustomerSubscriptionModal } from './components/CustomerSubscriptionModal';
@@ -93,17 +95,24 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { GlobalSearch } from './components/GlobalSearch';
 import { FriendsModal } from './components/FriendsModal';
 import { CreatorOpportunitiesScreen } from './components/CreatorOpportunitiesScreen';
+import CreatorAcademy from './src/components/CreatorAcademy';
+import MediaKitGenerator from './src/components/MediaKitGenerator';
+import CreatorProtection from './components/CreatorProtection';
 import { CreatorProjectsScreen } from './components/CreatorProjectsScreen';
 import { CreatorNetworkScreen } from './components/CreatorNetworkScreen';
 import { CreatorSetupModal, CreatorSetupData } from './components/CreatorSetupModal';
+import { UserProfileView } from './components/UserProfileView';
 import { OfflineDetector } from './components/OfflineDetector';
+import { FeedScreen } from './components/FeedScreen';
 import { AccessibilityModal } from './components/AccessibilityModal';
 import OnboardingModal from './components/OnboardingModal';
 import { AnalyticsDashboard } from './components/business/AnalyticsDashboard';
 import { CustomerCRM } from './components/business/CustomerCRM';
 import { BusinessSquadScreen } from './components/business/BusinessSquadScreen';
 import { BusinessMarketScreen } from './components/business/BusinessMarketScreen';
+import { CreatorProfileScreen } from './components/business/CreatorProfileScreen';
 import { BusinessEventsScreen } from './components/business/BusinessEventsScreen';
+import { CreatorDiscoveryScreen } from './components/business/CreatorDiscoveryScreen';
 import { Level1SubscriptionSelector } from './components/Level1SubscriptionSelector';
 import Level2SubscriptionSelector from './components/Level2SubscriptionSelector';
 import { AdminDashboard } from './components/admin/AdminDashboard';
@@ -112,17 +121,26 @@ import LeaderboardView from './src/components/LeaderboardView';
 import AchievementView from './src/components/AchievementView';
 import { BusinessRankingCard } from './src/components/BusinessRankingCard';
 import BusinessLeaderboardView from './src/components/BusinessLeaderboardView';
+import { BusinessInsightsDashboard } from './components/BusinessInsightsDashboard';
+import { BusinessOnboardingTour } from './components/BusinessOnboardingTour';
+import { AIAssistantModal } from './components/AIAssistantModal';
+import { EnhancedAIAssistantModal } from './components/EnhancedAIAssistantModal';
+import { CustomerLevelInsights } from './components/CustomerLevelInsights';
+import { MissionEnergyStatus } from './components/MissionEnergyStatus';
+import { HabitTrackerWidget } from './components/HabitTrackerWidget';
+import { SmartMissionFeed } from './components/SmartMissionFeed';
+import { BusinessIntelligenceWidget } from './components/BusinessIntelligenceWidget';
 import { useAuth } from './services/AuthContext';
-import { db } from './services/AuthContext';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from './services/apiService';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from './services/firestoreCompat';
 import { 
-  LayoutDashboard, Users, Store, Handshake, Briefcase, Folder,
+  LayoutDashboard, LayoutGrid, Users, Store, Handshake, Briefcase, Folder,
   Menu, X, Sparkles, Bell, Settings, LogOut, 
   CreditCard, Wallet, ChevronRight, ArrowLeft, ArrowRight,
   Building2, User as UserIcon, MessageSquare,
   MapPin, Smartphone, TrendingUp, Heart, Camera, PlusCircle,
   Star, Clapperboard, Martini, Package, ShoppingBag, Play, Sun, Dumbbell, Search, Mic, UserPlus, ThumbsUp, MessageCircle, Video,
-  Share2, Info, Globe, QrCode, BarChart3, Gift, HelpCircle, Tag, Shield, Clock, XCircle, Trophy, Award, Target
+  Share2, Info, Globe, QrCode, BarChart3, Gift, HelpCircle, Tag, Shield, Clock, XCircle, Trophy, Award, Target, GraduationCap, FileText
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -181,7 +199,12 @@ const BusinessLayout: React.FC<LayoutProps> = ({
        </main>
 
        {/* Bottom Navigation */}
-       <BottomNav activeTab={activeTab} onChange={onTabChange} userLevel={user.level || 2} accountType={user.accountType} />
+       <BottomNav 
+         activeTab={activeTab} 
+         onChange={onTabChange} 
+         userLevel={(user as any).businessLevel || user.level || 2} 
+         accountType={user.accountType} 
+       />
     </div>
   );
 };
@@ -196,7 +219,7 @@ const TopBar: React.FC<{
     onNotificationClick: () => void;
     unreadNotifications: number;
 }> = ({ onMenuClick, onMessagingClick, unreadMessages, user, onNotificationClick, unreadNotifications }) => {
-    const isAdmin = user.role === UserRole.ADMIN || user.email === 'admin@fluzio.com';
+    const isAdmin = user.role === UserRole.ADMIN || user.email === 'admin@beevvy.com';
     
     return (
     <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-4 z-40 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm">
@@ -214,19 +237,14 @@ const TopBar: React.FC<{
         </button>
 
         {/* Center: Logo */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-[#00E5FF] to-[#6C4BFF] rounded-xl text-white flex items-center justify-center shadow-lg shadow-[#00E5FF]/30">
-                <Sparkles className="w-5 h-5" />
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="font-clash font-bold text-xl text-[#1E0E62] tracking-tight">Fluzio</span>
-              {isAdmin && (
-                <span className="text-[9px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 -mt-1">ADMIN MODE</span>
-              )}
-              {user.accountType === 'creator' && !isAdmin && (
-                <span className="text-[9px] font-bold text-purple-600 -mt-1">CREATOR MODE</span>
-              )}
-            </div>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+            <img src="/beevvy-logo.png?v=2" alt="Beevvy" className="h-10 w-auto" />
+            {isAdmin && (
+              <span className="text-[9px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 mt-1">ADMIN MODE</span>
+            )}
+            {user.accountType === 'creator' && !isAdmin && (
+              <span className="text-[9px] font-bold text-purple-600 mt-1">CREATOR MODE</span>
+            )}
         </div>
 
         {/* Right: Icons */}
@@ -265,20 +283,22 @@ const BottomNav: React.FC<{ activeTab: MainTab, onChange: (tab: MainTab) => void
     // Different navigation for business vs creator accounts
     let allTabs;
     if (accountType === 'creator') {
-        // Creator bottom nav: Opportunities / Projects / Network
+        // Creator bottom nav: Home / Feed / Opportunities / Projects / Network
         allTabs = [
+            { id: MainTab.HOME, icon: LayoutDashboard, label: 'Home', minLevel: 1 },
+            { id: MainTab.FEED, icon: LayoutGrid, label: 'Feed', minLevel: 1 },
             { id: MainTab.DASHBOARD, icon: Briefcase, label: 'Opportunities', minLevel: 1 },
             { id: MainTab.MISSIONS, icon: Folder, label: 'Projects', minLevel: 1 },
             { id: MainTab.B2B, icon: Users, label: 'Network', minLevel: 1 },
         ];
     } else {
-        // Business bottom nav: Home / Missions / Rewards / Partners
-        // Level 1 businesses (aspiring/not yet established) only see Dashboard and Partners
-        // Level 2+ businesses (established) see all tabs including Missions and Rewards
+        // Business bottom nav: Home / Feed / Engage / Partners
+        // Level 1 businesses (aspiring/not yet established) only see Home and Partners
+        // Level 2+ businesses (established) see all tabs including Engage
         allTabs = [
             { id: MainTab.DASHBOARD, icon: LayoutDashboard, label: t('navigation.home'), minLevel: 1 },
-            { id: MainTab.MISSIONS, icon: Store, label: t('navigation.missions'), minLevel: 2 },
-            { id: MainTab.REWARDS, icon: Tag, label: 'Rewards', minLevel: 2 },
+            { id: MainTab.FEED, icon: LayoutGrid, label: 'Feed', minLevel: 1 },
+            { id: MainTab.MISSIONS, icon: Target, label: 'Engage', minLevel: 2 },
             { id: MainTab.B2B, icon: Handshake, label: t('business.partners'), minLevel: 1 },
         ];
     }
@@ -334,7 +354,7 @@ const UserDrawer: React.FC<{
   const { t } = useTranslation();
   if (!isOpen) return null;
 
-  const isAdmin = user.role === UserRole.ADMIN || user.email === 'admin@fluzio.com';
+  const isAdmin = user.role === UserRole.ADMIN || user.email === 'admin@beevvy.com';
 
   return (
     <div className="fixed inset-0 z-[100] flex">
@@ -370,6 +390,37 @@ const UserDrawer: React.FC<{
               subLabel={`${user.points} ${t('rewards.credits')}`} 
               onClick={onOpenWallet} 
             />
+            
+            {/* Creator-only items */}
+            {user.role === 'CREATOR' && (
+              <>
+                <MenuItem icon={GraduationCap} label="Creator Academy" subLabel="Learn new skills" onClick={() => {
+                  onClose();
+                  const event = new CustomEvent('navigate-to-creator-academy');
+                  window.dispatchEvent(event);
+                }} />
+                <MenuItem icon={FileText} label="Media Kit" subLabel="Professional portfolio" onClick={() => {
+                  onClose();
+                  const event = new CustomEvent('navigate-to-media-kit');
+                  window.dispatchEvent(event);
+                }} />
+                <MenuItem icon={Shield} label="Legal Protection" subLabel="Contracts & Disputes" onClick={() => {
+                  onClose();
+                  const event = new CustomEvent('navigate-to-legal-protection');
+                  window.dispatchEvent(event);
+                }} />
+                <MenuItem icon={Trophy} label="Leaderboard" subLabel="Rankings & Competition" onClick={() => {
+                  onClose();
+                  const event = new CustomEvent('navigate-to-leaderboard');
+                  window.dispatchEvent(event);
+                }} />
+                <MenuItem icon={Award} label="Achievements" subLabel="Badges & Progress" onClick={() => {
+                  onClose();
+                  const event = new CustomEvent('navigate-to-achievements');
+                  window.dispatchEvent(event);
+                }} />
+              </>
+            )}
             
             {/* Business-only items */}
             {user.role === 'BUSINESS' && (
@@ -436,7 +487,12 @@ const UserDrawer: React.FC<{
         <div className="p-6 border-t border-gray-100 bg-white">
              {/* Profile Button - Prominent (Dynamic for Business/Creator) */}
              <button 
-                onClick={onOpenProfile}
+                onClick={() => {
+                  console.log('[Sidebar] Profile button clicked');
+                  console.log('[Sidebar] User role:', user.role);
+                  console.log('[Sidebar] Calling onOpenProfile');
+                  onOpenProfile();
+                }}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-3 group mb-6"
              >
                 <div className="w-10 h-10 rounded-full bg-white text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -565,8 +621,7 @@ const ActiveMissionsSection: React.FC<{ user: User, onNavigate: (path: string) =
                 
                 // Filter for active missions only
                 const activeMissions = allMissions.filter(m => 
-                    m.lifecycleStatus === 'ACTIVE' && 
-                    (m.isActive !== false)
+                    m.lifecycleStatus === 'ACTIVE' || m.isActive
                 );
                 console.log('[Dashboard] Active missions count:', activeMissions.length);
                 setMissions(activeMissions.slice(0, 3)); // Show top 3
@@ -643,10 +698,6 @@ const ActiveMissionsSection: React.FC<{ user: User, onNavigate: (path: string) =
                         
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1 text-xs text-[#8F8FA3]">
-                                    <Users className="w-3 h-3" />
-                                    <span>{mission.currentParticipants}/{currentMaxParticipants}</span>
-                                </div>
                                 <div className="flex items-center gap-1 text-xs font-bold text-[#00E5FF]">
                                     <Gift className="w-3 h-3" />
                                     <span>{mission.reward.points} pts</span>
@@ -1067,8 +1118,8 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
                 const participations = await getParticipationsForBusiness(businessId);
                 console.log('[Business Dashboard] Loaded participations:', participations.length);
                 
-                const activeMissions = missions.filter(m => m.lifecycleStatus === 'ACTIVE' && m.isActive).length;
-                const completedMissions = missions.filter(m => m.lifecycleStatus === 'COMPLETED' || !m.isActive).length;
+                const activeMissions = missions.filter(m => m.lifecycleStatus === 'ACTIVE' || m.isActive).length;
+                const completedMissions = missions.filter(m => m.lifecycleStatus === 'COMPLETED' || (!m.isActive && m.lifecycleStatus !== 'ACTIVE')).length;
                 const pendingReviews = participations.filter(p => p.status === 'PENDING').length;
                 const totalApplications = participations.length;
                 
@@ -1079,18 +1130,33 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
                 console.log('[Business Dashboard] Leaderboard stats:', businessStats);
                 console.log('[Business Dashboard] Percentile:', percentile);
                 
-                // Calculate store check-ins from Firestore
+                // Calculate store check-ins - Try Supabase first (using snake_case)
                 let storeCheckIns = 0;
                 try {
-                    const checkInsCollection = collection(db, 'checkIns');
-                    const checkInsQuery = query(
-                        checkInsCollection,
-                        where('businessId', '==', businessId)
-                    );
-                    const checkInsSnapshot = await getDocs(checkInsQuery);
-                    storeCheckIns = checkInsSnapshot.size;
-                } catch (error) {
-                    console.error('[DashboardView] Error fetching check-ins:', error);
+                    const { supabase } = await import('./services/supabaseClient');
+                    const { data, error } = await supabase
+                        .from('check_ins')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('business_id', businessId);
+                    
+                    if (!error && data !== null) {
+                        storeCheckIns = data.length || 0;
+                    } else {
+                        throw new Error('Supabase query failed');
+                    }
+                } catch (supabaseError) {
+                    // Fallback to Firebase
+                    try {
+                        const checkInsCollection = collection(db, 'checkIns');
+                        const checkInsQuery = query(
+                            checkInsCollection,
+                            where('businessId', '==', businessId)
+                        );
+                        const checkInsSnapshot = await getDocs(checkInsQuery);
+                        storeCheckIns = checkInsSnapshot.size;
+                    } catch (error) {
+                        console.error('[DashboardView] Error fetching check-ins:', error);
+                    }
                 }
                 
                 // Calculate social reach from participants' followers
@@ -1106,13 +1172,7 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
                             const userDoc = await getDoc(userDocRef);
                             if (userDoc.exists()) {
                                 const userData = userDoc.data();
-                                // Add followers from their social accounts
-                                if (userData.socialAccounts?.instagram?.followers) {
-                                    socialReach += userData.socialAccounts.instagram.followers;
-                                }
-                                if (userData.socialAccounts?.tiktok?.followers) {
-                                    socialReach += userData.socialAccounts.tiktok.followers;
-                                }
+                                // Social reach calculated from app-based followers only
                                 // Use followersCount field if available
                                 if (userData.followersCount) {
                                     socialReach += userData.followersCount;
@@ -1147,8 +1207,7 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
                 // Check if there's an active Visit & Check-In mission
                 const hasCheckInMission = missions.some(m => 
                     (m.title.includes('Visit') || m.title.includes('Check-In')) && 
-                    m.isActive && 
-                    m.lifecycleStatus === 'ACTIVE'
+                    (m.lifecycleStatus === 'ACTIVE' || m.isActive)
                 );
                 setHasActiveCheckInMission(hasCheckInMission);
                 console.log('[DashboardView] Has active check-in mission:', hasCheckInMission);
@@ -1229,11 +1288,21 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
                     <p className="text-sm text-red-700 mb-2">
                         {userProfile?.approvalNotes || 'Your business signup was not approved. Please contact support for more information.'}
                     </p>
-                    <a href="mailto:support@fluzio.com" className="text-sm text-red-600 font-bold underline">
+                    <a href="mailto:support@beevvy.com" className="text-sm text-red-600 font-bold underline">
                         Contact Support
                     </a>
                 </div>
             )}
+
+            {/* Business Insights Dashboard - NEW Comprehensive View */}
+            <BusinessInsightsDashboard
+                businessId={userProfile?.uid || user.id}
+                businessName={userProfile?.name || user.name}
+                websiteUrl={userProfile?.website || user.website}
+                businessCity={userProfile?.homeCity || user.address?.city || user.currentCity}
+                stats={stats}
+                onNavigate={onNavigate}
+            />
 
             {/* Business Ranking Card */}
             <BusinessRankingCard
@@ -1242,55 +1311,6 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
                 city={userProfile?.address?.city || user.address?.city}
                 onNavigateToLeaderboard={() => onNavigate('/leaderboard')}
             />
-
-            {/* Performance Overview - 2 Column Grid */}
-            <div>
-                <div className="flex items-center gap-2 mb-4 px-1">
-                    <h3 className="font-clash font-bold text-[#1E0E62] text-lg">Performance</h3>
-                    <span className="text-[#00E5FF]">📊</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    {/* Social Reach */}
-                    <div className="bg-gradient-to-br from-[#00E5FF]/10 to-[#6C4BFF]/10 p-5 rounded-[24px] border border-[#00E5FF]/20 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2 text-[#00E5FF]">
-                            <Smartphone className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-wide">Social Reach</span>
-                        </div>
-                        <div className="text-3xl font-clash font-bold text-[#1E0E62]">{(stats.socialReach / 1000).toFixed(1)}k</div>
-                        <div className="text-xs text-[#8F8FA3] mt-1">Creator followers</div>
-                    </div>
-
-                    {/* Store Visits */}
-                    <div className="bg-white p-5 rounded-[24px] border border-white/60 shadow-[0_10px_30px_rgba(247,37,133,0.08)]">
-                        <div className="flex items-center gap-2 mb-2 text-teal-500">
-                            <MapPin className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-wide">Store Visits</span>
-                        </div>
-                        <div className="text-3xl font-clash font-bold text-[#1E0E62]">{stats.storeCheckIns}</div>
-                        <div className="text-xs text-[#8F8FA3] mt-1">Total check-ins</div>
-                    </div>
-
-                    {/* Active Missions */}
-                    <div className="bg-white p-5 rounded-[24px] border border-white/60 shadow-[0_10px_30px_rgba(247,37,133,0.08)]">
-                        <div className="flex items-center gap-2 mb-2 text-green-500">
-                            <Target className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-wide">Active Missions</span>
-                        </div>
-                        <div className="text-3xl font-clash font-bold text-[#1E0E62]">{stats.activeMissions}</div>
-                        <div className="text-xs text-[#8F8FA3] mt-1">{stats.completedMissions} completed</div>
-                    </div>
-
-                    {/* Active Tribe */}
-                    <div className="bg-white p-5 rounded-[24px] border border-white/60 shadow-[0_10px_30px_rgba(247,37,133,0.08)]">
-                        <div className="flex items-center gap-2 mb-2 text-orange-500">
-                            <Users className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-wide">Active Tribe</span>
-                        </div>
-                        <div className="text-3xl font-clash font-bold text-[#1E0E62]">{stats.activeAmbassadors}</div>
-                        <div className="text-xs text-[#8F8FA3] mt-1">{stats.totalApplications} applications</div>
-                    </div>
-                </div>
-            </div>
 
             {/* Quick Actions */}
             <div>
@@ -1380,7 +1400,7 @@ const DashboardView: React.FC<{ user: User, onNavigate: (path: string) => void }
     );
 };
 
-const MissionsView: React.FC<{ user: User, onNavigate: (path: string) => void }> = ({ user, onNavigate }) => {
+export const MissionsView: React.FC<{ user: User, onNavigate: (path: string) => void }> = ({ user, onNavigate }) => {
     const { t } = useTranslation();
     const { userProfile } = useAuth();
     const [subTab, setSubTab] = useState(t('missions.active'));
@@ -1502,6 +1522,7 @@ const MissionsView: React.FC<{ user: User, onNavigate: (path: string) => void }>
             </div>
 
             <SubTabs tabs={tabs} active={subTab} onChange={setSubTab} />
+            
             <div className="space-y-6">
                 {subTab === t('missions.active') && (
                     <div className="space-y-4">
@@ -1509,30 +1530,40 @@ const MissionsView: React.FC<{ user: User, onNavigate: (path: string) => void }>
                             <div className="flex items-center justify-center py-10">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00E5FF]"></div>
                             </div>
-                         ) : missions.length > 0 ? (
-                            missions.map(m => (
-                                <MissionCard 
-                                    key={m.id} 
-                                    mission={m} 
-                                    isOwner 
-                                    stats={missionStats.get(m.id) || {applicants: 0, completed: 0}} 
-                                    onToggleActive={handleToggleMission}
-                                    isToggling={togglingMission === m.id}
-                                    businessId={user.id}
-                                />
-                            ))
                          ) : (
-                            <div className="text-center py-10">
-                                <div className="text-4xl mb-3">🎯</div>
-                                <p className="text-[#8F8FA3] font-medium mb-2">{t('business.noMissionsYet')}</p>
-                                <p className="text-sm text-[#8F8FA3] mb-4">{t('business.createFirstMission')}</p>
-                                <button
-                                    onClick={() => setSubTab(t('missions.createMission'))}
-                                    className="px-6 py-2 bg-[#00E5FF] text-white rounded-lg font-bold hover:bg-[#D91D6A] transition-colors"
-                                >
-                                    {t('missions.createMission')}
-                                </button>
-                            </div>
+                            <React.Fragment>
+                                {/* Customer Level Insights - Show mission states and performance */}
+                                <CustomerLevelInsights missions={missions} businessId={businessId} />
+                                
+                                {missions.length > 0 ? (
+                                    <div className="space-y-4">
+                                        <h3 className="font-bold text-[#1E0E62] text-lg px-1">Mission Details</h3>
+                                        {missions.map(m => (
+                                            <MissionCard 
+                                                key={m.id} 
+                                                mission={m} 
+                                                isOwner 
+                                                stats={missionStats.get(m.id) || {applicants: 0, completed: 0}} 
+                                                onToggleActive={handleToggleMission}
+                                                isToggling={togglingMission === m.id}
+                                                businessId={user.id}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-10">
+                                        <div className="text-4xl mb-3">🎯</div>
+                                        <p className="text-[#8F8FA3] font-medium mb-2">{t('business.noMissionsYet')}</p>
+                                        <p className="text-sm text-[#8F8FA3] mb-4">{t('business.createFirstMission')}</p>
+                                        <button
+                                            onClick={() => setSubTab(t('missions.createMission'))}
+                                            className="px-6 py-2 bg-[#00E5FF] text-white rounded-lg font-bold hover:bg-[#D91D6A] transition-colors"
+                                        >
+                                            {t('missions.createMission')}
+                                        </button>
+                                    </div>
+                                )}
+                            </React.Fragment>
                          )}
                     </div>
                 )}
@@ -1551,7 +1582,7 @@ const MissionsView: React.FC<{ user: User, onNavigate: (path: string) => void }>
                                 </p>
                                 {!isBusinessPending && (
                                     <a 
-                                        href="mailto:support@fluzio.com"
+                                        href="mailto:support@beevvy.com"
                                         className="inline-block px-6 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-colors"
                                     >
                                         Contact Support
@@ -1773,6 +1804,41 @@ const CreateMissionContent: React.FC<{
 
     return (
         <div className="space-y-8">
+            
+            {/* Resource Pools - Top Level View */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Shared Monthly Participant Pool */}
+                <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-blue-200">
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 bg-white rounded-xl shadow-sm">
+                            <Users className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-clash font-bold text-[#1E0E62] text-lg mb-1">Shared Monthly Participant Pool</h3>
+                            <p className="text-sm text-[#8F8FA3] mb-4">
+                                All your missions draw from ONE shared pool. When it reaches 0, missions pause until next month or upgrade.
+                            </p>
+                            <ParticipantPoolStatus 
+                                businessId={user.id}
+                                onUpgradeClick={() => {}}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mission Energy Pool */}
+                <MissionEnergyStatus 
+                    businessId={user.id}
+                    onUpgradeClick={() => {}}
+                />
+                
+            </div>
+
+            {/* Customer Level Insights - How customers see missions */}
+            {activeMissions.length > 0 && (
+                <CustomerLevelInsights missions={activeMissions} businessId={user.id} />
+            )}
             
             {/* Quick Activate Section */}
             <section>
@@ -2007,8 +2073,9 @@ const B2BView: React.FC<{
   currentSquad?: Squad,
   projects: Project[],
   onCreateProject: () => void,
-  onOpenProject: (projectId: string) => void
-}> = ({ user, activeSubTab, onSubTabChange, onOpenChat, currentSquad, projects, onCreateProject, onOpenProject }) => {
+  onOpenProject: (projectId: string) => void,
+  onCreatorProfileOpen: (creatorId: string) => void
+}> = ({ user, activeSubTab, onSubTabChange, onOpenChat, currentSquad, projects, onCreateProject, onOpenProject, onCreatorProfileOpen }) => {
     const tabs = ['My Squad', 'Match', 'Projects', 'Market', 'Events'];
     const [isLocationModalOpen, setIsLocationModalOpen] = React.useState(false);
 
@@ -2017,7 +2084,16 @@ const B2BView: React.FC<{
              <SubTabs tabs={tabs} active={activeSubTab} onChange={onSubTabChange} />
              <div className="space-y-6">
                  {activeSubTab === 'My Squad' && (
-                     <BusinessSquadScreen user={user} onNavigate={(route) => console.log('Navigate to:', route)} />
+                     <BusinessSquadScreen 
+                       user={user} 
+                       onNavigate={(route) => {
+                         // Parse route like /chat/{chatId}
+                         const chatMatch = route.match(/^\/chat\/(.+)$/);
+                         if (chatMatch) {
+                           onOpenChat(chatMatch[1]);
+                         }
+                       }} 
+                     />
                  )}
 
                  {activeSubTab === 'Match' && (
@@ -2086,13 +2162,24 @@ const B2BView: React.FC<{
                      <ProjectList 
                        projects={projects}
                        currentUserId={user.id}
+                       currentUserBusinessType={user.businessType}
+                       currentUserCategory={user.category}
                        onCreateProject={onCreateProject}
                        onOpenProject={onOpenProject}
                      />
                  )}
 
                  {activeSubTab === 'Market' && (
-                    <BusinessMarketScreen user={user} onNavigate={(route) => console.log('Navigate to:', route)} />
+                    <BusinessMarketScreen 
+                      user={user} 
+                      onNavigate={(route) => {
+                        // Handle /creator/{id} navigation
+                        if (route.startsWith('/creator/')) {
+                          const creatorId = route.replace('/creator/', '');
+                          onCreatorProfileOpen(creatorId);
+                        }
+                      }} 
+                    />
                  )}
 
                  {activeSubTab === 'Events' && (
@@ -2106,7 +2193,7 @@ const B2BView: React.FC<{
 // --- Main App ---
 
 const App: React.FC = () => {
-  const { userProfile, signOut, signInWithEmail, refreshUserProfile } = useAuth();
+  const { userProfile, signOut, signInWithEmail, signInWithGoogle, refreshUserProfile } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [viewState, setViewState] = useState<ViewState>(ViewState.LOGIN);
   const isDark = useDarkMode();
@@ -2120,7 +2207,7 @@ const App: React.FC = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPasswordReset, setShowPasswordReset] = useState(false);  // Business Tab State
-  const [activeTab, setActiveTab] = useState<MainTab>(MainTab.DASHBOARD);
+  const [activeTab, setActiveTab] = useState<MainTab>(MainTab.HOME);
   
   // Customer Tab State
   const [activeCustomerTab, setActiveCustomerTab] = useState<CustomerTab>(CustomerTab.HOME);
@@ -2145,7 +2232,6 @@ const App: React.FC = () => {
   const [isBusinessProfileOpen, setIsBusinessProfileOpen] = useState(false);
   const [isEditBusinessProfileOpen, setIsEditBusinessProfileOpen] = useState(false);
   const [isCustomerProfileOpen, setIsCustomerProfileOpen] = useState(false);
-  const [isInstagramCallbackOpen, setIsInstagramCallbackOpen] = useState(false);
   
   // Creator Mode Screens
   const [isCreatorSkillsOpen, setIsCreatorSkillsOpen] = useState(false);
@@ -2183,6 +2269,10 @@ const App: React.FC = () => {
   // Creator Setup State
   const [showCreatorSetup, setShowCreatorSetup] = useState(false);
 
+  // Creator Profile State
+  const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
+  const [showCreatorProfile, setShowCreatorProfile] = useState(false);
+
   // Reset meetupsInitialTab when leaving Events tab
   useEffect(() => {
     if (activeCustomerTab !== CustomerTab.EVENTS) {
@@ -2208,27 +2298,25 @@ const App: React.FC = () => {
   const [showNotificationPreferences, setShowNotificationPreferences] = useState(false);
   const [showEnhancedNotifications, setShowEnhancedNotifications] = useState(false);
 
+  // AI Assistant State
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState<string>('home');
+
   // Analytics Dashboard State
   const [showAnalyticsDashboard, setShowAnalyticsDashboard] = useState(false);
 
   // Admin Dashboard State
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
-  // Check for Instagram OAuth callback
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-    
-    // Check if this is an Instagram OAuth callback (code/error present)
-    if (code || error) {
-      console.log('[App] Instagram OAuth callback detected');
-      console.log('[App] URL:', window.location.href);
-      console.log('[App] Code:', code);
-      console.log('[App] Error:', error);
-      setIsInstagramCallbackOpen(true);
-    }
-  }, []);
+  // Creator Academy and Media Kit State
+  const [showCreatorAcademy, setShowCreatorAcademy] = useState(false);
+  const [showMediaKit, setShowMediaKit] = useState(false);
+  const [showLegalProtection, setShowLegalProtection] = useState(false);
+
+  // Business Onboarding Tour State
+  const [showBusinessTour, setShowBusinessTour] = useState(false);
+
+  // Social media OAuth removed
 
   // Global Search Keyboard Shortcut (Cmd+K / Ctrl+K)
   useEffect(() => {
@@ -2240,7 +2328,7 @@ const App: React.FC = () => {
       // Secret admin shortcut: Ctrl+Shift+A
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'A') {
         e.preventDefault();
-        if (user?.role === UserRole.ADMIN || user?.email === 'admin@fluzio.com') {
+        if (user?.role === UserRole.ADMIN || user?.email === 'admin@beevvy.com') {
           setShowAdminDashboard(prev => !prev);
         } else {
           console.log('🔒 Admin access denied');
@@ -2319,15 +2407,18 @@ const App: React.FC = () => {
             console.log('[App] 🎨 Syncing accountType from Firestore:', userProfile.accountType, '(was:', mockUser.accountType, ')');
           } else if (mockUser.accountType === undefined && userProfile.accountType) {
             // Only set accountType if explicitly provided in Firestore
-            // Don't default MEMBER role users to 'creator' - they're customers!
             updates.accountType = userProfile.accountType as any;
             console.log('[App] 🎨 Setting accountType from Firestore:', userProfile.accountType);
           } else if (mockUser.accountType === undefined && userProfile.role === 'BUSINESS') {
-            // Only default to 'business' for BUSINESS role if missing
+            // Default to 'business' for BUSINESS role if missing
             updates.accountType = 'business' as any;
             console.log('[App] 🎨 Setting default accountType for BUSINESS:', 'business');
+          } else if (mockUser.accountType === undefined && userProfile.role === 'CREATOR') {
+            // Default to 'creator' for CREATOR role if missing
+            updates.accountType = 'creator' as any;
+            console.log('[App] 🎨 Setting default accountType for CREATOR:', 'creator');
           }
-          // For MEMBER role, leave accountType undefined (they use CustomerLayout)
+          // For MEMBER/CUSTOMER role, leave accountType undefined (they use CustomerLayout)
           
           // Sync other fields from Firestore
           if (userProfile.name && mockUser.name !== userProfile.name) {
@@ -2355,16 +2446,33 @@ const App: React.FC = () => {
         setViewState(ViewState.APP);
         
         // Check if onboarding is needed (for all user types on first login)
-        if (!userProfile.hasCompletedOnboarding) {
+        // Explicitly check if hasCompletedOnboarding is false or undefined
+        const hasCompleted = userProfile.hasCompletedOnboarding === true;
+        console.log('[App] 🎓 Onboarding status - hasCompletedOnboarding:', userProfile.hasCompletedOnboarding, '| hasCompleted:', hasCompleted);
+        
+        if (!hasCompleted) {
           console.log('[App] 🎓 First time user - showing onboarding for role:', mockUser.role);
           setShowOnboarding(true);
           setOnboardingComplete(false);
         } else {
+          console.log('[App] ✅ User has completed onboarding - skipping');
           setOnboardingComplete(true);
         }
         
-        // Check if creator setup is needed
-        if (mockUser.accountType === 'creator' && (!userProfile.creator?.roles || !userProfile.creator?.city)) {
+        // Check if business tour is needed (first-time business users only)
+        const tourCompleted = userProfile.onboarding?.tourCompleted;
+        if (mockUser.role === 'BUSINESS' && !tourCompleted) {
+          console.log('[App] 🎯 First time business user - showing tour');
+          setTimeout(() => setShowBusinessTour(true), 1000); // Delay for smoother UX
+        }
+        
+        // Check if creator setup is needed - check multiple data formats
+        const hasCreatorRole = userProfile.creator?.roles?.length > 0 || 
+                               (userProfile.creator as any)?.role || 
+                               (userProfile as any).category;
+        const hasCreatorCity = userProfile.creator?.city || userProfile.city;
+        
+        if (mockUser.accountType === 'creator' && (!hasCreatorRole || !hasCreatorCity)) {
           console.log('[App] 🎨 Creator setup needed - showing setup modal');
           setShowCreatorSetup(true);
         }
@@ -2374,7 +2482,7 @@ const App: React.FC = () => {
           setActiveTab(MainTab.DASHBOARD);
           console.log('[App] 📍 Set initial tab to DASHBOARD for accountType:', mockUser.accountType);
         } else {
-          setActiveCustomerTab(CustomerTab.HOME);
+          setActiveCustomerTab(CustomerTab.FEED);
           console.log('[App] 📍 Set initial tab to HOME for customer');
         }
       };
@@ -2462,6 +2570,36 @@ const App: React.FC = () => {
     
     window.addEventListener('navigate-to-achievements', handleNavigateToAchievements);
     return () => window.removeEventListener('navigate-to-achievements', handleNavigateToAchievements);
+  }, []);
+
+  // Listen for navigate-to-creator-academy event from UserDrawer
+  useEffect(() => {
+    const handleNavigateToCreatorAcademy = () => {
+      setShowCreatorAcademy(true);
+    };
+    
+    window.addEventListener('navigate-to-creator-academy', handleNavigateToCreatorAcademy);
+    return () => window.removeEventListener('navigate-to-creator-academy', handleNavigateToCreatorAcademy);
+  }, []);
+
+  // Listen for navigate-to-media-kit event from UserDrawer
+  useEffect(() => {
+    const handleNavigateToMediaKit = () => {
+      setShowMediaKit(true);
+    };
+    
+    window.addEventListener('navigate-to-media-kit', handleNavigateToMediaKit);
+    return () => window.removeEventListener('navigate-to-media-kit', handleNavigateToMediaKit);
+  }, []);
+
+  // Listen for navigate-to-legal-protection event from UserDrawer
+  useEffect(() => {
+    const handleNavigateToLegalProtection = () => {
+      setShowLegalProtection(true);
+    };
+    
+    window.addEventListener('navigate-to-legal-protection', handleNavigateToLegalProtection);
+    return () => window.removeEventListener('navigate-to-legal-protection', handleNavigateToLegalProtection);
   }, []);
 
   // Subscribe to real-time notifications
@@ -2724,7 +2862,7 @@ const App: React.FC = () => {
       const unsubscribe = onForegroundMessage((payload) => {
         console.log('[App] Foreground notification received:', payload);
         
-        const title = payload.notification?.title || 'Fluzio';
+        const title = payload.notification?.title || 'Beevvy';
         const body = payload.notification?.body || 'You have a new notification';
         
         // Show browser notification
@@ -2790,6 +2928,8 @@ const App: React.FC = () => {
     dateRange: { start: string; end: string };
     slots: any[];
     creatorRoles?: Array<{ role: string; budget: number; description?: string }>;
+    images?: string[];
+    coverImage?: string;
   }, projectId?: string) => {
     if (!user?.id) return;
     try {
@@ -2804,6 +2944,8 @@ const App: React.FC = () => {
           dateRange: projectData.dateRange,
           slots: projectData.slots,
           creatorRoles: projectData.creatorRoles,
+          images: projectData.images,
+          coverImage: projectData.coverImage,
           status: 'PLANNING'
         });
         alert('Project updated successfully!');
@@ -2819,6 +2961,8 @@ const App: React.FC = () => {
           dateRange: projectData.dateRange,
           slots: projectData.slots,
           creatorRoles: projectData.creatorRoles,
+          images: projectData.images,
+          coverImage: projectData.coverImage,
           status: 'PLANNING'
         });
         alert('Project created successfully!');
@@ -2835,7 +2979,7 @@ const App: React.FC = () => {
       setUser(store.login(role));
       setViewState(ViewState.APP);
       setActiveTab(MainTab.DASHBOARD);
-      setActiveCustomerTab(CustomerTab.HOME);
+      setActiveCustomerTab(CustomerTab.FEED);
       // Reset Login Fields
       setLoginEmail('');
       setLoginPassword('');
@@ -2858,7 +3002,7 @@ const App: React.FC = () => {
       try {
         console.log('🔐 [App] Attempting Firebase authentication...');
         await signInWithEmail(email, password);
-        console.log('✅ [App] Firebase authentication successful');
+        console.log('✅ [App] Supabase authentication successful');
         // onAuthStateChanged will handle the rest (loading profile, creating mock user, etc.)
         setLoginEmail('');
         setLoginPassword('');
@@ -2886,7 +3030,7 @@ const App: React.FC = () => {
         setUser(userMatch);
         setViewState(ViewState.APP);
         setActiveTab(MainTab.DASHBOARD);
-        setActiveCustomerTab(CustomerTab.HOME);
+        setActiveCustomerTab(CustomerTab.FEED);
         setLoginEmail('');
         setLoginPassword('');
         return;
@@ -2918,7 +3062,7 @@ const App: React.FC = () => {
       } else {
           console.log('[App] ✅ Customer signup - showing APP');
           setViewState(ViewState.APP);
-          setActiveCustomerTab(CustomerTab.HOME);
+          setActiveCustomerTab(CustomerTab.FEED);
       }
   };
 
@@ -3042,7 +3186,7 @@ const App: React.FC = () => {
           const newRole = user.role === UserRole.BUSINESS ? UserRole.MEMBER : UserRole.BUSINESS;
           setUser(store.login(newRole));
           setActiveTab(MainTab.DASHBOARD);
-          setActiveCustomerTab(CustomerTab.HOME);
+          setActiveCustomerTab(CustomerTab.FEED);
           setIsDrawerOpen(false);
       }
   };
@@ -3086,17 +3230,17 @@ const App: React.FC = () => {
         setUser({ ...user, subscriptionLevel: tier });
         
         // Save to localStorage
-        const users = JSON.parse(localStorage.getItem('fluzio_users') || '[]');
+        const users = JSON.parse(localStorage.getItem('beevvy_users') || '[]');
         const updatedUsers = users.map((u: User) => 
           u.id === user.id ? { ...u, subscriptionLevel: tier } : u
         );
-        localStorage.setItem('fluzio_users', JSON.stringify(updatedUsers));
+        localStorage.setItem('beevvy_users', JSON.stringify(updatedUsers));
         
         // Update current user in localStorage
-        const currentUser = JSON.parse(localStorage.getItem('fluzio_current_user') || 'null');
+        const currentUser = JSON.parse(localStorage.getItem('beevvy_current_user') || 'null');
         if (currentUser) {
           currentUser.subscriptionLevel = tier;
-          localStorage.setItem('fluzio_current_user', JSON.stringify(currentUser));
+          localStorage.setItem('beevvy_current_user', JSON.stringify(currentUser));
         }
         
         // Update Firestore via API
@@ -3111,24 +3255,10 @@ const App: React.FC = () => {
       }
   };
 
-  const handleUpdateSocialLinks = (links: User['socialLinks']) => {
-      if (user) {
-        console.log('[App] Updating social links:', links);
-        setUser({ ...user, socialLinks: links });
-        // Save to localStorage
-        const users = JSON.parse(localStorage.getItem('fluzio_users') || '[]');
-        const updatedUsers = users.map((u: User) => 
-          u.id === user.id ? { ...u, socialLinks: links } : u
-        );
-        localStorage.setItem('fluzio_users', JSON.stringify(updatedUsers));
-        // TODO: Call API to update in backend
-      }
-  };
-
   const handleSpendPoints = () => {
       setIsWalletOpen(false);
       if (user?.role === UserRole.MEMBER) {
-          setActiveCustomerTab(CustomerTab.REWARDS); // Go to Rewards to redeem points
+          setActiveCustomerTab(CustomerTab.EARN); // Go to Earn tab to redeem rewards
       } else {
           setActiveTab(MainTab.B2B);
           setB2bSubTab('Market');
@@ -3137,18 +3267,32 @@ const App: React.FC = () => {
 
   const handleNavigate = (link: string) => {
     console.log("Navigating to:", link);
+    
+    // Track current screen for AI Assistant context
+    setCurrentScreen(link);
+    
     // Simple routing logic for demo
     if (link.startsWith('mission/')) {
       // Open mission detail modal
       const missionId = link.replace('mission/', '');
       setSelectedMissionId(missionId);
+    } else if (link.startsWith('/creator/')) {
+      // Open creator profile
+      const creatorId = link.replace('/creator/', '');
+      setSelectedCreatorId(creatorId);
+      setShowCreatorProfile(true);
     } else if (user?.role === UserRole.BUSINESS) {
-        if (link.includes('/missions/verify')) { setIsVerifyOpen(true); }
-        else if (link.includes('/missions')) setActiveTab(MainTab.MISSIONS);
-        else if (link.includes('/b2b/match')) { setActiveTab(MainTab.B2B); setB2bSubTab('Match'); }
-        else if (link.includes('/b2b/squad')) { setActiveTab(MainTab.B2B); setB2bSubTab('My Squad'); }
+        if (link.includes('/missions/verify')) { setIsVerifyOpen(true); setCurrentScreen('missions/verify'); }
+        else if (link.includes('/missions')) { setActiveTab(MainTab.MISSIONS); setCurrentScreen('missions'); }
+        else if (link.includes('/analytics')) { setShowAnalyticsDashboard(true); setCurrentScreen('analytics'); }
+        else if (link.includes('/b2b/match')) { setActiveTab(MainTab.B2B); setB2bSubTab('Match'); setCurrentScreen('b2b/match'); }
+        else if (link.includes('/b2b/squad')) { setActiveTab(MainTab.B2B); setB2bSubTab('My Squad'); setCurrentScreen('b2b/squad'); }
+    } else if (user?.role === UserRole.CREATOR) {
+        if (link.includes('/opportunities')) { setActiveTab(MainTab.DASHBOARD); setCurrentScreen('opportunities'); }
+        else if (link.includes('/portfolio')) { setActiveTab(MainTab.DASHBOARD); setCurrentScreen('portfolio'); }
     } else {
-        if (link.includes('/missions')) setActiveCustomerTab(CustomerTab.MISSIONS);
+        if (link.includes('/missions') || link.includes('/rewards')) { setActiveCustomerTab(CustomerTab.EARN); setCurrentScreen('earn'); }
+        else if (link.includes('/explore')) { setActiveCustomerTab(CustomerTab.DISCOVER); setCurrentScreen('explore'); }
     }
   };
 
@@ -3156,7 +3300,7 @@ const App: React.FC = () => {
     console.log('[App] Global search navigation:', type, id);
     
     if (type === 'mission') {
-      setActiveCustomerTab(CustomerTab.MISSIONS);
+      setActiveCustomerTab(CustomerTab.EARN);
       // TODO: Could add state to scroll to/highlight specific mission
     } else if (type === 'business') {
       setActiveCustomerTab(CustomerTab.DISCOVER);
@@ -3185,10 +3329,7 @@ const App: React.FC = () => {
               <div className="absolute -bottom-8 left-20 w-96 h-96 bg-[#6C4BFF] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
               <div className="mb-8 text-center relative z-10">
-                  <div className="w-20 h-20 bg-gradient-to-tr from-[#00E5FF] to-[#6C4BFF] rounded-3xl text-white flex items-center justify-center shadow-2xl shadow-[#00E5FF]/40 mx-auto mb-6 rotate-6 hover:rotate-12 transition-transform duration-500">
-                    <Sparkles className="w-10 h-10" />
-                  </div>
-                  <h1 className="text-4xl font-clash font-bold text-[#1E0E62] tracking-tight mb-2">Fluzio</h1>
+                  <img src="/beevvy-logo.png?v=2" alt="Beevvy" className="h-32 w-auto mx-auto mb-4" />
                   <p className="text-lg text-[#8F8FA3] font-medium">Community marketing for the modern world.</p>
               </div>
               
@@ -3224,6 +3365,41 @@ const App: React.FC = () => {
                       <Button onClick={handleEmailLogin} className="w-full py-4 text-lg shadow-lg shadow-[#00E5FF]/20">
                           Log In
                       </Button>
+                      
+                      {/* Divider */}
+                      <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-200"></div>
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-white px-2 text-gray-500 font-bold">Or continue with</span>
+                        </div>
+                      </div>
+                      
+                      {/* Google Sign-In */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const result = await signInWithGoogle();
+                            if (result.user) {
+                              // User signed in successfully, let App.tsx handle the rest
+                              console.log('[Login] Google sign-in successful');
+                            }
+                          } catch (error) {
+                            console.error('[Login] Google sign-in error:', error);
+                            alert('Failed to sign in with Google. Please try again.');
+                          }
+                        }}
+                        className="w-full py-3 px-4 border-2 border-gray-300 rounded-2xl font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-3 group"
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        <span>Sign in with Google</span>
+                      </button>
                   </div>
 
                   {/* Demo Section - Minimized */}
@@ -3240,7 +3416,7 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="mt-6 text-center">
-                      <span className="text-[#8F8FA3] font-medium text-sm">New to Fluzio? </span>
+                      <span className="text-[#8F8FA3] font-medium text-sm">New to Beevvy? </span>
                       <button 
                           onClick={() => setViewState(ViewState.SIGNUP)}
                           className="text-[#6C4BFF] font-bold text-sm hover:underline"
@@ -3276,20 +3452,7 @@ const App: React.FC = () => {
       );
   }
 
-  // --- Instagram OAuth Callback (Priority Render) ---
-  if (isInstagramCallbackOpen) {
-    console.log('[App] 🔄 Rendering Instagram Callback Screen');
-    return (
-      <InstagramCallbackScreen 
-        user={user} 
-        onComplete={() => {
-          setIsInstagramCallbackOpen(false);
-          // Clear URL parameters
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }}
-      />
-    );
-  }
+  // Social media OAuth removed
 
   // --- Main App Render ---
   if (!user) return null;
@@ -3320,32 +3483,47 @@ const App: React.FC = () => {
                        <HomeScreen 
                           onNavigate={(screen, params) => {
                               console.log('Navigate to:', screen, params);
-                              if (screen === 'Missions' || screen === 'MissionsScreen') {
-                                  setActiveCustomerTab(CustomerTab.MISSIONS);
+                              if (screen === 'Missions' || screen === 'MissionsScreen' || screen === 'Rewards' || screen === 'RewardsScreen') {
+                                  setActiveCustomerTab(CustomerTab.EARN);
                               } else if (screen === 'Discover' || screen === 'DiscoverScreen') {
                                   setActiveCustomerTab(CustomerTab.DISCOVER);
-                              } else if (screen === 'Rewards' || screen === 'RewardsScreen') {
-                                  setActiveCustomerTab(CustomerTab.REWARDS);
                               } else if (screen === 'Events' || screen === 'EventsScreen') {
                                   setActiveCustomerTab(CustomerTab.EVENTS);
                               }
                           }}
                        />
                    )}
-                   {activeCustomerTab === CustomerTab.DISCOVER && <ExploreScreen user={user} />}
-                   {activeCustomerTab === CustomerTab.REWARDS && (
-                     <RewardsRedemption 
-                       user={user}
-                     />
+                   {activeCustomerTab === CustomerTab.FEED && (
+                       <FeedScreen
+                          userId={user.id}
+                          userRole={user.role}
+                          userName={user.name}
+                          userAvatar={user.avatarUrl}
+                          userLocation={user.geo ? {
+                            name: user.location || user.geo.city || '',
+                            city: user.geo.city,
+                            country: user.country,
+                            latitude: user.geo.latitude,
+                            longitude: user.geo.longitude
+                          } : undefined}
+                          userInterests={user.vibeTags}
+                          followingIds={user.following}
+                       />
                    )}
-                   {activeCustomerTab === CustomerTab.MISSIONS && (
-                     <MissionsScreen 
-                       user={user}
-                       onNavigateToCollaborate={() => {
-                         setMeetupsInitialTab('collaborate');
-                         setActiveCustomerTab(CustomerTab.EVENTS);
-                       }}
-                     />
+                   {activeCustomerTab === CustomerTab.DISCOVER && <ExploreScreen user={user} />}
+                   {activeCustomerTab === CustomerTab.EARN && (
+                     <div className="space-y-6">
+                       {/* Habit Tracker Widget - Shows streaks, challenges, and progress */}
+                       <HabitTrackerWidget userId={user.id} />
+                       
+                       <CustomerEarnScreen
+                         user={user}
+                         onNavigateToCollaborate={() => {
+                           setMeetupsInitialTab('collaborate');
+                           setActiveCustomerTab(CustomerTab.EVENTS);
+                         }}
+                       />
+                     </div>
                    )}
                    {activeCustomerTab === CustomerTab.EVENTS && (
                      <MeetupsScreen 
@@ -3371,6 +3549,21 @@ const App: React.FC = () => {
                 user={user}
                 onComplete={handleCreatorSetupComplete}
               />
+            )}
+
+            {/* Creator Profile Screen */}
+            {showCreatorProfile && selectedCreatorId && user && (
+              <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+                <CreatorProfileScreen
+                  creatorId={selectedCreatorId}
+                  user={user}
+                  onBack={() => {
+                    setShowCreatorProfile(false);
+                    setSelectedCreatorId(null);
+                  }}
+                  onNavigate={handleNavigate}
+                />
+              </div>
             )}
 
             {/* Global Search */}
@@ -3409,10 +3602,15 @@ const App: React.FC = () => {
                   </button>
                   <h2 className="text-lg font-semibold">Analytics</h2>
                 </div>
-                <AnalyticsDashboard 
-                  businessId={user.id}
-                  businessName={userProfile?.displayName || userProfile?.businessName || 'My Business'}
-                />
+                <div className="p-4 space-y-6">
+                  {/* Business Intelligence Widget - CLV, Retention, Pricing */}
+                  <BusinessIntelligenceWidget businessId={user.id} />
+                  
+                  <AnalyticsDashboard 
+                    businessId={user.id}
+                    businessName={userProfile?.displayName || userProfile?.businessName || 'My Business'}
+                  />
+                </div>
               </div>
             )}
 
@@ -3432,7 +3630,7 @@ const App: React.FC = () => {
                       id: userProfile?.id || user.id,
                       uid: userProfile?.uid || user.id,
                       name: userProfile?.name || user.name,
-                      handle: '@' + (user.socialLinks?.instagram?.username || user.name.toLowerCase().replace(' ', '_')),
+                      handle: '@' + user.name.toLowerCase().replace(' ', '_'),
                       email: userProfile?.email || user.contactEmail || '',
                       city: userProfile?.homeCity || user.currentCity || 'Global',
                       avatarUrl: userProfile?.photoUrl || user.avatarUrl,
@@ -3441,22 +3639,7 @@ const App: React.FC = () => {
                       level: userProfile?.level || 1,
                       role: (userProfile?.role || user.role) as any,
                       createdAt: userProfile?.createdAt || new Date().toISOString(),
-                      subscriptionLevel: user.subscriptionLevel || 'FREE',
-                      socialLinks: {
-                        instagram: user.socialLinks?.instagram?.connected ? {
-                          connected: true,
-                          handle: user.socialLinks.instagram.username || '',
-                          url: user.socialLinks.instagram.username ? `https://instagram.com/${user.socialLinks.instagram.username}` : undefined
-                        } : undefined,
-                        facebook: user.socialLinks?.facebook ? {
-                          handle: user.socialLinks.facebook,
-                          url: `https://facebook.com/${user.socialLinks.facebook}`
-                        } : undefined,
-                        linkedin: user.socialLinks?.linkedin ? {
-                          handle: user.socialLinks.linkedin,
-                          url: `https://linkedin.com/in/${user.socialLinks.linkedin}`
-                        } : undefined
-                      }
+                      subscriptionLevel: user.subscriptionLevel || 'STARTER'
                     }}
                     onNavigate={(route) => {
                       console.log('[App] 🔗 SidebarMenu navigation triggered:', route);
@@ -3510,6 +3693,9 @@ const App: React.FC = () => {
                       } else if (route === 'help') {
                         setIsDrawerOpen(false);
                         setIsHelpOpen(true);
+                      } else if (route === 'business-tour') {
+                        setIsDrawerOpen(false);
+                        setShowBusinessTour(true);
                       } else if (route === 'privacy' || route === 'terms') {
                         // TODO: Open legal pages
                         console.log('Navigate to', route);
@@ -3589,7 +3775,6 @@ const App: React.FC = () => {
               isOpen={isLinkedAccountsOpen}
               onClose={() => setIsLinkedAccountsOpen(false)}
               user={user}
-              onUpdateSocialLinks={handleUpdateSocialLinks}
             />
 
             <HelpModal
@@ -3631,7 +3816,6 @@ const App: React.FC = () => {
                   responseTime: userProfile.responseTime,
                   vibe: userProfile.vibeTags || userProfile.vibe || user.vibe,
                   avatarUrl: userProfile.photoUrl || user.avatarUrl,
-                  socialLinks: userProfile.socialLinks || user.socialLinks,
                   homeCity: userProfile.homeCity || user.homeCity,
                   category: (userProfile.category || user.category) as BusinessCategory
                 })
@@ -3696,6 +3880,27 @@ const App: React.FC = () => {
         closeNotifications={() => setIsNotificationsOpen(false)}
         onNavigate={handleNavigate}
       >
+           {activeTab === MainTab.HOME && user.accountType === 'creator' && (
+             <HomeScreen onNavigate={handleNavigate} />
+           )}
+           
+           {activeTab === MainTab.FEED && (
+             <FeedScreen
+               userId={user.id}
+               userRole={user.role}
+               userName={user.name}
+               userAvatar={user.avatarUrl}
+               userLocation={user.geo ? {
+                 name: user.address?.city || user.geo.city || 'Unknown',
+                 city: user.geo.city,
+                 country: '',
+                 latitude: user.geo.latitude,
+                 longitude: user.geo.longitude
+               } : undefined}
+               userInterests={user.vibeTags}
+               followingIds={user.following}
+             />
+           )}
            {activeTab === MainTab.DASHBOARD && (
              user.accountType === 'creator' ? (
                <CreatorOpportunitiesScreen user={user} onNavigate={handleNavigate} />
@@ -3703,32 +3908,12 @@ const App: React.FC = () => {
                <DashboardView user={user} onNavigate={handleNavigate} />
              )
            )}
-           {activeTab === MainTab.CUSTOMERS && user.accountType === 'business' && (
-             <CustomerCRM
-               businessId={user.id}
-               businessName={user.name}
-             />
-           )}
            {activeTab === MainTab.MISSIONS && (
              user.accountType === 'business' ? (
-               <MissionsView user={user} onNavigate={handleNavigate} />
+               <BusinessEngageScreen user={user} onNavigate={handleNavigate} />
              ) : (
                <CreatorProjectsScreen user={user} onNavigate={handleNavigate} />
              )
-           )}
-           {activeTab === MainTab.REWARDS && user.accountType === 'business' && (
-             <div className="p-6">
-               <RewardsAndPointsHub
-                   businessId={user.id}
-                   businessName={user.name}
-                   businessLogo={user.avatarUrl}
-                   currentPoints={user.points || 0}
-                   onPointsChange={() => {
-                     // Points are managed through Firestore and userProfile updates
-                     console.log('[App] Points changed, userProfile will auto-refresh');
-                   }}
-                 />
-             </div>
            )}
            {activeTab === MainTab.PEOPLE && <PeopleView user={user} />}
            {activeTab === MainTab.B2B && (
@@ -3744,6 +3929,10 @@ const App: React.FC = () => {
                    onOpenProject={(projectId) => {
                      const project = projects.find(p => p.id === projectId);
                      if (project) setSelectedProject(project);
+                   }}
+                   onCreatorProfileOpen={(creatorId) => {
+                     setSelectedCreatorId(creatorId);
+                     setShowCreatorProfile(true);
                    }}
                  />
                ) : (
@@ -3809,7 +3998,7 @@ const App: React.FC = () => {
             </button>
           </div>
           <Level1SubscriptionSelector
-            currentTier={(user.subscriptionLevel as any) || 'FREE'}
+            currentTier={(user.subscriptionLevel as any) || 'STARTER'}
             businessId={user.id}
             onSelectTier={async (tier) => {
               // Update subscription tier
@@ -3828,7 +4017,7 @@ const App: React.FC = () => {
 
       {isLevel2SubscriptionOpen && user && user.role === UserRole.BUSINESS && (user.level || 2) >= 2 && (
         <Level2SubscriptionSelector
-          currentTier={(user.subscriptionLevel as any) || 'FREE'}
+          currentTier={(user.subscriptionLevel as any) || 'STARTER'}
           businessId={user.id}
           onSelectTier={async (tier) => {
             // Update subscription tier
@@ -3893,8 +4082,6 @@ const App: React.FC = () => {
             vibe: userProfile.vibeTags || userProfile.vibe || user.vibe,
             vibeTags: userProfile.vibeTags || userProfile.vibe || user.vibe,
             avatarUrl: userProfile.photoUrl || user.avatarUrl,
-            socialLinks: userProfile.socialLinks || user.socialLinks,
-            socialAccounts: userProfile.socialAccounts || user.socialAccounts,
             homeCity: userProfile.homeCity || user.homeCity,
             category: (userProfile.category || user.category) as BusinessCategory,
             geo: userProfile.geo || user.geo,
@@ -3911,8 +4098,7 @@ const App: React.FC = () => {
           name: mergedBusiness.name,
           geo: mergedBusiness.geo,
           location: mergedBusiness.location,
-          address: mergedBusiness.address,
-          socialAccounts: mergedBusiness.socialAccounts
+          address: mergedBusiness.address
         });
         
         return (
@@ -4078,7 +4264,7 @@ const App: React.FC = () => {
       )}
 
       {/* Admin Dashboard - Full Page for Admin Users */}
-      {showAdminDashboard && (user?.role === UserRole.ADMIN || user?.email === 'admin@fluzio.com') && (
+      {showAdminDashboard && (user?.role === UserRole.ADMIN || user?.email === 'admin@beevvy.com') && (
         <div className="fixed inset-0 bg-white z-50 overflow-auto">
           <div className="flex justify-between items-center p-4 border-b">
             <h1 className="text-2xl font-bold text-[#1E0E62]">Admin Panel</h1>
@@ -4090,6 +4276,66 @@ const App: React.FC = () => {
             </button>
           </div>
           <AdminDashboard />
+        </div>
+      )}
+
+      {/* Creator Academy - Modal/Full Page for Creators */}
+      {showCreatorAcademy && user?.accountType === 'creator' && (
+        <div className="fixed inset-0 bg-white z-50 overflow-auto">
+          <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+            <h1 className="text-2xl font-bold">Creator Academy</h1>
+            <button
+              onClick={() => setShowCreatorAcademy(false)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="p-4">
+            <CreatorAcademy creatorId={user.id} />
+          </div>
+        </div>
+      )}
+
+      {/* Media Kit Generator - Modal/Full Page for Creators */}
+      {showMediaKit && user?.accountType === 'creator' && (
+        <div className="fixed inset-0 bg-white z-50 overflow-auto">
+          <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+            <h1 className="text-2xl font-bold">Media Kit</h1>
+            <button
+              onClick={() => setShowMediaKit(false)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="p-4">
+            <MediaKitGenerator 
+              creatorId={user.id}
+              creatorName={user.name || 'Creator'}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Legal Protection - Modal/Full Page for Creators */}
+      {showLegalProtection && user?.accountType === 'creator' && (
+        <div className="fixed inset-0 bg-white z-50 overflow-auto">
+          <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-blue-700 to-cyan-600 text-white">
+            <h1 className="text-2xl font-bold">Legal Protection</h1>
+            <button
+              onClick={() => setShowLegalProtection(false)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="p-4">
+            <CreatorProtection 
+              creatorId={user.id}
+              creatorName={user.name || 'Creator'}
+            />
+          </div>
         </div>
       )}
 
@@ -4122,6 +4368,92 @@ const App: React.FC = () => {
           onCashOut={() => {}}
           mode="screen"
         />
+      )}
+
+      {/* Creator Profile View Modal */}
+      {showCreatorProfile && selectedCreatorId && user && (
+        <UserProfileView
+          isOpen={showCreatorProfile}
+          onClose={() => {
+            setShowCreatorProfile(false);
+            setSelectedCreatorId(null);
+          }}
+          userId={selectedCreatorId}
+          currentUserId={user.id}
+          onMessage={(userId) => {
+            // Find or create conversation with this creator
+            const existingConv = conversations.find(
+              c => c.participants.some(p => p.id === userId) && c.participants.some(p => p.id === user.id)
+            );
+            if (existingConv) {
+              setActiveConversationId(existingConv.id);
+            }
+            setIsMessagingOpen(true);
+            setShowCreatorProfile(false);
+          }}
+        />
+      )}
+
+      {/* Business Onboarding Tour */}
+      {showBusinessTour && user && user.role === 'BUSINESS' && (
+        <BusinessOnboardingTour
+          isOpen={showBusinessTour}
+          onClose={() => setShowBusinessTour(false)}
+        />
+      )}
+
+      {/* Enhanced AI Assistant Modal */}
+      {user && (
+        <EnhancedAIAssistantModal
+          isOpen={isAIAssistantOpen}
+          onClose={() => setIsAIAssistantOpen(false)}
+          onNavigate={handleNavigate}
+          userContext={{
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role as 'CREATOR' | 'BUSINESS' | 'USER',
+            location: user.homeCity ? { city: user.homeCity } : undefined,
+            currentScreen: currentScreen,
+            subscriptionLevel: user.subscriptionLevel,
+            businessType: user.businessType,
+          }}
+        />
+      )}
+
+      {/* AI Assistant FAB - Fixed bottom right */}
+      {user && (
+        <button
+          onClick={() => setIsAIAssistantOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: '100px',
+            right: '20px',
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #6C4BFF 0%, #8B5CF6 100%)',
+            border: 'none',
+            boxShadow: '0 4px 20px rgba(108, 75, 255, 0.4)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            zIndex: 9999,
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 6px 30px rgba(108, 75, 255, 0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(108, 75, 255, 0.4)';
+          }}
+          aria-label="Open AI Assistant"
+        >
+          <Sparkles size={24} />
+        </button>
       )}
     </React.Fragment>
   );

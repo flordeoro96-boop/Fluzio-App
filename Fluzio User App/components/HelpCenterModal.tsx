@@ -123,7 +123,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
     {
       category: 'rewards',
       question: 'The business won\'t accept my reward. What should I do?',
-      answer: '1) Show the QR code clearly, 2) Verify the reward hasn\'t expired, 3) Ask to speak with a manager, 4) Contact Fluzio support with your redemption code if the issue continues.'
+      answer: '1) Show the QR code clearly, 2) Verify the reward hasn\'t expired, 3) Ask to speak with a manager, 4) Contact Beevvy support with your redemption code if the issue continues.'
     },
     {
       category: 'rewards',
@@ -150,7 +150,7 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({
     {
       category: 'technical',
       question: 'Location services not working',
-      answer: 'Enable location: 1) Device Settings → Location → On, 2) Browser permissions for Fluzio, 3) Turn GPS on, 4) Refresh the app, 5) Manually set location in Settings if automatic detection fails.'
+      answer: 'Enable location: 1) Device Settings → Location → On, 2) Browser permissions for Beevvy, 3) Turn GPS on, 4) Refresh the app, 5) Manually set location in Settings if automatic detection fails.'
     },
     {
       category: 'technical',

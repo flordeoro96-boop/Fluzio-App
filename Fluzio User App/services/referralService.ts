@@ -18,7 +18,7 @@
  * - GOLD tier required
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   doc, 
@@ -30,7 +30,7 @@ import {
   getDoc,
   Timestamp,
   increment 
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { createNotification } from './notificationService';
 import { logPointsTransaction } from './pointsMarketplaceService';
 

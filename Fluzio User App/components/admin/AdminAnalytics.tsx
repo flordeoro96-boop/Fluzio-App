@@ -3,8 +3,8 @@ import {
   TrendingUp, Users, Store, Target, Award, DollarSign,
   Calendar, ArrowUp, ArrowDown, Activity, Clock
 } from 'lucide-react';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, getDocs, query, where, Timestamp } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { AdminPermissions, filterByScope } from '../../services/adminAuthService';
 
 interface AnalyticsData {

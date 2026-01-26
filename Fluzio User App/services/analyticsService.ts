@@ -3,8 +3,11 @@
  * Handles analytics data aggregation and export
  */
 
-import { db, auth } from './AuthContext';
-import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { getAuth } from './authCompat';
+
+const auth = getAuth();
+import { collection, query, where, getDocs, orderBy, Timestamp } from '../services/firestoreCompat';
 
 export interface AnalyticsData {
   date: string;

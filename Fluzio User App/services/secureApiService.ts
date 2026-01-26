@@ -1,4 +1,6 @@
-import { auth } from './AuthContext';
+import { getAuth } from './authCompat';
+
+const auth = getAuth();
 
 const FUNCTIONS_URL = 'https://us-central1-fluzio-13af2.cloudfunctions.net';
 

@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { ShoppingBag, ExternalLink, Check, AlertCircle, X } from 'lucide-react';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 
 interface ShopifyConnectionCardProps {
   businessId: string;

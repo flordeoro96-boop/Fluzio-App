@@ -13,7 +13,7 @@ export type {
   SubscriptionTier,
   BusinessLevel,
   BillingCycle,
-  FluzioBusinessUser,
+  BeevvyBusinessUser,
   UserSubscription,
   GrowthCreditsAccount,
   MissionUsage,

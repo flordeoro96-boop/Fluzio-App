@@ -81,7 +81,7 @@ export const GrowthCreditsStore: React.FC<GrowthCreditsStoreProps> = ({
         </div>
         <h2 className="text-3xl font-bold text-[#1E0E62] mb-2">Purchase Growth Credits</h2>
         <p className="text-[#8F8FA3] max-w-2xl mx-auto">
-          Boost your visibility, reach more customers, and grow your business faster with Fluzio Growth Credits
+          Boost your visibility, reach more customers, and grow your business faster with Beevvy Growth Credits
         </p>
         
         {discount > 0 && (

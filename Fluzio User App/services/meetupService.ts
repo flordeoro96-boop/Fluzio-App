@@ -1,4 +1,4 @@
-import { db } from './AuthContext';
+import { db } from './apiService';
 import {
   collection,
   doc,
@@ -15,7 +15,7 @@ import {
   arrayRemove,
   increment,
   serverTimestamp
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { Meetup, MeetupParticipant, MeetupCategory, User, PassportStamp } from '../types';
 import { calculateDistance } from '../hooks/useLocation';
 import { getUserBehavior } from './userBehaviorService';

@@ -216,7 +216,7 @@ export const CustomerSidebar: React.FC<CustomerSidebarProps> = ({
              </div>
              
              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>Fluzio v1.2.0</span>
+                <span>Beevvy v1.2.0</span>
                 <div className="flex gap-2">
                     <button className="hover:text-[#00E5FF]">Privacy</button>
                     <span>·</span>

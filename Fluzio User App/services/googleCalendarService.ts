@@ -14,8 +14,8 @@
  * 3. Business must grant calendar access
  */
 
-import { db } from './AuthContext';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, getDoc, setDoc, updateDoc } from '../services/firestoreCompat';
 
 // ============================================================================
 // TYPES

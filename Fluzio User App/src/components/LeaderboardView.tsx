@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Medal, TrendingUp, Users, Target, Zap, MapPin, Award } from 'lucide-react';
 import { getLeaderboard, LeaderboardEntry, LeaderboardPeriod, LeaderboardMetric } from '../../services/leaderboardService';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { doc, getDoc } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 
 interface LeaderboardViewProps {
   userId: string;

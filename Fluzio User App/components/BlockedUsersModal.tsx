@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserX, AlertCircle, Loader, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 
 interface BlockedUser {
   id: string;

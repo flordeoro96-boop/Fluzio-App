@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, Timestamp, getDocs, getDoc } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, Timestamp, getDocs, getDoc } from '../services/firestoreCompat';
 import { Notification } from '../types';
 
 /**

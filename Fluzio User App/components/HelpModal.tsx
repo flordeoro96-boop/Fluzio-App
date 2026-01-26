@@ -40,8 +40,8 @@ export const HelpModal: React.FC<HelpModalProps> = ({
           a: 'Navigate to the Missions tab, browse available missions, and tap on one that interests you. Read the requirements carefully, then tap "Accept Mission" to get started. Follow the instructions and submit your proof when complete.'
         },
         {
-          q: 'What are Fluzio credits and how do I earn them?',
-          a: 'Fluzio credits are points you earn by completing missions, checking in at locations, and engaging with the community. You can redeem credits for rewards, upgrade your subscription, or unlock premium features.'
+          q: 'What are Beevvy credits and how do I earn them?',
+          a: 'Beevvy credits are points you earn by completing missions, checking in at locations, and engaging with the community. You can redeem credits for rewards, upgrade your subscription, or unlock premium features.'
         },
         {
           q: 'How do I upgrade my subscription?',
@@ -116,7 +116,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
     {
       icon: Mail,
       title: 'Email Support',
-      description: 'support@fluzio.com',
+      description: 'support@beevvy.com',
       action: 'Send Email',
       available: true
     },
@@ -310,7 +310,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 bg-gray-50 text-center">
           <p className="text-xs text-gray-600">
-            Fluzio Help Center • Version 1.0.0 • Updated November 2025
+            Beevvy Help Center • Version 1.0.0 • Updated November 2025
           </p>
         </div>
       </div>

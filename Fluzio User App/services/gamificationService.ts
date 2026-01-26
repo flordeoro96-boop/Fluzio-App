@@ -9,7 +9,7 @@
  * - Achievement tracking
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   doc, 
@@ -24,7 +24,7 @@ import {
   Timestamp,
   increment,
   arrayUnion
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 
 // ============================================================================
 // TYPES

@@ -12,7 +12,7 @@ export enum AccountType {
 }
 
 export enum SubscriptionLevel {
-  FREE = 'FREE',
+  STARTER = 'STARTER',
   SILVER = 'SILVER',
   GOLD = 'GOLD',
   PLATINUM = 'PLATINUM'
@@ -21,7 +21,7 @@ export enum SubscriptionLevel {
 // Multi-location limits by subscription level
 // Geographic Targeting Limits by Subscription Tier
 export const COUNTRY_LIMITS: Record<SubscriptionLevel, number> = {
-  FREE: 0,      // City-only (no country targeting)
+  STARTER: 0,      // City-only (no country targeting)
   SILVER: 1,    // Single country (home country)
   GOLD: 10,     // Up to 10 countries
   PLATINUM: 999 // Global reach (unlimited countries)
@@ -150,13 +150,8 @@ export interface SocialAccount {
 }
 
 export interface SocialLinks {
-  instagram?: SocialConnection;
-  tiktok?: SocialConnection;
   website?: string; // Simple URL string
   youtube?: string; // Legacy string support
-  linkedin?: string;
-  facebook?: string;
-  google?: SocialConnection;
   googleMaps?: string;
 }
 
@@ -289,15 +284,18 @@ export interface User {
   creatorLevel?: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'PRO'; // Experience level
   preferredMissionTypes?: Array<'STORY' | 'POST' | 'REEL' | 'VIDEO'>; // Content they prefer creating
   
-  // Social Media Accounts (OAuth-based connections)
-  socialAccounts?: {
-    instagram?: SocialAccount;
-    tiktok?: SocialAccount;
-    twitter?: SocialAccount;
-    facebook?: SocialAccount;
-    linkedin?: SocialAccount;
-    google?: SocialAccount;
-  };
+  // Creator Reputation & Stats
+  creatorRating?: number; // Average rating from businesses (0-5)
+  creatorReviewCount?: number; // Number of reviews received
+  collabsCompleted?: number; // Completed collaborations count
+  responseTime?: string; // Average response time (e.g., "Within 2 hours")
+  creatorFavorites?: number; // Number of businesses following this creator
+  portfolioUrl?: string; // External portfolio link
+  hourlyRate?: number; // Hourly rate for services
+  availability?: 'Available' | 'Busy' | 'Booked'; // Current availability status
+  creatorBio?: string; // Creator-specific bio
+  creatorSkills?: string[]; // Skills/specializations
+  contentTypes?: string[]; // Content types offered (photo, video, writing, etc.)
   
   // Auth Providers
   googleId?: string;
@@ -310,6 +308,11 @@ export interface User {
   checkInVerificationMethod?: 'QR_ONLY' | 'GPS' | 'BOTH'; // NEW: How customers verify check-ins
   category?: BusinessCategory;
   subCategory?: string; // NEW: More specific
+  
+  // Business Contact Person
+  firstName?: string; // Contact person first name (for businesses)
+  lastName?: string; // Contact person last name (for businesses)
+  position?: string; // Contact person role/position (Owner, Manager, etc.)
   vibe?: string[];       
   address?: Address;
   openingHours?: OpeningHours;
@@ -388,22 +391,14 @@ export interface User {
   rating?: number; // Average rating
   reviewsCount?: number;
   
-  // Social media integrations status
+  // Integrations status
   integrations?: {
-    instagram?: {
-      connected?: boolean;
-      username?: string;
-      lastVerified?: string;
-    };
     googleBusiness?: {
       connected?: boolean;
       placeId?: string;
       lastSynced?: string;
     };
   };
-  collabsCompleted?: number;
-  creatorFavorites?: number;
-  responseTime?: string; // e.g., "Within 2 hours"
   handle?: string; // Business username/handle
 
   // Multi-Location Support for Businesses
@@ -724,8 +719,11 @@ export interface BusinessStats {
 
 // Navigation Types
 export enum MainTab {
+  HOME = 'HOME',
+  FEED = 'FEED',
   DASHBOARD = 'DASHBOARD',
   CUSTOMERS = 'CUSTOMERS',
+  CREATORS = 'CREATORS',
   MISSIONS = 'MISSIONS',
   REWARDS = 'REWARDS',
   PEOPLE = 'PEOPLE',
@@ -759,9 +757,18 @@ export interface OnboardingState {
   subCategory?: string;
   businessMode?: 'PHYSICAL' | 'ONLINE' | 'HYBRID';
   website?: string;
-  instagram?: string;
   referralCode?: string;
   vibes: string[];
+  
+  // Social Media & Professional Links
+  instagram?: string;
+  
+  // Customer/Creator Interests
+  interests?: string[];
+  
+  // Creator Skills
+  primarySkill?: string; // Main expertise/role
+  additionalSkills?: string[]; // Additional capabilities
   
   // Business Verification Fields
   legalName?: string;
@@ -770,13 +777,17 @@ export interface OnboardingState {
   street?: string;
   zipCode?: string;
   phone?: string;
-  linkedin?: string;
   documents?: string[]; // Names of uploaded files
   isAuthorized?: boolean;
   verifiedSources?: {
       google?: boolean;
       shopify?: boolean;
   };
+  
+  // Contact Person (Business Only)
+  firstName?: string; // Contact person first name
+  lastName?: string; // Contact person last name
+  position?: string; // Role in company (Owner, Manager, etc.)
   
   // Business Maturity Assessment (for intelligent level assignment)
   businessStage?: 'validating' | 'early_customers' | 'operating' | 'growing' | 'established' | 'leader';
@@ -808,6 +819,22 @@ export interface Squad {
   members: string[]; // User IDs (BusinessProfile IDs)
   chatId: string | null;
   events: CalendarEvent[];
+  selectedActivity?: {
+    id: string;
+    title: string;
+    description: string;
+    emoji: string;
+    selectedBy: string; // User ID who selected it
+    selectedAt: string; // ISO timestamp
+  };
+  activityVotes?: Array<{
+    userId: string;
+    userName: string;
+    activityId: string;
+    activityTitle: string;
+    activityEmoji: string;
+    votedAt: string;
+  }>;
   // Deprecated: Keeping for backward compatibility temporarily
   schedule?: {
     funMeetup: {
@@ -856,6 +883,10 @@ export interface CreatorRole {
   quantity?: number; // Number of creators needed for this role
   status: CreatorRoleStatus;
   creatorId?: string; // ID of accepted creator
+  description?: string; // Role description
+  requirements?: string[]; // e.g., ["Portfolio required", "Min 2 years experience"]
+  timeCommitment?: string; // e.g., "4 hours", "Full day"
+  applicationCount?: number; // Number of applications received
 }
 
 export interface ProjectTask {
@@ -870,6 +901,8 @@ export interface Project {
   description: string; // 1-2 sentence project goal
   projectType: ProjectType;
   city: string;
+  location?: string; // Specific address
+  coordinates?: { lat: number; lng: number }; // For distance calculations
   dateRange: {
     start: string; // ISO date
     end: string; // ISO date
@@ -884,8 +917,31 @@ export interface Project {
   tasks: ProjectTask[];
   chatId?: string; // Project chat conversation ID
   slots: ProjectSlot[]; // Legacy - can be removed later
+  images?: string[]; // Array of image URLs
+  coverImage?: string; // Main project cover image
   createdAt?: string;
   updatedAt?: string;
+  // New fields for improvements
+  businessStats?: {
+    acceptanceRate?: number; // 0-100
+    averageResponseTime?: number; // hours
+    completedProjects?: number;
+    rating?: number; // 1-5
+    reviewCount?: number;
+  };
+  logistics?: {
+    transportation?: string;
+    accommodation?: string;
+    meals?: string;
+  };
+  paymentInfo?: {
+    timeline?: string; // e.g., "3 days after completion"
+    verified?: boolean;
+  };
+  teamInfo?: {
+    acceptedCreators?: string[]; // IDs of creators already on team
+    isTeamPublic?: boolean;
+  };
 }
 
 export interface ServiceListing {
@@ -905,6 +961,44 @@ export interface Review {
   comment?: string;
   createdAt: string; // ISO Date
   verified?: boolean; // From actual mission completion
+}
+
+// --- Creator Application Status Types ---
+
+export type ApplicationStatus = 
+  | 'PENDING' 
+  | 'UNDER_REVIEW' 
+  | 'SHORTLISTED' 
+  | 'INTERVIEW_SCHEDULED'
+  | 'ACCEPTED' 
+  | 'REJECTED' 
+  | 'WITHDRAWN';
+
+export interface ApplicationStatusHistory {
+  status: ApplicationStatus;
+  timestamp: string;
+  note?: string;
+}
+
+export interface CreatorApplication {
+  id: string;
+  projectId: string;
+  projectTitle: string;
+  roleId: string;
+  roleTitle: string;
+  creatorId: string;
+  status: ApplicationStatus;
+  coverLetter?: string;
+  portfolioLinks?: string[];
+  availability?: string;
+  appliedAt: string;
+  updatedAt?: string;
+  statusHistory?: ApplicationStatusHistory[];
+  businessResponse?: {
+    message?: string;
+    respondedAt?: string;
+    respondedBy?: string;
+  };
 }
 
 // --- Meetups System Types ---
@@ -1066,8 +1160,6 @@ export interface ServiceProvider {
   phone?: string;
   website?: string;
   socialLinks?: {
-    instagram?: string;
-    linkedin?: string;
     behance?: string;
   };
   yearsExperience?: number;
@@ -1144,4 +1236,115 @@ export interface CollaborationSuggestion {
   sharedInterests?: string[];
   potentialRevenue?: string;
   suggestedAt: string;
+}
+
+// --- Native Content Feed System (Replaces Instagram/External Integrations) ---
+
+export enum ContentType {
+  EXPERIENCE_POST = 'EXPERIENCE_POST',       // User shares an experience they had
+  CREATOR_CONTENT = 'CREATOR_CONTENT',       // Creator showcases their work
+  BUSINESS_ANNOUNCEMENT = 'BUSINESS_ANNOUNCEMENT', // Business shares news/offers
+  COLLABORATION_CALL = 'COLLABORATION_CALL', // Business seeks creators
+  EVENT_PREVIEW = 'EVENT_PREVIEW',           // Upcoming event highlight
+  MOMENT = 'MOMENT',                         // Quick photo/video moment
+}
+
+export enum MediaType {
+  IMAGE = 'IMAGE',
+  VIDEO = 'VIDEO',
+  CAROUSEL = 'CAROUSEL', // Multiple images/videos
+}
+
+export interface FeedMedia {
+  id: string;
+  type: MediaType;
+  url: string;
+  thumbnailUrl?: string; // For videos
+  width?: number;
+  height?: number;
+  duration?: number; // For videos, in seconds
+  order?: number; // For carousels
+}
+
+export interface FeedPost {
+  id: string;
+  contentType: ContentType;
+  
+  // Creator Info
+  createdBy: string; // User ID
+  creatorName: string;
+  creatorAvatar: string;
+  creatorRole: UserRole; // USER, CREATOR, BUSINESS
+  
+  // Content
+  caption: string;
+  media: FeedMedia[];
+  
+  // Location (for discovery)
+  location?: {
+    name: string; // Display name
+    geo?: GeoPoint;
+    city?: string;
+    country?: string;
+  };
+  
+  // Tags & Discovery
+  tags?: string[]; // Hashtags, interests
+  mentions?: string[]; // User IDs mentioned
+  businessTag?: string; // Business ID if tagging a business
+  
+  // Engagement (internal only, not shown publicly)
+  viewCount?: number;
+  saveCount?: number;
+  shareCount?: number;
+  
+  // Collaboration specific (for COLLABORATION_CALL type)
+  collaborationDetails?: {
+    budget?: number;
+    compensation: 'PAID' | 'POINTS' | 'PRODUCT' | 'EXPERIENCE';
+    requirements?: string[];
+    deadline?: string; // ISO date
+    spotsAvailable?: number;
+    applicants?: string[]; // User IDs who applied
+  };
+  
+  // Event specific (for EVENT_PREVIEW type)
+  eventId?: string; // Links to Event
+  
+  // Status & Moderation
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'REMOVED';
+  moderationStatus?: 'PENDING' | 'APPROVED' | 'FLAGGED';
+  
+  // Timestamps
+  createdAt: string; // ISO date
+  publishedAt?: string; // ISO date
+  updatedAt?: string; // ISO date
+}
+
+export interface FeedFilter {
+  role: UserRole; // Filter by viewer role
+  contentTypes?: ContentType[]; // Filter by content type
+  location?: {
+    city?: string;
+    country?: string;
+    radiusKm?: number; // Proximity filter
+    coordinates?: GeoPoint;
+  };
+  interests?: string[]; // Match against tags
+  following?: boolean; // Only show posts from followed users
+}
+
+export interface FeedItem extends FeedPost {
+  // Additional UI properties
+  isFollowing?: boolean; // Does viewer follow this creator?
+  isSaved?: boolean; // Has viewer saved this post?
+  relevanceScore?: number; // Algorithm score for this viewer
+  
+  // Engagement metrics (for AI ranking)
+  likes?: number;
+  comments?: number;
+  
+  // Role-specific properties
+  actionLabel?: string; // "Join", "Apply", "Save", "View"
+  contextBadge?: string; // "Experience", "Collaboration", "Event"
 }

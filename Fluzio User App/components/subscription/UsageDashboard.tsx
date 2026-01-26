@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Users, Zap, TrendingUp, AlertCircle, ChevronRight } from 'lucide-react';
-import { db } from '../../services/AuthContext';
-import { doc, onSnapshot } from 'firebase/firestore';
-import type { FluzioBusinessUser } from '../../src/lib/levels/subscriptionTypes';
+import { db } from '../../services/apiService';
+import { doc, onSnapshot } from '../../services/firestoreCompat';
+import type { BeevvyBusinessUser } from '../../src/lib/levels/subscriptionTypes';
 
 interface UsageDashboardProps {
   userId: string;
@@ -10,14 +10,14 @@ interface UsageDashboardProps {
 }
 
 export const UsageDashboard: React.FC<UsageDashboardProps> = ({ userId, onUpgradeClick }) => {
-  const [userData, setUserData] = useState<FluzioBusinessUser | null>(null);
+  const [userData, setUserData] = useState<BeevvyBusinessUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const userRef = doc(db, 'users', userId);
     const unsubscribe = onSnapshot(userRef, (snapshot) => {
       if (snapshot.exists()) {
-        setUserData(snapshot.data() as FluzioBusinessUser);
+        setUserData(snapshot.data() as BeevvyBusinessUser);
       }
       setLoading(false);
     });

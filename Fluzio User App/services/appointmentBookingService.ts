@@ -19,7 +19,7 @@
  * - Reward delay: 3-day verification period after appointment completion
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   doc, 
@@ -32,7 +32,7 @@ import {
   limit,
   Timestamp,
   getDoc
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { createNotification } from './notificationService';
 import { logPointsTransaction } from './pointsMarketplaceService';
 import { api } from './apiService';

@@ -7,8 +7,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Clock, Award, Check, ShoppingBag, Eye } from 'lucide-react';
-import { doc, updateDoc, increment } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { doc, updateDoc, increment } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 import { Mission } from '../src/types/models';
 import { 
   generateTrackingUrl, 

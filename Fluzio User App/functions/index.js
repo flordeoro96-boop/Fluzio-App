@@ -106,9 +106,15 @@ exports.createuser = onRequest({
     // 👇 **THIS IS THE IMPORTANT LINE**
     const userRef = db.collection("users").doc(uid);  // <--- must be "users", NOT "businesses"
 
+    // Set businessLevel based on isAspiringBusiness flag
+    const businessLevel = role === 'BUSINESS' 
+      ? (data.isAspiringBusiness === true ? 1 : 2)  // Aspiring = Level 1, Registered = Level 2
+      : undefined;
+
     await userRef.set(
       {
         ...data,
+        ...(businessLevel !== undefined && { businessLevel }),  // Add businessLevel for businesses
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -241,6 +247,118 @@ exports.updateuser = onRequest({
     res.status(200).json({ success: true, message: "User updated successfully" });
   } catch (error) {
     console.error("Error updating user:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * HTTP Endpoint: Initialize Pools
+ * Manually initialize participant and energy pools for existing users
+ */
+exports.initializePools = onRequest({ 
+  cors: true,
+  invoker: "public"
+}, async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
+  console.log("=== Initialize Pools Request ===");
+  
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      res.status(400).json({ success: false, error: "Missing userId" });
+      return;
+    }
+    
+    // Get user's subscription level
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    
+    if (!userSnap.exists) {
+      res.status(404).json({ success: false, error: "User not found" });
+      return;
+    }
+    
+    const userData = userSnap.data();
+    const subscriptionLevel = userData.subscriptionLevel || 'STARTER';
+    
+    console.log(`Initializing pools for ${userId} (${subscriptionLevel})`);
+    
+    const batch = db.batch();
+    const now = new Date();
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    nextMonth.setDate(1);
+    nextMonth.setHours(0, 0, 0, 0);
+    
+    // Participant Pool Limits
+    const participantPoolLimits = {
+      STARTER: 350,
+      SILVER: 500,
+      GOLD: 800,
+      PLATINUM: 1500
+    };
+    
+    // Energy Pool Limits
+    const energyPoolLimits = {
+      STARTER: 20,
+      SILVER: 40,
+      GOLD: 80,
+      PLATINUM: 150
+    };
+    
+    // Create Participant Pool
+    const participantPoolRef = db.collection('participantPools').doc(userId);
+    batch.set(participantPoolRef, {
+      businessId: userId,
+      tier: subscriptionLevel,
+      currentUsage: 0,
+      monthlyParticipantLimit: participantPoolLimits[subscriptionLevel] || 350,
+      remaining: participantPoolLimits[subscriptionLevel] || 350,
+      isUnlimited: participantPoolLimits[subscriptionLevel] === 1500,
+      cycleStartDate: admin.firestore.Timestamp.fromDate(now),
+      cycleEndDate: admin.firestore.Timestamp.fromDate(nextMonth),
+      lastReset: admin.firestore.Timestamp.fromDate(now),
+      createdAt: admin.firestore.Timestamp.fromDate(now),
+      updatedAt: admin.firestore.Timestamp.fromDate(now)
+    });
+    
+    // Create Energy Pool
+    const energyPoolRef = db.collection('missionEnergyPools').doc(userId);
+    batch.set(energyPoolRef, {
+      businessId: userId,
+      tier: subscriptionLevel,
+      currentUsage: 0,
+      monthlyEnergyLimit: energyPoolLimits[subscriptionLevel] || 20,
+      remaining: energyPoolLimits[subscriptionLevel] || 20,
+      isUnlimited: energyPoolLimits[subscriptionLevel] === 150,
+      cycleStartDate: admin.firestore.Timestamp.fromDate(now),
+      cycleEndDate: admin.firestore.Timestamp.fromDate(nextMonth),
+      lastReset: admin.firestore.Timestamp.fromDate(now),
+      createdAt: admin.firestore.Timestamp.fromDate(now),
+      updatedAt: admin.firestore.Timestamp.fromDate(now)
+    });
+    
+    await batch.commit();
+    
+    console.log(`✅ Pools initialized for ${userId}`);
+    res.status(200).json({ 
+      success: true, 
+      message: "Pools initialized successfully",
+      participantPool: participantPoolLimits[subscriptionLevel],
+      energyPool: energyPoolLimits[subscriptionLevel]
+    });
+    
+  } catch (error) {
+    console.error("Error initializing pools:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -423,7 +541,118 @@ exports.instagramcallback = onRequest({
   }
 });
 
+// ==================== COUNTRY AUTO-CREATION HELPERS ====================
 
+// Helper: Extract ISO country code from phone code
+function extractCountryCodeFromPhone(phoneCode) {
+  const phoneToCountry = {
+    '+1': 'US',
+    '+44': 'GB',
+    '+49': 'DE',
+    '+33': 'FR',
+    '+34': 'ES',
+    '+39': 'IT',
+    '+351': 'PT',
+    '+31': 'NL',
+    '+32': 'BE',
+    '+41': 'CH',
+    '+43': 'AT',
+    '+45': 'DK',
+    '+46': 'SE',
+    '+47': 'NO',
+    '+48': 'PL',
+    '+420': 'CZ',
+    '+36': 'HU',
+    '+40': 'RO',
+    '+30': 'GR',
+    '+353': 'IE',
+    '+358': 'FI',
+    '+370': 'LT',
+    '+371': 'LV',
+    '+372': 'EE',
+    '+971': 'AE',
+    '+507': 'PA',
+    '+52': 'MX',
+    '+54': 'AR',
+    '+55': 'BR',
+    '+56': 'CL',
+    '+57': 'CO',
+    '+51': 'PE',
+    '+86': 'CN',
+    '+81': 'JP',
+    '+82': 'KR',
+    '+91': 'IN',
+    '+65': 'SG',
+    '+852': 'HK',
+    '+61': 'AU',
+    '+64': 'NZ',
+    '+27': 'ZA',
+    '+234': 'NG',
+    '+254': 'KE',
+  };
+  return phoneToCountry[phoneCode] || null;
+}
+
+// Helper: Get country data by ISO code
+function getCountryData(code) {
+  const countries = {
+    'US': { code: 'US', countryId: 'US', name: 'United States', flag: '🇺🇸', currency: 'USD', language: 'en', timezone: 'America/New_York' },
+    'GB': { code: 'GB', countryId: 'GB', name: 'United Kingdom', flag: '🇬🇧', currency: 'GBP', language: 'en', timezone: 'Europe/London' },
+    'DE': { code: 'DE', countryId: 'DE', name: 'Germany', flag: '🇩🇪', currency: 'EUR', language: 'de', timezone: 'Europe/Berlin' },
+    'FR': { code: 'FR', countryId: 'FR', name: 'France', flag: '🇫🇷', currency: 'EUR', language: 'fr', timezone: 'Europe/Paris' },
+    'ES': { code: 'ES', countryId: 'ES', name: 'Spain', flag: '🇪🇸', currency: 'EUR', language: 'es', timezone: 'Europe/Madrid' },
+    'IT': { code: 'IT', countryId: 'IT', name: 'Italy', flag: '🇮🇹', currency: 'EUR', language: 'it', timezone: 'Europe/Rome' },
+    'PT': { code: 'PT', countryId: 'PT', name: 'Portugal', flag: '🇵🇹', currency: 'EUR', language: 'pt', timezone: 'Europe/Lisbon' },
+    'NL': { code: 'NL', countryId: 'NL', name: 'Netherlands', flag: '🇳🇱', currency: 'EUR', language: 'nl', timezone: 'Europe/Amsterdam' },
+    'BE': { code: 'BE', countryId: 'BE', name: 'Belgium', flag: '🇧🇪', currency: 'EUR', language: 'nl', timezone: 'Europe/Brussels' },
+    'CH': { code: 'CH', countryId: 'CH', name: 'Switzerland', flag: '🇨🇭', currency: 'CHF', language: 'de', timezone: 'Europe/Zurich' },
+    'AT': { code: 'AT', countryId: 'AT', name: 'Austria', flag: '🇦🇹', currency: 'EUR', language: 'de', timezone: 'Europe/Vienna' },
+    'DK': { code: 'DK', countryId: 'DK', name: 'Denmark', flag: '🇩🇰', currency: 'DKK', language: 'da', timezone: 'Europe/Copenhagen' },
+    'SE': { code: 'SE', countryId: 'SE', name: 'Sweden', flag: '🇸🇪', currency: 'SEK', language: 'sv', timezone: 'Europe/Stockholm' },
+    'NO': { code: 'NO', countryId: 'NO', name: 'Norway', flag: '🇳🇴', currency: 'NOK', language: 'no', timezone: 'Europe/Oslo' },
+    'PL': { code: 'PL', countryId: 'PL', name: 'Poland', flag: '🇵🇱', currency: 'PLN', language: 'pl', timezone: 'Europe/Warsaw' },
+    'CZ': { code: 'CZ', countryId: 'CZ', name: 'Czech Republic', flag: '🇨🇿', currency: 'CZK', language: 'cs', timezone: 'Europe/Prague' },
+    'HU': { code: 'HU', countryId: 'HU', name: 'Hungary', flag: '🇭🇺', currency: 'HUF', language: 'hu', timezone: 'Europe/Budapest' },
+    'RO': { code: 'RO', countryId: 'RO', name: 'Romania', flag: '🇷🇴', currency: 'RON', language: 'ro', timezone: 'Europe/Bucharest' },
+    'GR': { code: 'GR', countryId: 'GR', name: 'Greece', flag: '🇬🇷', currency: 'EUR', language: 'el', timezone: 'Europe/Athens' },
+    'IE': { code: 'IE', countryId: 'IE', name: 'Ireland', flag: '🇮🇪', currency: 'EUR', language: 'en', timezone: 'Europe/Dublin' },
+    'FI': { code: 'FI', countryId: 'FI', name: 'Finland', flag: '🇫🇮', currency: 'EUR', language: 'fi', timezone: 'Europe/Helsinki' },
+    'LT': { code: 'LT', countryId: 'LT', name: 'Lithuania', flag: '🇱🇹', currency: 'EUR', language: 'lt', timezone: 'Europe/Vilnius' },
+    'LV': { code: 'LV', countryId: 'LV', name: 'Latvia', flag: '🇱🇻', currency: 'EUR', language: 'lv', timezone: 'Europe/Riga' },
+    'EE': { code: 'EE', countryId: 'EE', name: 'Estonia', flag: '🇪🇪', currency: 'EUR', language: 'et', timezone: 'Europe/Tallinn' },
+    'AE': { code: 'AE', countryId: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', currency: 'AED', language: 'ar', timezone: 'Asia/Dubai' },
+    'PA': { code: 'PA', countryId: 'PA', name: 'Panama', flag: '🇵🇦', currency: 'PAB', language: 'es', timezone: 'America/Panama' },
+    'MX': { code: 'MX', countryId: 'MX', name: 'Mexico', flag: '🇲🇽', currency: 'MXN', language: 'es', timezone: 'America/Mexico_City' },
+    'AR': { code: 'AR', countryId: 'AR', name: 'Argentina', flag: '🇦🇷', currency: 'ARS', language: 'es', timezone: 'America/Argentina/Buenos_Aires' },
+    'BR': { code: 'BR', countryId: 'BR', name: 'Brazil', flag: '🇧🇷', currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' },
+    'CL': { code: 'CL', countryId: 'CL', name: 'Chile', flag: '🇨🇱', currency: 'CLP', language: 'es', timezone: 'America/Santiago' },
+    'CO': { code: 'CO', countryId: 'CO', name: 'Colombia', flag: '🇨🇴', currency: 'COP', language: 'es', timezone: 'America/Bogota' },
+    'PE': { code: 'PE', countryId: 'PE', name: 'Peru', flag: '🇵🇪', currency: 'PEN', language: 'es', timezone: 'America/Lima' },
+    'CN': { code: 'CN', countryId: 'CN', name: 'China', flag: '🇨🇳', currency: 'CNY', language: 'zh', timezone: 'Asia/Shanghai' },
+    'JP': { code: 'JP', countryId: 'JP', name: 'Japan', flag: '🇯🇵', currency: 'JPY', language: 'ja', timezone: 'Asia/Tokyo' },
+    'KR': { code: 'KR', countryId: 'KR', name: 'South Korea', flag: '🇰🇷', currency: 'KRW', language: 'ko', timezone: 'Asia/Seoul' },
+    'IN': { code: 'IN', countryId: 'IN', name: 'India', flag: '🇮🇳', currency: 'INR', language: 'en', timezone: 'Asia/Kolkata' },
+    'SG': { code: 'SG', countryId: 'SG', name: 'Singapore', flag: '🇸🇬', currency: 'SGD', language: 'en', timezone: 'Asia/Singapore' },
+    'HK': { code: 'HK', countryId: 'HK', name: 'Hong Kong', flag: '🇭🇰', currency: 'HKD', language: 'zh', timezone: 'Asia/Hong_Kong' },
+    'AU': { code: 'AU', countryId: 'AU', name: 'Australia', flag: '🇦🇺', currency: 'AUD', language: 'en', timezone: 'Australia/Sydney' },
+    'NZ': { code: 'NZ', countryId: 'NZ', name: 'New Zealand', flag: '🇳🇿', currency: 'NZD', language: 'en', timezone: 'Pacific/Auckland' },
+    'ZA': { code: 'ZA', countryId: 'ZA', name: 'South Africa', flag: '🇿🇦', currency: 'ZAR', language: 'en', timezone: 'Africa/Johannesburg' },
+    'NG': { code: 'NG', countryId: 'NG', name: 'Nigeria', flag: '🇳🇬', currency: 'NGN', language: 'en', timezone: 'Africa/Lagos' },
+    'KE': { code: 'KE', countryId: 'KE', name: 'Kenya', flag: '🇰🇪', currency: 'KES', language: 'en', timezone: 'Africa/Nairobi' },
+  };
+  
+  return countries[code] || { 
+    code, 
+    countryId: code,
+    name: code, 
+    flag: '🌍', 
+    currency: 'USD', 
+    language: 'en', 
+    timezone: 'UTC' 
+  };
+}
+
+// ==================== USER CREATION TRIGGER ====================
 
 /**
  * Trigger: Runs when a new user is created in Firestore.
@@ -573,6 +802,116 @@ exports.onUserCreate = onDocumentCreated("users/{userId}", async (event) => {
       'levelProgression.levelUpHistory': []
     });
     console.log(`[Subscription] Initialized complete subscription system for: ${newUser.name}`);
+    
+    // Initialize Participant Pool (for Level 2 Subscription System)
+    const subscriptionLevel = newUser.subscriptionLevel || 'STARTER';
+    const participantPoolLimits = {
+      STARTER: 350,
+      SILVER: 500,
+      GOLD: 800,
+      PLATINUM: 1500
+    };
+    
+    const participantPoolRef = db.collection("participantPools").doc(userId);
+    batch.set(participantPoolRef, {
+      businessId: userId,
+      tier: subscriptionLevel,
+      currentUsage: 0,
+      monthlyParticipantLimit: participantPoolLimits[subscriptionLevel] || 350,
+      remaining: participantPoolLimits[subscriptionLevel] || 350,
+      isUnlimited: participantPoolLimits[subscriptionLevel] === 1500,
+      cycleStartDate: admin.firestore.FieldValue.serverTimestamp(),
+      cycleEndDate: admin.firestore.Timestamp.fromDate(nextMonth),
+      lastReset: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log(`[ParticipantPool] Initialized pool for ${newUser.name} (${subscriptionLevel}): ${participantPoolLimits[subscriptionLevel]} participants/month`);
+    
+    // Initialize Mission Energy Pool
+    const energyPoolLimits = {
+      STARTER: 20,
+      SILVER: 40,
+      GOLD: 80,
+      PLATINUM: 150
+    };
+    
+    const energyPoolRef = db.collection("missionEnergyPools").doc(userId);
+    batch.set(energyPoolRef, {
+      businessId: userId,
+      tier: subscriptionLevel,
+      currentUsage: 0,
+      monthlyEnergyLimit: energyPoolLimits[subscriptionLevel] || 20,
+      remaining: energyPoolLimits[subscriptionLevel] || 20,
+      isUnlimited: energyPoolLimits[subscriptionLevel] === 150,
+      cycleStartDate: admin.firestore.FieldValue.serverTimestamp(),
+      cycleEndDate: admin.firestore.Timestamp.fromDate(nextMonth),
+      lastReset: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log(`[MissionEnergy] Initialized pool for ${newUser.name} (${subscriptionLevel}): ${energyPoolLimits[subscriptionLevel]} energy/month`);
+  }
+
+  // 3. Auto-create Country if it doesn't exist
+  try {
+    const countryCode = extractCountryCodeFromPhone(newUser.countryCode);
+    if (countryCode) {
+      const countryRef = db.collection("countries").doc(countryCode);
+      const countrySnap = await countryRef.get();
+      
+      if (!countrySnap.exists) {
+        console.log(`[Country Auto-Create] Creating new country: ${countryCode} for user ${newUser.name}`);
+        
+        const countryData = getCountryData(countryCode);
+        const isUnknownCountry = countryData.flag === '🌍'; // Generic flag means unknown country
+        
+        batch.set(countryRef, {
+          ...countryData,
+          status: "SOFT_LAUNCH", // Auto-created countries start in soft launch
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          autoCreated: true,
+          needsReview: isUnknownCountry, // Flag unknown countries for admin review
+          firstUserId: userId,
+          firstUserName: newUser.name,
+          launchChecklist: [], // Empty checklist - admin will configure
+          statusHistory: [{
+            status: "SOFT_LAUNCH",
+            changedAt: admin.firestore.FieldValue.serverTimestamp(),
+            changedBy: "system",
+            reason: "Auto-created on user signup"
+          }],
+          settings: {
+            enableBusinessVerification: false,
+            enableCreatorPayouts: false,
+            enableEvents: false,
+            autoApproveMissions: true, // Auto-approve for soft launch
+          }
+        });
+        
+        // Create admin notification
+        const notificationRef = db.collection("notifications").doc();
+        batch.set(notificationRef, {
+          type: "NEW_COUNTRY",
+          title: `New Country: ${countryData.name} ${countryData.flag}`,
+          message: `${countryData.name} (${countryCode}) was auto-created. First user: ${newUser.name}${isUnknownCountry ? ' ⚠️ Unknown country - needs review!' : ''}`,
+          countryCode: countryCode,
+          countryName: countryData.name,
+          firstUserId: userId,
+          firstUserName: newUser.name,
+          needsReview: isUnknownCountry,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          priority: isUnknownCountry ? "high" : "medium"
+        });
+        
+        console.log(`[Country Auto-Create] ✅ Created ${countryData.name} (${countryCode}) - Status: SOFT_LAUNCH${isUnknownCountry ? ' - NEEDS REVIEW' : ''}`);
+      }
+    }
+  } catch (error) {
+    console.error('[Country Auto-Create] Error:', error);
+    // Don't fail user creation if country creation fails
   }
 
   await batch.commit();
@@ -6805,8 +7144,13 @@ exports.activateMission = onRequest({ cors: true }, async (req, res) => {
     // ========================================================================
     
     const MISSION_CATALOG = {
+      // Google-based missions
       'GOOGLE_REVIEW_TEXT': { name: 'Leave a Google Review', requiresGoogle: true },
       'GOOGLE_REVIEW_PHOTOS': { name: 'Google Review with Photos', requiresGoogle: true },
+      
+      // App-based missions (no external platform required)
+      'WRITE_REVIEW_APP': { name: 'Write a Review', requiresGoogle: false },
+      'REVIEW_WITH_PHOTO_APP': { name: 'Review with Photo', requiresGoogle: false },
       'VISIT_CHECKIN': { name: 'Visit & Check-In', requiresGoogle: false },
       'CONSULTATION_REQUEST': { name: 'Book a Consultation', requiresGoogle: false },
       'REDEEM_OFFER': { name: 'Redeem Special Offer', requiresGoogle: false },
@@ -6815,9 +7159,13 @@ exports.activateMission = onRequest({ cors: true }, async (req, res) => {
       'BRING_A_FRIEND': { name: 'Bring a Friend', requiresGoogle: false },
       'UGC_PHOTO_UPLOAD': { name: 'Share Your Experience (Photo)', requiresGoogle: false },
       'UGC_VIDEO_UPLOAD': { name: 'Create a Video Review', requiresGoogle: false },
+      'FOLLOW_BUSINESS_APP': { name: 'Follow Business', requiresGoogle: false },
+      'SHARE_PHOTO_APP': { name: 'Share Your Experience', requiresGoogle: false },
+      'REPEAT_PURCHASE_VISIT': { name: 'Loyalty Rewards', requiresGoogle: false },
+      
+      // Social media missions
       'STORY_POST_TAG': { name: 'Share to Your Story', requiresGoogle: false },
       'FEED_REEL_POST_TAG': { name: 'Post on Your Feed', requiresGoogle: false },
-      'REPEAT_PURCHASE_VISIT': { name: 'Loyalty Rewards', requiresGoogle: false },
       'INSTAGRAM_FOLLOW': { name: 'Follow on Instagram', requiresGoogle: false },
     };
     
@@ -6914,21 +7262,17 @@ exports.activateMission = onRequest({ cors: true }, async (req, res) => {
     }
     
     // ========================================================================
-    // CHECK IF ALREADY ACTIVE
+    // CHECK IF ALREADY ACTIVE - Allow re-activation to update config
     // ========================================================================
     
     const activationId = `${businessId}_${missionId}`;
     const activationRef = db.collection('missionActivations').doc(activationId);
     const existingActivation = await activationRef.get();
     
-    if (existingActivation.exists && existingActivation.data().isActive) {
-      return res.status(409).json({
-        success: false,
-        error: {
-          code: 'ALREADY_ACTIVE',
-          message: 'This mission is already active for your business'
-        }
-      });
+    const isReactivation = existingActivation.exists && existingActivation.data().isActive;
+    
+    if (isReactivation) {
+      console.log('[ActivateMission] Re-activating existing mission, will update config');
     }
     
     // ========================================================================
@@ -6968,16 +7312,16 @@ exports.activateMission = onRequest({ cors: true }, async (req, res) => {
         setupUrl: '/settings/integrations/google'
       }] : [],
       requiredConnectionsUser: userRequirements,
-      activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      activatedAt: isReactivation ? existingActivation.data().activatedAt : admin.firestore.FieldValue.serverTimestamp(),
       deactivatedAt: null,
-      currentParticipants: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      currentParticipants: isReactivation ? existingActivation.data().currentParticipants : 0,
+      createdAt: isReactivation ? existingActivation.data().createdAt : admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
     
     await activationRef.set(activationData);
     
-    console.log('[ActivateMission] ✅ Mission activated successfully:', activationId);
+    console.log(`[ActivateMission] ✅ Mission ${isReactivation ? 'updated' : 'activated'} successfully:`, activationId);
     
     // ========================================================================
     // RETURN ACTIVATION WITH USER REQUIREMENTS
@@ -7829,3 +8173,801 @@ exports.cancelEventRegistration = eventsService.cancelEventRegistration;
 exports.getAvailableEvents = eventsService.getAvailableEvents;
 exports.getMyTickets = eventsService.getMyTickets;
 exports.getMyEntitlements = eventsService.getMyEntitlements;
+
+// ============================================================================
+// CITY METRICS AGGREGATION - Auto-compute city statistics
+// ============================================================================
+
+/**
+ * Normalize city name for consistency
+ * Examples: "Munich" -> "Munich", "münchen" -> "Munich", "DUBAI" -> "Dubai"
+ */
+const normalizeCityName = (cityName) => {
+  if (!cityName) return null;
+  
+  // City name mappings for common variations
+  const cityMappings = {
+    'münchen': 'Munich',
+    'muenchen': 'Munich',
+    'munich': 'Munich',
+    'dubai': 'Dubai',
+    'abu dhabi': 'Abu Dhabi',
+    'abudhabi': 'Abu Dhabi',
+    'new york': 'New York',
+    'newyork': 'New York',
+    'los angeles': 'Los Angeles',
+    'losangeles': 'Los Angeles',
+    'san francisco': 'San Francisco',
+    'sanfrancisco': 'San Francisco',
+    'berlin': 'Berlin',
+    'hamburg': 'Hamburg',
+    'frankfurt': 'Frankfurt',
+    'cologne': 'Cologne',
+    'köln': 'Cologne',
+    'koeln': 'Cologne',
+    'stuttgart': 'Stuttgart',
+    'düsseldorf': 'Düsseldorf',
+    'duesseldorf': 'Düsseldorf',
+    'dusseldorf': 'Düsseldorf',
+    'london': 'London',
+    'paris': 'Paris',
+    'madrid': 'Madrid',
+    'barcelona': 'Barcelona',
+    'rome': 'Rome',
+    'milan': 'Milan',
+    'zurich': 'Zurich',
+    'zürich': 'Zurich',
+    'geneva': 'Geneva',
+    'genève': 'Geneva',
+    'geneve': 'Geneva',
+    'beirut': 'Beirut',
+    'beyrouth': 'Beirut'
+  };
+  
+  const normalized = cityName.trim().toLowerCase();
+  return cityMappings[normalized] || 
+         cityName.charAt(0).toUpperCase() + cityName.slice(1).toLowerCase();
+};
+
+/**
+ * Aggregate city metrics from user data
+ * Runs daily at 2 AM UTC to update all city statistics
+ */
+exports.aggregateCityMetrics = onSchedule({
+  schedule: 'every day 02:00',
+  timeZone: 'UTC',
+  memory: '512MiB',
+  maxInstances: 1
+}, async (event) => {
+  console.log('[CityMetrics] Starting daily aggregation...');
+  
+  try {
+    const batch = db.batch();
+    const citiesData = new Map(); // cityKey -> { name, countryCode, stats }
+    
+    // Get all users
+    const usersSnapshot = await db.collection('users').get();
+    console.log(`[CityMetrics] Processing ${usersSnapshot.size} users...`);
+    
+    // Aggregate data by city
+    usersSnapshot.forEach(doc => {
+      const user = doc.data();
+      
+      // Get city from multiple possible locations
+      const city = user.currentCity || user.address?.city || user.city;
+      if (!city) return;
+      
+      // Get country code
+      const countryCode = user.operatingCountry || user.countryCode?.replace('+', '') || 'DE';
+      
+      // Normalize city name
+      const normalizedCity = normalizeCityName(city);
+      if (!normalizedCity) return;
+      
+      // Create unique key: countryCode-cityName
+      const cityKey = `${countryCode}-${normalizedCity}`;
+      
+      // Initialize city data if not exists
+      if (!citiesData.has(cityKey)) {
+        citiesData.set(cityKey, {
+          name: normalizedCity,
+          countryCode: countryCode,
+          stats: {
+            totalUsers: 0,
+            activeBusinesses: 0,
+            verifiedCreators: 0,
+            activeMissions: 0
+          }
+        });
+      }
+      
+      const cityData = citiesData.get(cityKey);
+      
+      // Count total users
+      cityData.stats.totalUsers++;
+      
+      // Count active businesses
+      if (user.accountType === 'business' && user.approvalStatus === 'APPROVED') {
+        cityData.stats.activeBusinesses++;
+      }
+      
+      // Count verified creators
+      if (user.accountType === 'creator' && user.isVerified) {
+        cityData.stats.verifiedCreators++;
+      }
+    });
+    
+    // Get mission counts per city (approximate by business location)
+    const missionsSnapshot = await db.collection('missions')
+      .where('status', '==', 'ACTIVE')
+      .get();
+    
+    const missionCountsByCity = new Map();
+    missionsSnapshot.forEach(doc => {
+      const mission = doc.data();
+      const city = mission.city || mission.location;
+      if (!city) return;
+      
+      const normalizedCity = normalizeCityName(city);
+      if (!normalizedCity) return;
+      
+      const countryCode = mission.countryCode?.replace('+', '') || 'DE';
+      const cityKey = `${countryCode}-${normalizedCity}`;
+      
+      missionCountsByCity.set(cityKey, (missionCountsByCity.get(cityKey) || 0) + 1);
+    });
+    
+    // Update cities collection
+    console.log(`[CityMetrics] Updating ${citiesData.size} cities...`);
+    let updateCount = 0;
+    
+    for (const [cityKey, cityData] of citiesData.entries()) {
+      // Add mission count
+      cityData.stats.activeMissions = missionCountsByCity.get(cityKey) || 0;
+      
+      // Create or update city document
+      const cityRef = db.collection('cities').doc(cityKey);
+      const cityDoc = await cityRef.get();
+      
+      if (cityDoc.exists) {
+        // Update existing city
+        batch.update(cityRef, {
+          stats: {
+            ...cityData.stats,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        // Create new city
+        batch.set(cityRef, {
+          name: cityData.name,
+          countryCode: cityData.countryCode,
+          status: 'ACTIVE',
+          stats: {
+            ...cityData.stats,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          },
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      
+      updateCount++;
+      
+      // Commit in batches of 500 (Firestore limit)
+      if (updateCount % 500 === 0) {
+        await batch.commit();
+        console.log(`[CityMetrics] Committed ${updateCount} cities...`);
+      }
+    }
+    
+    // Commit remaining
+    if (updateCount % 500 !== 0) {
+      await batch.commit();
+    }
+    
+    console.log(`[CityMetrics] ✅ Successfully aggregated metrics for ${citiesData.size} cities`);
+    
+    // Log top cities
+    const topCities = Array.from(citiesData.entries())
+      .sort((a, b) => b[1].stats.totalUsers - a[1].stats.totalUsers)
+      .slice(0, 10);
+    
+    console.log('[CityMetrics] Top 10 cities by user count:');
+    topCities.forEach(([key, data], idx) => {
+      console.log(`  ${idx + 1}. ${data.name}, ${data.countryCode}: ${data.stats.totalUsers} users, ${data.stats.activeBusinesses} businesses`);
+    });
+    
+    return { success: true, citiesUpdated: citiesData.size };
+    
+  } catch (error) {
+    console.error('[CityMetrics] ❌ Error aggregating city metrics:', error);
+    throw error;
+  }
+});
+
+/**
+ * Manual trigger endpoint for city metrics aggregation
+ * POST /aggregateCityMetrics with admin authentication
+ */
+exports.aggregateCityMetricsManual = onRequest({
+  cors: true,
+  memory: '512MiB'
+}, async (req, res) => {
+  // Verify admin authentication
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing authentication' });
+  }
+  
+  try {
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (!userDoc.exists || userDoc.data().role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Forbidden: Admin role required' });
+    }
+    
+    console.log('[CityMetrics] Manual aggregation triggered by admin:', decodedToken.uid);
+    
+    // Run the same aggregation logic
+    const batch = db.batch();
+    const citiesData = new Map();
+    
+    const usersSnapshot = await db.collection('users').get();
+    
+    usersSnapshot.forEach(doc => {
+      const user = doc.data();
+      const city = user.currentCity || user.address?.city || user.city;
+      if (!city) return;
+      
+      const countryCode = user.operatingCountry || user.countryCode?.replace('+', '') || 'DE';
+      const normalizedCity = normalizeCityName(city);
+      if (!normalizedCity) return;
+      
+      const cityKey = `${countryCode}-${normalizedCity}`;
+      
+      if (!citiesData.has(cityKey)) {
+        citiesData.set(cityKey, {
+          name: normalizedCity,
+          countryCode: countryCode,
+          stats: {
+            totalUsers: 0,
+            activeBusinesses: 0,
+            verifiedCreators: 0,
+            activeMissions: 0
+          }
+        });
+      }
+      
+      const cityData = citiesData.get(cityKey);
+      cityData.stats.totalUsers++;
+      
+      if (user.accountType === 'business' && user.approvalStatus === 'APPROVED') {
+        cityData.stats.activeBusinesses++;
+      }
+      
+      if (user.accountType === 'creator' && user.isVerified) {
+        cityData.stats.verifiedCreators++;
+      }
+    });
+    
+    const missionsSnapshot = await db.collection('missions')
+      .where('status', '==', 'ACTIVE')
+      .get();
+    
+    const missionCountsByCity = new Map();
+    missionsSnapshot.forEach(doc => {
+      const mission = doc.data();
+      const city = mission.city || mission.location;
+      if (!city) return;
+      
+      const normalizedCity = normalizeCityName(city);
+      if (!normalizedCity) return;
+      
+      const countryCode = mission.countryCode?.replace('+', '') || 'DE';
+      const cityKey = `${countryCode}-${normalizedCity}`;
+      
+      missionCountsByCity.set(cityKey, (missionCountsByCity.get(cityKey) || 0) + 1);
+    });
+    
+    let updateCount = 0;
+    for (const [cityKey, cityData] of citiesData.entries()) {
+      cityData.stats.activeMissions = missionCountsByCity.get(cityKey) || 0;
+      
+      const cityRef = db.collection('cities').doc(cityKey);
+      const cityDoc = await cityRef.get();
+      
+      if (cityDoc.exists) {
+        batch.update(cityRef, {
+          stats: {
+            ...cityData.stats,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        batch.set(cityRef, {
+          name: cityData.name,
+          countryCode: cityData.countryCode,
+          status: 'ACTIVE',
+          stats: {
+            ...cityData.stats,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          },
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      
+      updateCount++;
+      
+      if (updateCount % 500 === 0) {
+        await batch.commit();
+      }
+    }
+    
+    if (updateCount % 500 !== 0) {
+      await batch.commit();
+    }
+    
+    res.status(200).json({ 
+      success: true, 
+      citiesUpdated: citiesData.size,
+      message: 'City metrics aggregation completed successfully'
+    });
+    
+  } catch (error) {
+    console.error('[CityMetrics] Error in manual aggregation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// PARTICIPANT POOL - MONTHLY RESET
+// ============================================================================
+
+/**
+ * Monthly Participant Pool Reset
+ * 
+ * Scheduled to run on 1st of every month at 00:00 UTC
+ * Resets all participant pools to their tier limits
+ * 
+ * Security: No auth needed (scheduled function)
+ * Priority: Data integrity, graceful handling
+ */
+exports.resetParticipantPools = onSchedule({
+  schedule: "0 0 1 * *", // Every 1st of month at 00:00 UTC
+  timeZone: "UTC",
+  memory: "512MiB",
+  timeoutSeconds: 540
+}, async (event) => {
+  console.log('[ParticipantPool] Starting monthly pool reset...');
+  
+  const stats = {
+    total: 0,
+    success: 0,
+    failed: 0,
+    errors: []
+  };
+  
+  try {
+    // Get all participant pools
+    const poolsSnapshot = await db.collection('participantPools').get();
+    stats.total = poolsSnapshot.size;
+    
+    console.log(`[ParticipantPool] Found ${stats.total} pools to reset`);
+    
+    // Process in batches of 500 (Firestore limit)
+    let batch = db.batch();
+    let batchCount = 0;
+    
+    const now = admin.firestore.Timestamp.now();
+    const cycleStart = new Date();
+    cycleStart.setDate(1);
+    cycleStart.setHours(0, 0, 0, 0);
+    
+    const cycleEnd = new Date(cycleStart);
+    cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+    cycleEnd.setDate(0);
+    cycleEnd.setHours(23, 59, 59, 999);
+    
+    for (const doc of poolsSnapshot.docs) {
+      try {
+        const pool = doc.data();
+        const tier = pool.subscriptionTier || 'FREE';
+        
+        // Determine monthly limit based on tier
+        let monthlyLimit;
+        if (tier === 'PLATINUM' || pool.isUnlimited) {
+          monthlyLimit = 1500; // Soft limit for analytics
+        } else if (tier === 'GOLD') {
+          monthlyLimit = 120;
+        } else if (tier === 'SILVER') {
+          monthlyLimit = 40;
+        } else {
+          monthlyLimit = 20; // FREE
+        }
+        
+        const resetData = {
+          currentUsage: 0,
+          remaining: monthlyLimit,
+          cycleStartDate: admin.firestore.Timestamp.fromDate(cycleStart),
+          cycleEndDate: admin.firestore.Timestamp.fromDate(cycleEnd),
+          lastResetDate: now,
+          updatedAt: now
+        };
+        
+        batch.update(doc.ref, resetData);
+        batchCount++;
+        stats.success++;
+        
+        // Commit batch every 500 operations
+        if (batchCount >= 500) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+          console.log(`[ParticipantPool] Committed batch, ${stats.success} pools reset so far`);
+        }
+        
+      } catch (error) {
+        stats.failed++;
+        stats.errors.push(`${doc.id}: ${error.message}`);
+        console.error(`[ParticipantPool] Failed to reset ${doc.id}:`, error);
+      }
+    }
+    
+    // Commit remaining batch
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    
+    // Log completion
+    console.log('[ParticipantPool] Monthly reset complete:', {
+      total: stats.total,
+      success: stats.success,
+      failed: stats.failed,
+      errorCount: stats.errors.length
+    });
+    
+    // Store reset log
+    await db.collection('systemLogs').add({
+      type: 'PARTICIPANT_POOL_RESET',
+      timestamp: now,
+      stats,
+      scheduledTime: event.scheduleTime,
+      success: stats.failed === 0
+    });
+    
+    return { success: true, stats };
+    
+  } catch (error) {
+    console.error('[ParticipantPool] Critical error during reset:', error);
+    
+    // Log error
+    await db.collection('systemLogs').add({
+      type: 'PARTICIPANT_POOL_RESET_ERROR',
+      timestamp: admin.firestore.Timestamp.now(),
+      error: error.message,
+      stack: error.stack,
+      stats
+    });
+    
+    throw error;
+  }
+});
+
+/**
+ * Manual Participant Pool Reset Trigger
+ * 
+ * HTTP endpoint for admin to manually trigger pool reset
+ * Useful for testing or emergency resets
+ */
+exports.manualResetParticipantPools = onRequest({
+  cors: true,
+  memory: "512MiB",
+  timeoutSeconds: 540
+}, async (req, res) => {
+  try {
+    // Verify admin authorization
+    const adminId = req.body?.adminId;
+    if (!adminId) {
+      return res.status(401).json({ error: 'Admin ID required' });
+    }
+    
+    const adminVerification = await verifyAdminRole(adminId);
+    if (!adminVerification.success) {
+      return res.status(403).json({ error: adminVerification.error });
+    }
+    
+    console.log(`[ParticipantPool] Manual reset triggered by admin ${adminId}`);
+    
+    // Same logic as scheduled reset
+    const stats = {
+      total: 0,
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+    
+    const poolsSnapshot = await db.collection('participantPools').get();
+    stats.total = poolsSnapshot.size;
+    
+    let batch = db.batch();
+    let batchCount = 0;
+    
+    const now = admin.firestore.Timestamp.now();
+    const cycleStart = new Date();
+    cycleStart.setDate(1);
+    cycleStart.setHours(0, 0, 0, 0);
+    
+    const cycleEnd = new Date(cycleStart);
+    cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+    cycleEnd.setDate(0);
+    cycleEnd.setHours(23, 59, 59, 999);
+    
+    for (const doc of poolsSnapshot.docs) {
+      try {
+        const pool = doc.data();
+        const tier = pool.subscriptionTier || 'FREE';
+        
+        let monthlyLimit;
+        if (tier === 'PLATINUM' || pool.isUnlimited) {
+          monthlyLimit = 1500;
+        } else if (tier === 'GOLD') {
+          monthlyLimit = 120;
+        } else if (tier === 'SILVER') {
+          monthlyLimit = 40;
+        } else {
+          monthlyLimit = 20;
+        }
+        
+        batch.update(doc.ref, {
+          currentUsage: 0,
+          remaining: monthlyLimit,
+          cycleStartDate: admin.firestore.Timestamp.fromDate(cycleStart),
+          cycleEndDate: admin.firestore.Timestamp.fromDate(cycleEnd),
+          lastResetDate: now,
+          updatedAt: now
+        });
+        
+        batchCount++;
+        stats.success++;
+        
+        if (batchCount >= 500) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+        
+      } catch (error) {
+        stats.failed++;
+        stats.errors.push(`${doc.id}: ${error.message}`);
+      }
+    }
+    
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    
+    // Log manual reset
+    await db.collection('adminActions').add({
+      type: 'MANUAL_POOL_RESET',
+      adminId,
+      timestamp: now,
+      stats
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Participant pools reset successfully',
+      stats
+    });
+    
+  } catch (error) {
+    console.error('[ParticipantPool] Error in manual reset:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+// ============================================================================
+// MISSION ENERGY RESET (Scheduled - 1st of month)
+// ============================================================================
+
+exports.resetMissionEnergy = onSchedule({
+  schedule: "0 0 1 * *", // Every 1st of month at 00:00 UTC
+  timeZone: "UTC",
+  memory: "512MiB",
+  timeoutSeconds: 540
+}, async (event) => {
+  try {
+    console.log('[MissionEnergy] Starting monthly energy pool reset...');
+    
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+    const nowDate = now.toDate();
+    
+    // Calculate new cycle dates
+    const cycleStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+    const cycleEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    // Get all energy pools
+    const poolsSnapshot = await db.collection('missionEnergyPools').get();
+    
+    let batch = db.batch();
+    let batchCount = 0;
+    const stats = {
+      total: poolsSnapshot.size,
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+    
+    // Process each pool
+    for (const doc of poolsSnapshot.docs) {
+      try {
+        const pool = doc.data();
+        const tier = pool.subscriptionTier || 'FREE';
+        
+        // Calculate monthly limit based on tier
+        let monthlyLimit;
+        if (tier === 'PLATINUM' || pool.isUnlimited) {
+          monthlyLimit = 10000;
+        } else if (tier === 'GOLD') {
+          monthlyLimit = 800;
+        } else if (tier === 'SILVER') {
+          monthlyLimit = 300;
+        } else {
+          monthlyLimit = 100; // FREE
+        }
+        
+        batch.update(doc.ref, {
+          currentUsage: 0,
+          remaining: monthlyLimit,
+          cycleStartDate: admin.firestore.Timestamp.fromDate(cycleStart),
+          cycleEndDate: admin.firestore.Timestamp.fromDate(cycleEnd),
+          lastResetDate: now,
+          updatedAt: now
+        });
+        
+        batchCount++;
+        stats.success++;
+        
+        if (batchCount >= 500) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+        
+      } catch (error) {
+        stats.failed++;
+        stats.errors.push(`${doc.id}: ${error.message}`);
+      }
+    }
+    
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    
+    // Log result
+    await db.collection('systemLogs').add({
+      type: 'MISSION_ENERGY_RESET',
+      timestamp: now,
+      stats
+    });
+    
+    console.log('[MissionEnergy] ✅ Monthly reset complete:', stats);
+    return null;
+    
+  } catch (error) {
+    console.error('[MissionEnergy] Error in monthly reset:', error);
+    throw error;
+  }
+});
+
+// ============================================================================
+// MANUAL MISSION ENERGY RESET (Admin HTTP)
+// ============================================================================
+
+exports.manualResetMissionEnergy = onRequest({
+  cors: true,
+  memory: "512MiB",
+  timeoutSeconds: 540
+}, async (req, res) => {
+  try {
+    const { adminId } = req.body;
+    
+    if (!adminId) {
+      return res.status(400).json({ error: 'adminId required' });
+    }
+    
+    // Verify admin role
+    const adminDoc = await admin.firestore().collection('users').doc(adminId).get();
+    if (!adminDoc.exists || adminDoc.data().role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized - admin access required' });
+    }
+    
+    console.log('[MissionEnergy] Starting manual energy pool reset by admin:', adminId);
+    
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+    const nowDate = now.toDate();
+    
+    const cycleStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+    const cycleEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    const poolsSnapshot = await db.collection('missionEnergyPools').get();
+    
+    let batch = db.batch();
+    let batchCount = 0;
+    const stats = {
+      total: poolsSnapshot.size,
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+    
+    for (const doc of poolsSnapshot.docs) {
+      try {
+        const pool = doc.data();
+        const tier = pool.subscriptionTier || 'FREE';
+        
+        let monthlyLimit;
+        if (tier === 'PLATINUM' || pool.isUnlimited) {
+          monthlyLimit = 10000;
+        } else if (tier === 'GOLD') {
+          monthlyLimit = 800;
+        } else if (tier === 'SILVER') {
+          monthlyLimit = 300;
+        } else {
+          monthlyLimit = 100;
+        }
+        
+        batch.update(doc.ref, {
+          currentUsage: 0,
+          remaining: monthlyLimit,
+          cycleStartDate: admin.firestore.Timestamp.fromDate(cycleStart),
+          cycleEndDate: admin.firestore.Timestamp.fromDate(cycleEnd),
+          lastResetDate: now,
+          updatedAt: now
+        });
+        
+        batchCount++;
+        stats.success++;
+        
+        if (batchCount >= 500) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+        
+      } catch (error) {
+        stats.failed++;
+        stats.errors.push(`${doc.id}: ${error.message}`);
+      }
+    }
+    
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    
+    // Log manual reset
+    await db.collection('adminActions').add({
+      type: 'MANUAL_ENERGY_RESET',
+      adminId,
+      timestamp: now,
+      stats
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Mission energy pools reset successfully',
+      stats
+    });
+    
+  } catch (error) {
+    console.error('[MissionEnergy] Error in manual reset:', error);
+    res.status(500).json({ error: error.message });
+  }
+});

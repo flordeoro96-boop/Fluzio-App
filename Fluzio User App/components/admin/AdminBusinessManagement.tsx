@@ -4,8 +4,8 @@ import {
   MapPin, Mail, Phone, Award, TrendingUp, AlertCircle,
   FileText, Calendar, Ban
 } from 'lucide-react';
-import { collection, getDocs, query, where, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, getDocs, query, where, orderBy, limit, doc, updateDoc } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { AdminPermissions, filterByScope } from '../../services/adminAuthService';
 
 interface Business {

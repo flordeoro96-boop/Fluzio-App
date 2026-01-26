@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Mission, UserRole } from '../types';
+import { User, Mission, UserRole, SubscriptionLevel } from '../types';
 import { store } from '../services/mockStore';
 import { getMissionsForUser, getActiveMissions, getMissionById } from '../services/missionService';
 import { applyToMission } from '../src/services/participationService';
@@ -14,6 +14,7 @@ import { calculateDistance, formatDistance, estimateWalkTime, useGeolocation } f
 import { getUserBehavior, getPersonalizedRadius, updateWalkingRadius, UserBehavior } from '../services/userBehaviorService';
 import { SkeletonBusinessCard } from './Skeleton';
 import { CustomerBusinessProfile } from './CustomerBusinessProfile';
+import './ExploreScreen.css';
 
 declare global {
   interface Window {
@@ -148,7 +149,7 @@ const BusinessCard: React.FC<{
           <div className="flex-1 min-w-0">
             <span className="text-white/70 text-xs font-medium block truncate">{biz.businessType}</span>
             {(() => {
-              const status = isBusinessOpen(biz.openingHours);
+              const status = isBusinessOpen(biz.openingHours as Record<string, string>);
               if (status) {
                 return (
                                     <span className={`text-xs font-bold ${status.open ? 'text-green-400' : 'text-red-400'}`}>
@@ -228,18 +229,30 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                 
                 // Map SearchableUser to full User type
                 // Filter out aspiring businesses (people who want to open a business but haven't yet)
-                const businesses: User[] = firestoreBusinesses
+                const businesses = firestoreBusinesses
                     .filter(b => !b.isAspiringBusiness) // Exclude aspiring businesses from customer search
-                    .map(b => ({
-                        ...b,
-                        role: UserRole.BUSINESS,
-                        points: 0,
-                        missionsCompleted: 0,
-                        subscriptionLevel: b.subscriptionLevel || 'FREE',
-                        avatarUrl: b.photoUrl || `https://source.unsplash.com/random/200x200/?business&sig=${b.id}`,
-                        coverUrl: `https://source.unsplash.com/random/800x400/?${b.category || 'business'}&sig=${b.id}`,
-                        createdAt: new Date().toISOString()
-                    }));
+                    .map(b => {
+                        // Handle location field which can be string or object
+                        const locationStr = typeof b.location === 'string' 
+                            ? b.location 
+                            : (b.location as any)?.city || '';
+                        
+                        return {
+                            ...b,
+                            bio: b.bio || '',
+                            role: UserRole.BUSINESS,
+                            points: 0,
+                            level: 1,
+                            badges: [],
+                            socialLinks: {},
+                            missionsCompleted: 0,
+                            subscriptionLevel: b.subscriptionLevel || 'FREE',
+                            avatarUrl: b.photoUrl || `https://source.unsplash.com/random/200x200/?business&sig=${b.id}`,
+                            coverUrl: `https://source.unsplash.com/random/800x400/?${b.category || 'business'}&sig=${b.id}`,
+                            createdAt: new Date().toISOString(),
+                            location: locationStr
+                        };
+                    }) as User[];
                 
                 setAllBusinesses(businesses);
             } catch (error) {
@@ -304,7 +317,7 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
     // Apply "open now" filter
     if (showOnlyOpen) {
         filteredPhysical = filteredPhysical.filter(b => {
-            const status = isBusinessOpen(b.openingHours);
+            const status = isBusinessOpen(b.openingHours as Record<string, string>);
             return status?.open === true;
         });
     }
@@ -313,15 +326,17 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
         ? filteredPhysical
             .map(biz => {
                 const bizMissions = missions.filter(m => m.businessId === biz.id);
-                const totalPoints = bizMissions.reduce((sum, m) => sum + (m.points || 0), 0);
+                const totalPoints = bizMissions.reduce((sum, m) => sum + (m.reward?.points || 0), 0);
+                const distanceMeters = biz.geo ? calculateDistance(location, biz.geo) : Infinity;
+                const distance = distanceMeters / 1000; // Convert meters to kilometers
                 return {
                     ...biz,
-                    distance: biz.geo ? calculateDistance(location, biz.geo) : Infinity,
+                    distance,
                     missionCount: bizMissions.length,
                     totalPoints
                 };
             })
-            .filter(biz => biz.distance <= maxDistance) // Use dynamic max distance
+            .filter(biz => biz.distance <= maxDistance)
             .sort((a, b) => {
                 // Sort based on selected option
                 switch(sortBy) {
@@ -338,7 +353,7 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
             })
         : filteredPhysical.map(biz => {
             const bizMissions = missions.filter(m => m.businessId === biz.id);
-            const totalPoints = bizMissions.reduce((sum, m) => sum + (m.points || 0), 0);
+            const totalPoints = bizMissions.reduce((sum, m) => sum + (m.reward?.points || 0), 0);
             return {
                 ...biz,
                 distance: Infinity,
@@ -346,6 +361,11 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                 totalPoints
             };
         });
+    
+    console.log('[ExploreScreen] ✅ Final businesses after distance filter:', businesses.length);
+    businesses.forEach(b => {
+        console.log(`  ✅ ${b.name}: ${b.distance.toFixed(2)}km away`);
+    });
     
     // Online shops - Filter by subscription tier and customer's country
     // Include ONLINE businesses and HYBRID businesses (HYBRID shows in both physical and online)
@@ -363,7 +383,7 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
         const businessTargetCountries = business.targetCountries || [business.country || 'Unknown'];
         
         // PLATINUM/PREMIUM/GOLD: Shown worldwide to all customers
-        if (subscription === 'PLATINUM' || subscription === 'PREMIUM' || subscription === 'GOLD') {
+        if (subscription === SubscriptionLevel.PLATINUM || subscription === SubscriptionLevel.GOLD) {
             return true;
         }
         
@@ -446,7 +466,7 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
 
     // --- Leaflet Initialization ---
     useEffect(() => {
-      if (view === 'MAP' && mapContainerRef.current && !mapInstanceRef.current && window.L && !loadingBusinesses) {
+      if (view === 'MAP' && mapContainerRef.current && !mapInstanceRef.current && window.L) {
           // Initialize map centered on user's location or Berlin fallback
           const initialLat = location?.latitude || 52.5200;
           const initialLng = location?.longitude || 13.4050;
@@ -464,104 +484,257 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
               maxZoom: 20
           }).addTo(map);
 
+          // Add zoom control in bottom right corner
+          window.L.control.zoom({
+              position: 'bottomright'
+          }).addTo(map);
+
           mapInstanceRef.current = map;
 
-          // Add user's current location marker if available
+          // Fix map rendering issues
+          setTimeout(() => {
+              if (map) {
+                  map.invalidateSize();
+              }
+          }, 100);
+
+          // Add user's current location marker and radius circle if available
           if (location) {
               const userIcon = window.L.divIcon({
                   className: 'user-location-marker',
                   html: `
-                    <div class="relative flex items-center justify-center w-12 h-12">
-                        <div class="absolute inset-0 bg-blue-500 rounded-full opacity-30 animate-ping"></div>
-                        <div class="relative z-10 w-8 h-8 rounded-full border-3 border-white bg-blue-500 shadow-xl flex items-center justify-center">
-                            <div class="w-3 h-3 bg-white rounded-full"></div>
-                        </div>
+                    <div class="relative flex items-center justify-center w-16 h-16">
+                        <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping" style="animation-duration: 2s;"></div>
+                        <div class="absolute inset-0 bg-blue-400 rounded-full opacity-30 animate-ping" style="animation-duration: 3s; animation-delay: 0.5s;"></div>
+                        <div class="relative z-10 w-5 h-5 rounded-full bg-blue-500 border-3 border-white shadow-2xl" style="box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 40px rgba(59, 130, 246, 0.4);"></div>
                     </div>
                   `,
-                  iconSize: [48, 48],
-                  iconAnchor: [24, 24]
+                  iconSize: [64, 64],
+                  iconAnchor: [32, 32]
               });
               
-              window.L.marker([location.latitude, location.longitude], {
+              const userMarker = window.L.marker([location.latitude, location.longitude], {
                   icon: userIcon,
                   zIndexOffset: 1000
-              }).addTo(map).bindPopup(t('explore.youAreHere', { defaultValue: 'You are here' }));
+              }).addTo(map);
+              
+              userMarker.bindPopup(`<div class="text-center font-semibold"><div class="text-blue-600">📍 ${t('explore.youAreHere', { defaultValue: 'You are here' })}</div></div>`);
+              
+              // Add radius circle showing search area
+              const radiusCircle = window.L.circle([location.latitude, location.longitude], {
+                  radius: maxDistance * 1000, // Convert km to meters
+                  color: '#00E5FF',
+                  fillColor: '#00E5FF',
+                  fillOpacity: 0.1,
+                  weight: 2,
+                  dashArray: '5, 10'
+              }).addTo(map);
+              
+              // Store reference for updates
+              if (!map._radiusCircle) {
+                  map._radiusCircle = radiusCircle;
+              }
           }
 
-          // Custom Icons for businesses
-          const createIcon = (isActive: boolean, avatarUrl: string) => {
-              const pulseClass = isActive ? 'pin-pulse' : '';
-              const borderClass = isActive ? 'border-[#00E5FF]' : 'border-white';
-              
-              return window.L.divIcon({
-                  className: 'custom-pin',
-                  html: `
-                    <div class="relative flex items-center justify-center w-10 h-10">
-                        ${isActive ? `<div class="absolute inset-0 bg-[#00E5FF] rounded-full opacity-50 ${pulseClass}"></div>` : ''}
-                        <div class="relative z-10 w-10 h-10 rounded-full border-2 ${borderClass} bg-white overflow-hidden shadow-lg">
-                            <img src="${avatarUrl}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=100&h=100&fit=crop'" />
-                        </div>
-                    </div>
-                  `,
-                  iconSize: [40, 40],
-                  iconAnchor: [20, 20]
-              });
-          };
-
-          // Create marker cluster group
-          const markers = window.L.markerClusterGroup({
-              maxClusterRadius: 60,
-              spiderfyOnMaxZoom: true,
-              showCoverageOnHover: false,
-              zoomToBoundsOnClick: true,
-              iconCreateFunction: function(cluster: any) {
-                  const count = cluster.getChildCount();
-                  return window.L.divIcon({
-                      html: `<div class="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#00E5FF] to-[#6C4BFF] text-white font-bold text-sm shadow-xl border-2 border-white">${count}</div>`,
-                      className: 'custom-cluster-icon',
-                      iconSize: [48, 48]
-                  });
-              }
-          });
-
-          // Add Markers to cluster group
-          businesses.forEach(biz => {
-             if (biz.geo) {
-                 const missions = store.getMissionsByBusiness(biz.id);
-                 const hasActive = missions.length > 0;
-
-                 const marker = window.L.marker([biz.geo.latitude, biz.geo.longitude], {
-                     icon: createIcon(hasActive, biz.avatarUrl || biz.photoUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=100&h=100&fit=crop')
-                 });
-
-                 marker.on('click', () => {
-                     setViewingBusinessId(biz.id);
-                     // Center map slightly offset to accommodate bottom sheet
-                     map.setView([biz.geo!.latitude - 0.005, biz.geo!.longitude], 15, { animate: true });
-                     
-                     // Track visit and update walking radius
-                     if (location && biz.geo) {
-                         const distance = calculateDistance(location, biz.geo);
-                         updateWalkingRadius(user.id, distance, biz.category || 'OTHER');
-                     }
-                 });
-                 
-                 markers.addLayer(marker);
-             }
-          });
-          
-          // Add cluster group to map
-          map.addLayer(markers);
+          mapInstanceRef.current = map;
       }
 
       return () => {
-          // Cleanup if view changes or location updates
-          if (mapInstanceRef.current) {
-              mapInstanceRef.current.remove();
-              mapInstanceRef.current = null;
+          // Cleanup only when component unmounts or view changes away from MAP
+          if (view !== 'MAP' && mapInstanceRef.current) {
+              try {
+                  mapInstanceRef.current.remove();
+                  mapInstanceRef.current = null;
+              } catch (err) {
+                  console.error('[ExploreScreen] Error cleaning up map:', err);
+                  mapInstanceRef.current = null;
+              }
           }
       };
-    }, [view, businesses, location, loadingBusinesses]);
+    }, [view, loadingBusinesses]);
+
+    // Add user location marker when location becomes available
+    useEffect(() => {
+        if (mapInstanceRef.current && location && view === 'MAP' && window.L) {
+            const map = mapInstanceRef.current;
+            
+            // Remove old user marker if exists
+            if (map._userMarker) {
+                map.removeLayer(map._userMarker);
+            }
+            
+            // Create prominent blue dot icon
+            const userIcon = window.L.divIcon({
+                className: 'user-location-marker',
+                html: `
+                  <div class="relative flex items-center justify-center w-16 h-16">
+                      <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping" style="animation-duration: 2s;"></div>
+                      <div class="absolute inset-0 bg-blue-400 rounded-full opacity-30 animate-ping" style="animation-duration: 3s; animation-delay: 0.5s;"></div>
+                      <div class="relative z-10 w-5 h-5 rounded-full bg-blue-500 border-3 border-white shadow-2xl" style="box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 40px rgba(59, 130, 246, 0.4);"></div>
+                  </div>
+                `,
+                iconSize: [64, 64],
+                iconAnchor: [32, 32]
+            });
+            
+            const userMarker = window.L.marker([location.latitude, location.longitude], {
+                icon: userIcon,
+                zIndexOffset: 1000
+            }).addTo(map);
+            
+            userMarker.bindPopup(`<div class="text-center font-semibold"><div class="text-blue-600">📍 ${t('explore.youAreHere', { defaultValue: 'You are here' })}</div></div>`);
+            
+            // Store reference for later updates/removal
+            map._userMarker = userMarker;
+            
+            // Center map on user location (only on first location)
+            if (!map._hasBeenCentered) {
+                map.setView([location.latitude, location.longitude], 14, { animate: true });
+                map._hasBeenCentered = true;
+            }
+            
+            // Ensure map renders properly
+            setTimeout(() => {
+                if (mapInstanceRef.current) {
+                    mapInstanceRef.current.invalidateSize();
+                }
+            }, 100);
+        }
+    }, [location, view, t]);
+    
+    // Update radius circle when maxDistance changes
+    useEffect(() => {
+        if (mapInstanceRef.current && location && view === 'MAP' && window.L) {
+            const map = mapInstanceRef.current;
+            
+            // Remove old circle if exists
+            if (map._radiusCircle) {
+                map.removeLayer(map._radiusCircle);
+            }
+            
+            // Add new radius circle
+            const radiusCircle = window.L.circle([location.latitude, location.longitude], {
+                radius: maxDistance * 1000,
+                color: '#00E5FF',
+                fillColor: '#00E5FF',
+                fillOpacity: 0.1,
+                weight: 2,
+                dashArray: '5, 10'
+            }).addTo(map);
+            
+            map._radiusCircle = radiusCircle;
+        }
+    }, [maxDistance, location, view]);
+
+    // Update map markers when businesses change
+    useEffect(() => {
+        if (mapInstanceRef.current && view === 'MAP' && window.L && !loadingBusinesses && businesses.length > 0) {
+            console.log('[ExploreScreen] Adding markers for', businesses.length, 'businesses');
+            
+            // Clear existing marker layers (but keep tiles and user marker)
+            mapInstanceRef.current.eachLayer((layer: any) => {
+                // Only remove marker cluster groups, not tile layers or user location marker
+                if (layer._childClusters || (layer.options && layer.options.icon && layer.options.icon.options && layer.options.icon.options.className === 'custom-pin')) {
+                    mapInstanceRef.current.removeLayer(layer);
+                }
+            });
+
+            // Custom Icons for businesses
+            const createIcon = (isActive: boolean, avatarUrl: string) => {
+                const pulseClass = isActive ? 'pin-pulse' : '';
+                const borderClass = isActive ? 'border-[#00E5FF]' : 'border-white';
+                
+                return window.L.divIcon({
+                    className: 'custom-pin',
+                    html: `
+                      <div class="relative flex items-center justify-center w-10 h-10">
+                          ${isActive ? `<div class="absolute inset-0 bg-[#00E5FF] rounded-full opacity-50 ${pulseClass}"></div>` : ''}
+                          <div class="relative z-10 w-10 h-10 rounded-full border-2 ${borderClass} bg-white overflow-hidden shadow-lg">
+                              <img src="${avatarUrl}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=100&h=100&fit=crop'" />
+                          </div>
+                      </div>
+                    `,
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                });
+            };
+
+            // Check if markerClusterGroup is available
+            const useCluster = window.L.markerClusterGroup !== undefined;
+            
+            // Create marker cluster group or regular layer group
+            const markers = useCluster ? window.L.markerClusterGroup({
+                maxClusterRadius: 60,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true,
+                iconCreateFunction: function(cluster: any) {
+                    const count = cluster.getChildCount();
+                    return window.L.divIcon({
+                        html: `<div class="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#00E5FF] to-[#6C4BFF] text-white font-bold text-sm shadow-xl border-2 border-white">${count}</div>`,
+                        className: 'custom-cluster-icon',
+                        iconSize: [48, 48]
+                    });
+                }
+            }) : window.L.layerGroup();
+
+            // Add Markers to cluster group
+            let markerCount = 0;
+            businesses.forEach(biz => {
+                if (biz.geo) {
+                    const missions = store.getMissionsByBusiness(biz.id);
+                    const hasActive = missions.length > 0;
+
+                    const marker = window.L.marker([biz.geo.latitude, biz.geo.longitude], {
+                        icon: createIcon(hasActive, biz.avatarUrl || biz.photoUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=100&h=100&fit=crop')
+                    });
+                    
+                    // Quick preview tooltip
+                    const distance = location ? calculateDistance(location, biz.geo) : null;
+                    const distanceText = distance ? formatDistance(distance) : '';
+                    const missionText = missions.length > 0 ? `🎁 ${missions.length} mission${missions.length > 1 ? 's' : ''} • ${missions.reduce((sum, m) => sum + (m.reward?.points || 0), 0)} pts` : '';
+                    
+                    const tooltipContent = `
+                        <div class="text-center">
+                            <div class="font-bold text-gray-900 mb-1">${biz.name}</div>
+                            <div class="text-xs text-gray-600">${biz.businessType || ''}</div>
+                            ${distanceText ? `<div class="text-xs text-blue-600 font-semibold mt-1">📍 ${distanceText}</div>` : ''}
+                            ${missionText ? `<div class="text-xs font-semibold text-orange-600 mt-1">${missionText}</div>` : ''}
+                            ${biz.rating ? `<div class="text-xs text-yellow-600 mt-1">⭐ ${biz.rating.toFixed(1)}</div>` : ''}
+                            <div class="text-xs text-gray-500 mt-1 italic">Click for details</div>
+                        </div>
+                    `;
+                    
+                    marker.bindTooltip(tooltipContent, {
+                        direction: 'top',
+                        offset: [0, -15],
+                        opacity: 0.95,
+                        className: 'custom-tooltip'
+                    });
+
+                    marker.on('click', () => {
+                        setViewingBusinessId(biz.id);
+                        // Center map slightly offset to accommodate bottom sheet
+                        mapInstanceRef.current.setView([biz.geo!.latitude - 0.005, biz.geo!.longitude], 15, { animate: true });
+                        
+                        // Track visit and update walking radius
+                        if (location && biz.geo) {
+                            const distance = calculateDistance(location, biz.geo);
+                            updateWalkingRadius(user.id, distance, biz.category || 'OTHER');
+                        }
+                    });
+                    
+                    markers.addLayer(marker);
+                    markerCount++;
+                }
+            });
+            
+            console.log('[ExploreScreen] Added', markerCount, 'markers to map');
+            
+            // Add cluster group to map
+            mapInstanceRef.current.addLayer(markers);
+        }
+    }, [businesses, view, loadingBusinesses, location, user.id]);
 
     const handleMissionClick = (m: Mission) => {
         setShowMissionDetail(m);
@@ -686,29 +859,29 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                 
                 {/* Glass Filter Bar - Premium Design */}
                 <div 
-                    className="bg-white/80 backdrop-blur-2xl rounded-[22px] shadow-2xl border border-white/50 p-3 transition-all duration-300"
+                    className="bg-white backdrop-blur-2xl rounded-[22px] shadow-2xl border border-gray-200 p-3 transition-all duration-300"
                     style={{ 
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
-                        backdropFilter: 'blur(16px) saturate(180%)'
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.15), 0 2px 12px rgba(0,0,0,0.08)',
+                        backdropFilter: 'blur(20px) saturate(180%)'
                     }}
                 >
                     <div className="flex items-center gap-2">
                         {/* Search */}
                         <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
                             <input 
                                 type="text" 
                                 placeholder={t('explore.searchSpots')}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-8 py-2 bg-white/80 rounded-2xl text-sm text-gray-800 outline-none border border-gray-200 focus:border-[#00E5FF] transition-all"
+                                className="w-full pl-9 pr-8 py-2 bg-white rounded-2xl text-sm text-gray-900 placeholder:text-gray-500 placeholder:font-medium outline-none border border-gray-200 focus:border-[#00E5FF] focus:ring-2 focus:ring-[#00E5FF]/20 transition-all shadow-sm"
                             />
                             {searchQuery && (
                                 <button 
                                     onClick={() => setSearchQuery('')}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#00E5FF] transition-colors"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#00E5FF] rounded-full transition-all"
                                 >
-                                    ✕
+                                    <span className="text-xs">✕</span>
                                 </button>
                             )}
                         </div>
@@ -721,11 +894,15 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                                     triggerHaptic(15);
                                     setShowFilterDrawer(!showFilterDrawer);
                                 }}
-                                className="relative px-3 py-2 bg-white rounded-2xl text-xs font-semibold text-gray-700 border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all whitespace-nowrap active:scale-95"
+                                className={`relative px-3 py-2 rounded-2xl text-xs font-semibold transition-all whitespace-nowrap active:scale-95 shadow-sm ${
+                                    activeFiltersCount > 0 
+                                        ? 'bg-gradient-to-r from-[#00E5FF] to-[#6C4BFF] text-white border border-transparent' 
+                                        : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:shadow-md'
+                                }`}
                             >
                                 🔽 {t('missions.filters')}
                                 {activeFiltersCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-[#00E5FF] to-[#6C4BFF] text-white text-[10px] rounded-full flex items-center justify-center animate-pulse">
+                                    <span className="ml-1 px-1.5 py-0.5 bg-white/30 text-white text-[10px] rounded-full font-bold">
                                         {activeFiltersCount}
                                     </span>
                                 )}
@@ -921,7 +1098,7 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                                         onClick={() => setSortBy('missions')}
                                         className="px-3 py-1.5 rounded-2xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95"
                                     >
-                                        💠 Exclusive to Fluzio
+                                        💠 Exclusive to Beevvy
                                     </button>
                                     <button
                                         onClick={() => {
@@ -962,6 +1139,32 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                              </div>
                          )}
                          <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+                         
+                         {/* Map Controls */}
+                         {!loadingBusinesses && (
+                             <>
+                                 {/* Result Count Badge */}
+                                 <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg border border-gray-200">
+                                     <span className="text-sm font-bold text-gray-900">📍 {businesses.length} spots</span>
+                                 </div>
+                                 
+                                 {/* Recenter Button */}
+                                 {location && (
+                                     <button
+                                         onClick={() => {
+                                             if (mapInstanceRef.current && location) {
+                                                 mapInstanceRef.current.setView([location.latitude, location.longitude], 14, { animate: true });
+                                                 triggerHaptic(15);
+                                             }
+                                         }}
+                                         className="absolute top-4 right-4 z-[1000] w-11 h-11 bg-white hover:bg-gradient-to-br hover:from-[#00E5FF] hover:to-[#6C4BFF] text-gray-700 hover:text-white rounded-full shadow-lg border border-gray-200 hover:border-transparent flex items-center justify-center transition-all active:scale-95 group"
+                                         title="Recenter to my location"
+                                     >
+                                         <Navigation className="w-5 h-5 group-hover:animate-pulse" />
+                                     </button>
+                                 )}
+                             </>
+                         )}
                      </>
                  ) : (
                      <div className="p-6 pt-32 space-y-6 overflow-y-auto h-full bg-white">
@@ -1125,17 +1328,19 @@ export const ExploreScreen: React.FC<{ user: User }> = ({ user }) => {
                  )}
 
                  {/* View Toggle */}
-                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-2xl p-1.5 flex border border-gray-100 z-[999]">             
+                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-2xl p-1.5 flex border border-gray-100 z-[999]" style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>             
                             <button 
                         onClick={() => setView('LIST')}
-                        className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all ${view === 'LIST' ? 'bg-[#1E0E62] text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all ${view === 'LIST' ? 'bg-gradient-to-r from-[#1E0E62] to-[#3E2E82] text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
                      >
+                        <List className="inline-block w-3.5 h-3.5 mr-1" />
                                 {t('meetups.viewList')}
                      </button>
                      <button 
                         onClick={() => setView('MAP')}
-                        className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all ${view === 'MAP' ? 'bg-[#1E0E62] text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all ${view === 'MAP' ? 'bg-gradient-to-r from-[#1E0E62] to-[#3E2E82] text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
                      >
+                        <Map className="inline-block w-3.5 h-3.5 mr-1" />
                                 {t('meetups.viewMap')}
                      </button>
                  </div>

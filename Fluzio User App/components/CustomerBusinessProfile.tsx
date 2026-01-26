@@ -5,13 +5,16 @@ import {
   ExternalLink, Camera, Instagram, ChevronRight, CheckCircle, Flame,
   Trophy, Medal, Crown, ChevronLeft, Info
 } from 'lucide-react';
-import { doc, updateDoc, increment } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { doc, updateDoc, increment, addDoc, collection, Timestamp } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 import * as userService from '../services/userService';
 import * as businessService from '../services/businessService';
 import { getMissionsByBusiness } from '../services/missionService';
 import { getBusinessRewards } from '../services/rewardsService';
 import { trackCheckIn, trackFollow } from '../services/customerTrackingService';
+import { hasUserReviewed, getBusinessReviews, getReviewStats, Review } from '../services/reviewService';
+import { ReviewSubmissionModal } from './ReviewSubmissionModal';
+import { BusinessReviewInsights } from './BusinessReviewInsights';
 import { formatDistanceToNow } from 'date-fns';
 
 interface CustomerBusinessProfileProps {
@@ -60,9 +63,11 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
   const [business, setBusiness] = useState<any>(null);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'missions' | 'rewards' | 'about' | 'activity'>('missions');
+  const [activeTab, setActiveTab] = useState<'missions' | 'rewards' | 'reviews' | 'about' | 'activity'>('missions');
   const [userActivity, setUserActivity] = useState({
     pointsEarned: 0,
     missionsCompleted: 0,
@@ -74,13 +79,23 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
   const [photoIndex, setPhotoIndex] = useState(0);
   const [canCheckIn, setCanCheckIn] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [lastCheckInId, setLastCheckInId] = useState<string | null>(null);
+  const [hasReviewed, setHasReviewed] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
 
   useEffect(() => {
     if (isOpen && businessId) {
       loadBusinessProfile();
       checkDistance();
+      checkIfUserReviewed();
     }
   }, [isOpen, businessId]);
+
+  const checkIfUserReviewed = async () => {
+    const reviewed = await hasUserReviewed(currentUserId, businessId);
+    setHasReviewed(reviewed);
+  };
 
   const loadBusinessProfile = async () => {
     setLoading(true);
@@ -123,6 +138,13 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
       const businessRewards = await getBusinessRewards(businessId);
       setRewards(businessRewards.slice(0, 6)); // Top 6 rewards
 
+      // Load reviews and stats
+      const businessReviews = await getBusinessReviews(businessId);
+      setReviews(businessReviews);
+      
+      const stats = await getReviewStats(businessId);
+      setReviewStats(stats);
+
       // Load user activity (mock for now - replace with real data)
       // TODO: Fetch from Firestore participations and redemptions
       setUserActivity({
@@ -149,11 +171,31 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
 
   const handleCheckIn = async () => {
     try {
+      // Create check-in document
+      const checkInData = {
+        userId: currentUserId,
+        businessId,
+        businessName: business.name,
+        timestamp: Timestamp.now(),
+        location: {
+          latitude: business.latitude,
+          longitude: business.longitude
+        },
+        pointsEarned: 10
+      };
+
+      const checkInRef = await addDoc(collection(db, 'checkIns'), checkInData);
+      setLastCheckInId(checkInRef.id);
+
       // Award points for check-in
       const userRef = doc(db, 'users', currentUserId);
       await updateDoc(userRef, {
         points: increment(10)
       });
+
+      // Track check-in
+      await trackCheckIn(currentUserId, businessId);
+
       alert('✅ Checked in! +10 points earned');
       setUserActivity(prev => ({
         ...prev,
@@ -161,6 +203,13 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
         visitCount: prev.visitCount + 1,
         lastVisit: new Date()
       }));
+
+      // Prompt for review if they haven't reviewed yet
+      if (!hasReviewed) {
+        setTimeout(() => {
+          setShowReviewModal(true);
+        }, 500);
+      }
     } catch (error) {
       console.error('Check-in failed:', error);
       alert('Failed to check in. Please try again.');
@@ -186,7 +235,7 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
     if (navigator.share) {
       await navigator.share({
         title: business.name,
-        text: `Check out ${business.name} on Fluzio and earn points!`,
+        text: `Check out ${business.name} on Beevvy and earn points!`,
         url: window.location.href
       });
     } else {
@@ -346,25 +395,70 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
                     </span>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleFollowToggle}
-                    className={`p-3 rounded-xl transition-all ${
-                      isFollowing
-                        ? 'bg-pink-100 text-pink-600'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Heart className={`w-5 h-5 ${isFollowing ? 'fill-current' : ''}`} />
-                  </button>
-                  <button
-                    onClick={handleShare}
-                    className="p-3 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
-                  >
-                    <Share2 className="w-5 h-5" />
-                  </button>
-                </div>
               </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mb-6">
+                <button
+                  onClick={handleFollowToggle}
+                  className={`flex-1 py-3 px-6 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                    isFollowing
+                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
+                      : 'bg-gradient-to-r from-[#00E5FF] to-[#6C4BFF] text-white hover:shadow-lg'
+                  }`}
+                >
+                  <Heart className={`w-5 h-5 ${isFollowing ? 'fill-current' : ''}`} />
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
+                
+                {canCheckIn && (
+                  <button
+                    onClick={handleCheckIn}
+                    className="py-3 px-6 rounded-xl font-semibold bg-green-500 text-white hover:bg-green-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                    Check In
+                  </button>
+                )}
+
+                {!hasReviewed && (
+                  <button
+                    onClick={() => setShowReviewModal(true)}
+                    className="py-3 px-6 rounded-xl font-semibold bg-yellow-500 text-white hover:bg-yellow-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Star className="w-5 h-5" />
+                    Review
+                  </button>
+                )}
+                
+                <button
+                  onClick={handleShare}
+                  className="p-3 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
+                >
+                  <Share2 className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* User Tier Badge */}
+              {userActivity.tier && (
+                <div className={`mb-6 p-4 rounded-xl bg-gradient-to-r ${getTierColor(userActivity.tier)} text-white`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                        <TierIcon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="text-sm opacity-90">Your Status</div>
+                        <div className="text-xl font-bold">{userActivity.tier} Member</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">{userActivity.pointsEarned}</div>
+                      <div className="text-xs opacity-90">Points Earned</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Location & Distance */}
               <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
@@ -389,7 +483,9 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
               {/* Quick Stats */}
               <div className="grid grid-cols-4 gap-3 mb-6">
                 <div className="text-center p-3 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl">
-                  <div className="text-2xl font-bold text-[#1E0E62]">{business.rating?.toFixed(1) || '4.8'}</div>
+                  <div className="text-2xl font-bold text-[#1E0E62]">
+                    {reviewStats?.averageRating ? reviewStats.averageRating.toFixed(1) : (business.rating?.toFixed(1) || '—')}
+                  </div>
                   <div className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-1">
                     <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                     Rating
@@ -465,49 +561,6 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
                   </div>
                 </a>
               )}
-
-              {/* Your Activity Card */}
-              <div className={`bg-gradient-to-r ${getTierColor(userActivity.tier)} rounded-2xl p-4 mb-6 text-white`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <TierIcon className="w-6 h-6" />
-                    <span className="font-bold text-lg">{userActivity.tier} Member</span>
-                  </div>
-                  <button className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full backdrop-blur-sm transition-colors">
-                    View Benefits
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold">{userActivity.pointsEarned}</div>
-                    <div className="text-xs opacity-90">Points Earned</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold">{userActivity.missionsCompleted}</div>
-                    <div className="text-xs opacity-90">Completed</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold">{userActivity.rewardsRedeemed}</div>
-                    <div className="text-xs opacity-90">Redeemed</div>
-                  </div>
-                </div>
-                {userActivity.lastVisit && (
-                  <div className="text-xs opacity-75 mt-3 text-center">
-                    Last visit {formatDistanceToNow(userActivity.lastVisit, { addSuffix: true })}
-                  </div>
-                )}
-              </div>
-
-              {/* Check-In CTA */}
-              {canCheckIn && (
-                <button
-                  onClick={handleCheckIn}
-                  className="w-full bg-gradient-to-r from-[#00E5FF] to-[#6C4BFF] text-white py-4 rounded-xl font-bold text-lg mb-6 hover:shadow-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <Zap className="w-6 h-6" />
-                  Check In Now & Earn +10 Points
-                </button>
-              )}
             </div>
 
             {/* Tabs */}
@@ -516,6 +569,7 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
                 {[
                   { id: 'missions', label: 'Missions', count: missions.length },
                   { id: 'rewards', label: 'Rewards', count: rewards.length },
+                  { id: 'reviews', label: 'Reviews', count: reviewStats?.total || 0 },
                   { id: 'about', label: 'About' },
                   { id: 'activity', label: 'Activity' }
                 ].map((tab) => (
@@ -581,12 +635,6 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
                               <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
                                 {mission.category}
                               </span>
-                              {mission.participants && (
-                                <span className="flex items-center gap-1">
-                                  <Users className="w-3 h-3" />
-                                  {mission.participants} joined
-                                </span>
-                              )}
                               {mission.expiresAt && (
                                 <span className="flex items-center gap-1 text-orange-600">
                                   <Clock className="w-3 h-3" />
@@ -679,6 +727,171 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
                         </div>
                       );
                     })
+                  )}
+                </div>
+              )}
+
+              {/* Reviews Tab */}
+              {activeTab === 'reviews' && (
+                <div className="space-y-6">
+                  {/* AI Insights Button */}
+                  {reviewStats && reviewStats.total >= 3 && (
+                    <button
+                      onClick={() => setShowInsights(true)}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 px-6 rounded-2xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-3"
+                    >
+                      <Zap className="w-5 h-5" />
+                      View AI-Powered Insights
+                      <span className="text-xs bg-white/20 px-2 py-1 rounded-full">✨ Smart</span>
+                    </button>
+                  )}
+
+                  {/* Rating Summary */}
+                  {reviewStats && reviewStats.total > 0 && (
+                    <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-6 border border-yellow-200">
+                      <div className="flex items-center gap-6">
+                        <div className="text-center">
+                          <div className="text-5xl font-bold text-[#1E0E62] mb-2">
+                            {reviewStats.averageRating.toFixed(1)}
+                          </div>
+                          <div className="flex gap-1 mb-2 justify-center">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-5 h-5 ${
+                                  star <= Math.round(reviewStats.averageRating)
+                                    ? 'fill-yellow-400 text-yellow-400'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {reviewStats.total} {reviewStats.total === 1 ? 'review' : 'reviews'}
+                          </div>
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                          {[5, 4, 3, 2, 1].map((rating) => {
+                            const count = reviewStats.ratingDistribution[rating] || 0;
+                            const percentage = reviewStats.total > 0 ? (count / reviewStats.total) * 100 : 0;
+                            return (
+                              <div key={rating} className="flex items-center gap-3">
+                                <div className="flex items-center gap-1 w-16">
+                                  <span className="text-sm font-medium text-gray-700">{rating}</span>
+                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                </div>
+                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-yellow-400 rounded-full transition-all"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm text-gray-600 w-12 text-right">{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reviews List */}
+                  {reviews.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Star className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-xl font-bold text-gray-600 mb-2">No Reviews Yet</h3>
+                      <p className="text-gray-500 mb-6">Be the first to share your experience!</p>
+                      {!hasReviewed && (
+                        <button
+                          onClick={() => setShowReviewModal(true)}
+                          className="px-6 py-3 bg-[#00E5FF] text-white rounded-xl font-semibold hover:bg-[#00C8E0] transition-colors"
+                        >
+                          Write a Review
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {reviews.map((review) => (
+                        <div key={review.id} className="bg-white border-2 border-gray-100 rounded-2xl p-5">
+                          {/* Review Header */}
+                          <div className="flex items-start gap-4 mb-3">
+                            {review.userAvatar ? (
+                              <img
+                                src={review.userAvatar}
+                                alt={review.userName}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-lg">
+                                {review.userName.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-bold text-gray-900">{review.userName}</h4>
+                                <span className="text-sm text-gray-500">
+                                  {new Date(review.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <div className="flex gap-1 mt-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-4 h-4 ${
+                                      star <= review.rating
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-300'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Review Text */}
+                          <p className="text-gray-700 leading-relaxed mb-3">{review.reviewText}</p>
+
+                          {/* Review Photos */}
+                          {review.photos && review.photos.length > 0 && (
+                            <div className="grid grid-cols-3 gap-2 mb-3">
+                              {review.photos.slice(0, 3).map((photo, index) => (
+                                <img
+                                  key={index}
+                                  src={photo}
+                                  alt={`Review photo ${index + 1}`}
+                                  className="w-full h-24 object-cover rounded-lg"
+                                />
+                              ))}
+                              {review.photos.length > 3 && (
+                                <div className="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 font-semibold">
+                                  +{review.photos.length - 3} more
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Business Response */}
+                          {review.response && (
+                            <div className="mt-4 pl-4 border-l-4 border-[#00E5FF] bg-gray-50 rounded-r-xl p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-8 h-8 rounded-full bg-[#00E5FF] flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">
+                                    {business.name?.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-sm text-gray-900">{business.name}</div>
+                                  <div className="text-xs text-gray-500">Business Owner</div>
+                                </div>
+                              </div>
+                              <p className="text-gray-700 text-sm">{review.response.text}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
@@ -842,6 +1055,31 @@ export const CustomerBusinessProfile: React.FC<CustomerBusinessProfileProps> = (
           </div>
         )}
       </div>
+
+      {/* Review Submission Modal */}
+      <ReviewSubmissionModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        userId={currentUserId}
+        businessId={businessId}
+        businessName={business?.name || ''}
+        businessLogo={business?.photoUrl}
+        checkInId={lastCheckInId || undefined}
+        onReviewSubmitted={(reviewId) => {
+          setHasReviewed(true);
+          setShowReviewModal(false);
+          // Award mission points if applicable
+          alert('🎉 Review submitted! Points will be awarded once verified.');
+        }}
+      />
+
+      {/* Review Insights Modal */}
+      <BusinessReviewInsights
+        isOpen={showInsights}
+        onClose={() => setShowInsights(false)}
+        businessId={businessId}
+        businessName={business?.name || ''}
+      />
     </div>
   );
 };

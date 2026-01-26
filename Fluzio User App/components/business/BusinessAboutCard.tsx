@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User } from '../../types';
 import { Globe2, Target, MessageSquare, Sparkles, RefreshCw, Check, X, Loader } from 'lucide-react';
 import { aiAboutService } from '../../services/aiAboutService';
-import { api } from '../../services/apiService';
+import { api } from '../../services/AuthContext';
 
 interface BusinessAboutCardProps {
   business: User;

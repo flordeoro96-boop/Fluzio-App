@@ -1,9 +1,11 @@
 /**
  * LOCKED MISSION CATALOG V1
  * 
- * This is the official, locked set of 14 missions for Fluzio.
+ * This is the official, locked set of 13 missions for Beevvy.
  * No additional missions should be added without approval.
  * Each mission is designed to create measurable business value.
+ * 
+ * NOTE: All missions are now internal to Beevvy app - no external social media required.
  */
 
 import {
@@ -15,13 +17,60 @@ import {
 } from '../types/missionSystem';
 
 // ============================================================================
-// MISSION 1: GOOGLE REVIEW (TEXT)
+// MISSION 1: WRITE REVIEW (INTERNAL)
 // ============================================================================
 
-export const GOOGLE_REVIEW_TEXT: StandardMissionTemplate = {
-  id: 'GOOGLE_REVIEW_TEXT',
-  name: 'Leave a Google Review',
-  description: 'Write a Google review about your experience',
+export const WRITE_REVIEW_APP: StandardMissionTemplate = {
+  id: 'WRITE_REVIEW_APP',
+  name: 'Write a Review',
+  description: 'Share your experience and rate this business after checking in',
+  businessNeed: 'REPUTATION',
+  allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
+  proofMethod: 'FORM_SUBMISSION',
+  defaultReward: 100,
+  defaultAntiCheatRules: [
+    {
+      type: 'RATE_LIMIT',
+      maxSubmissions: 1,
+      windowHours: 8760, // Once per year per business
+      scope: 'PER_BUSINESS'
+    },
+    {
+      type: 'UNIQUE_DEVICE',
+      allowMultipleAccounts: false
+    },
+    {
+      type: 'MIN_ENGAGEMENT',
+      minTimeSeconds: 60, // Must spend 1 minute writing
+      minActions: 2 // Rating + review text
+    }
+  ],
+  defaultCooldown: {
+    perUser: 8760, // Once per year per business
+    perBusiness: 0
+  },
+  rewardLockDelayDays: null, // Instant reward after check-in
+  requiresBusinessConfirmation: false, // Auto-approved after check-in verification
+  minSubscriptionTier: 'STARTER'
+};
+
+/**
+ * WHY THIS CREATES BUSINESS VALUE:
+ * - Authentic customer feedback helps businesses improve
+ * - Reviews build trust and social proof on business profiles
+ * - Star ratings displayed prominently on business pages
+ * - AI analysis identifies common themes and improvement areas
+ * - Check-in verification ensures genuine customer experiences
+ */
+
+// ============================================================================
+// MISSION 2: REVIEW WITH PHOTO (INTERNAL)
+// ============================================================================
+
+export const REVIEW_WITH_PHOTO_APP: StandardMissionTemplate = {
+  id: 'REVIEW_WITH_PHOTO_APP',
+  name: 'Review with Photo',
+  description: 'Write a review and upload a photo of your experience after checking in',
   businessNeed: 'REPUTATION',
   allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
   proofMethod: 'SCREENSHOT_AI',
@@ -30,7 +79,7 @@ export const GOOGLE_REVIEW_TEXT: StandardMissionTemplate = {
     {
       type: 'RATE_LIMIT',
       maxSubmissions: 1,
-      windowHours: 8760, // Once per year
+      windowHours: 8760, // Once per year per business
       scope: 'PER_BUSINESS'
     },
     {
@@ -39,71 +88,26 @@ export const GOOGLE_REVIEW_TEXT: StandardMissionTemplate = {
     },
     {
       type: 'MIN_ENGAGEMENT',
-      minTimeSeconds: 120, // Must spend 2 minutes writing
-      minActions: 1
+      minTimeSeconds: 90, // Must spend 90 seconds
+      minActions: 3 // Rating + review text + photo upload
     }
   ],
   defaultCooldown: {
     perUser: 8760, // Once per year per business
-    perBusiness: 8760
+    perBusiness: 0
   },
-  rewardLockDelayDays: 7, // Ensure review stays up
-  requiresBusinessConfirmation: true,
+  rewardLockDelayDays: null, // Instant reward after check-in verification
+  requiresBusinessConfirmation: false, // Auto-approved with check-in
   minSubscriptionTier: 'SILVER'
 };
 
 /**
  * WHY THIS CREATES BUSINESS VALUE:
- * - Google reviews directly impact local SEO rankings
- * - Reviews influence 93% of consumers' purchase decisions
- * - More reviews = higher visibility in Google Maps/Search
- * - Social proof builds trust for new customers
- */
-
-// ============================================================================
-// MISSION 2: GOOGLE REVIEW WITH PHOTOS
-// ============================================================================
-
-export const GOOGLE_REVIEW_PHOTOS: StandardMissionTemplate = {
-  id: 'GOOGLE_REVIEW_PHOTOS',
-  name: 'Google Review with Photos',
-  description: 'Write a Google review and upload photos of your experience',
-  businessNeed: 'REPUTATION',
-  allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
-  proofMethod: 'SCREENSHOT_AI',
-  defaultReward: 250,
-  defaultAntiCheatRules: [
-    {
-      type: 'RATE_LIMIT',
-      maxSubmissions: 1,
-      windowHours: 8760, // Once per year
-      scope: 'PER_BUSINESS'
-    },
-    {
-      type: 'UNIQUE_DEVICE',
-      allowMultipleAccounts: false
-    },
-    {
-      type: 'MIN_ENGAGEMENT',
-      minTimeSeconds: 180, // Must spend 3 minutes
-      minActions: 2 // Write review + upload photos
-    }
-  ],
-  defaultCooldown: {
-    perUser: 8760,
-    perBusiness: 8760
-  },
-  rewardLockDelayDays: 7,
-  requiresBusinessConfirmation: true,
-  minSubscriptionTier: 'GOLD'
-};
-
-/**
- * WHY THIS CREATES BUSINESS VALUE:
- * - Photo reviews get 42% more views than text-only
- * - Visual content increases conversion rates by 30%
- * - Shows authentic customer experiences
- * - Photos appear in Google search results, increasing clicks
+ * - Photo reviews are 3x more engaging than text-only
+ * - Visual proof builds authentic trust with potential customers
+ * - Photos showcase real customer experiences and atmosphere
+ * - AI analyzes photos for quality insights (cleanliness, ambiance, etc.)
+ * - Rich media content increases profile attractiveness
  */
 
 // ============================================================================
@@ -469,30 +473,65 @@ export const UGC_VIDEO_UPLOAD: StandardMissionTemplate = {
  */
 
 // ============================================================================
-// MISSION 11: STORY POST WITH TAG
+// MISSION 11: FOLLOW BUSINESS IN APP
 // ============================================================================
 
-export const STORY_POST_TAG: StandardMissionTemplate = {
-  id: 'STORY_POST_TAG',
-  name: 'Share to Your Story',
-  description: 'Post about us on Instagram/TikTok story with our tag',
+export const FOLLOW_BUSINESS_APP: StandardMissionTemplate = {
+  id: 'FOLLOW_BUSINESS_APP',
+  name: 'Follow Business',
+  description: 'Follow this business in the Beevvy app to stay updated',
+  businessNeed: 'CONTENT',
+  allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
+  proofMethod: 'WEBHOOK',
+  defaultReward: 50,
+  defaultAntiCheatRules: [
+    {
+      type: 'RATE_LIMIT',
+      maxSubmissions: 1,
+      windowHours: 87600, // Once ever (10 years)
+      scope: 'PER_BUSINESS'
+    },
+    {
+      type: 'UNIQUE_DEVICE',
+      allowMultipleAccounts: false
+    }
+  ],
+  defaultCooldown: {
+    perUser: 87600, // Once per business lifetime
+    perBusiness: 0
+  },
+  rewardLockDelayDays: 3, // Ensure they don't unfollow immediately
+  requiresBusinessConfirmation: false,
+  minSubscriptionTier: 'SILVER'
+};
+
+/**
+ * WHY THIS CREATES BUSINESS VALUE:
+ * - Builds in-app following and reach
+ * - Each follower sees business updates in their feed
+ * - Creates direct communication channel with customers
+ * - Zero-cost marketing channel within Beevvy
+ * - Higher engagement than external social media
+ */
+
+// ============================================================================
+// MISSION 12: SHARE PHOTO IN APP
+// ============================================================================
+
+export const SHARE_PHOTO_APP: StandardMissionTemplate = {
+  id: 'SHARE_PHOTO_APP',
+  name: 'Share Your Experience',
+  description: 'Post a photo of your experience in the Beevvy app',
   businessNeed: 'CONTENT',
   allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
   proofMethod: 'SCREENSHOT_AI',
-  defaultReward: 75,
+  defaultReward: 100,
   defaultAntiCheatRules: [
     {
       type: 'RATE_LIMIT',
       maxSubmissions: 10,
       windowHours: 720, // 10 per month
       scope: 'PER_USER'
-    },
-    {
-      type: 'SOCIAL_VERIFY',
-      platform: 'INSTAGRAM',
-      requirePublicPost: true,
-      minFollowers: 100,
-      requireHashtags: ['#fluzio']
     },
     {
       type: 'MIN_ENGAGEMENT',
@@ -503,66 +542,17 @@ export const STORY_POST_TAG: StandardMissionTemplate = {
     perUser: 168, // Once per week
     perBusiness: 0
   },
-  rewardLockDelayDays: 7, // Ensure story stays up 24hrs
+  rewardLockDelayDays: 3,
   requiresBusinessConfirmation: true,
   minSubscriptionTier: 'SILVER'
 };
 
 /**
  * WHY THIS CREATES BUSINESS VALUE:
- * - Story views reach 500M users daily on Instagram alone
- * - Stories have 5x engagement vs feed posts
- * - Peer recommendations influence 92% of purchase decisions
- * - Increases brand awareness with minimal cost
- */
-
-// ============================================================================
-// MISSION 12: FEED / REEL POST WITH TAG
-// ============================================================================
-
-export const FEED_REEL_POST_TAG: StandardMissionTemplate = {
-  id: 'FEED_REEL_POST_TAG',
-  name: 'Post on Your Feed',
-  description: 'Create a feed post or Reel featuring our business',
-  businessNeed: 'CONTENT',
-  allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
-  proofMethod: 'SCREENSHOT_AI',
-  defaultReward: 200,
-  defaultAntiCheatRules: [
-    {
-      type: 'RATE_LIMIT',
-      maxSubmissions: 5,
-      windowHours: 720, // 5 per month
-      scope: 'PER_USER'
-    },
-    {
-      type: 'SOCIAL_VERIFY',
-      platform: 'INSTAGRAM',
-      requirePublicPost: true,
-      minFollowers: 200,
-      requireHashtags: ['#fluzio'],
-      requireMention: undefined
-    },
-    {
-      type: 'MIN_ENGAGEMENT',
-      minTimeSeconds: 120
-    }
-  ],
-  defaultCooldown: {
-    perUser: 336, // Once per 2 weeks
-    perBusiness: 0
-  },
-  rewardLockDelayDays: 14, // Ensure post stays up long-term
-  requiresBusinessConfirmation: true,
-  minSubscriptionTier: 'GOLD'
-};
-
-/**
- * WHY THIS CREATES BUSINESS VALUE:
- * - Feed posts have permanent visibility (unlike stories)
- * - Reels average 2x more reach than regular posts
- * - Creates evergreen marketing content
- * - Influencer effect: followers see authentic endorsement
+ * - User-generated content in the app feed
+ * - Increases visibility within Beevvy community
+ * - Authentic peer recommendations
+ * - Creates social proof for other users
  */
 
 // ============================================================================
@@ -607,66 +597,12 @@ export const REPEAT_PURCHASE_VISIT: StandardMissionTemplate = {
  */
 
 // ============================================================================
-// MISSION 14: INSTAGRAM FOLLOW
-// ============================================================================
-
-export const INSTAGRAM_FOLLOW: StandardMissionTemplate = {
-  id: 'INSTAGRAM_FOLLOW',
-  name: 'Follow on Instagram',
-  description: 'Follow our Instagram account and earn points',
-  businessNeed: 'CONTENT',
-  allowedBusinessTypes: ['PHYSICAL', 'ONLINE', 'HYBRID'],
-  proofMethod: 'SCREENSHOT_AI',
-  defaultReward: 50,
-  defaultAntiCheatRules: [
-    {
-      type: 'RATE_LIMIT',
-      maxSubmissions: 1,
-      windowHours: 87600, // Once ever (10 years)
-      scope: 'PER_BUSINESS'
-    },
-    {
-      type: 'SOCIAL_VERIFY',
-      platform: 'INSTAGRAM',
-      requirePublicPost: false,
-      minFollowers: 0,
-      requireHashtags: []
-    },
-    {
-      type: 'UNIQUE_DEVICE',
-      allowMultipleAccounts: false
-    },
-    {
-      type: 'MIN_ENGAGEMENT',
-      minTimeSeconds: 30
-    }
-  ],
-  defaultCooldown: {
-    perUser: 87600, // Once per business lifetime
-    perBusiness: 0
-  },
-  rewardLockDelayDays: 3, // Ensure they don't unfollow immediately
-  requiresBusinessConfirmation: false,
-  minSubscriptionTier: 'SILVER'
-};
-
-/**
- * WHY THIS CREATES BUSINESS VALUE:
- * - Builds social media following and reach
- * - Each follower is a potential future customer
- * - Instagram followers see business updates organically
- * - Social proof: higher follower count = more credibility
- * - Zero-cost marketing channel with high ROI
- * - Average follower value: $10-50 in lifetime revenue
- */
-
-// ============================================================================
 // EXPORT LOCKED CATALOG
 // ============================================================================
 
 export const LOCKED_MISSION_CATALOG: StandardMissionTemplate[] = [
-  GOOGLE_REVIEW_TEXT,           // 1
-  GOOGLE_REVIEW_PHOTOS,         // 2
+  WRITE_REVIEW_APP,             // 1 - Internal review after check-in
+  REVIEW_WITH_PHOTO_APP,        // 2 - Internal review with photo
   VISIT_CHECKIN,                // 3
   CONSULTATION_REQUEST,         // 4
   REDEEM_OFFER,                 // 5
@@ -675,10 +611,9 @@ export const LOCKED_MISSION_CATALOG: StandardMissionTemplate[] = [
   BRING_A_FRIEND,               // 8
   UGC_PHOTO_UPLOAD,             // 9
   UGC_VIDEO_UPLOAD,             // 10
-  STORY_POST_TAG,               // 11
-  FEED_REEL_POST_TAG,           // 12
-  REPEAT_PURCHASE_VISIT,        // 13
-  INSTAGRAM_FOLLOW              // 14
+  FOLLOW_BUSINESS_APP,          // 11
+  SHARE_PHOTO_APP,              // 12
+  REPEAT_PURCHASE_VISIT         // 13
 ];
 
 // ============================================================================
@@ -738,8 +673,8 @@ export function validateBusinessHasConversionMission(
 /**
  * CATALOG RULES:
  * 1. This is a LOCKED catalog - no missions can be added without approval
- * 2. All 14 missions are designed for measurable business outcomes
+ * 2. All 13 missions are designed for measurable business outcomes
  * 3. Every business MUST have at least one CONVERSION mission active
- * 4. Social/content missions are capped at 200 points max
+ * 4. All missions are internal to Beevvy - no external social media required
  * 5. High-value missions require business confirmation
  */

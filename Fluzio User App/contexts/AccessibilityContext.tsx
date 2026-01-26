@@ -29,7 +29,7 @@ const defaultSettings: AccessibilitySettings = {
 
 const AccessibilityContext = createContext<AccessibilityContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'fluzio_accessibility_settings';
+const STORAGE_KEY = 'beevvy_accessibility_settings';
 
 export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AccessibilitySettings>(() => {

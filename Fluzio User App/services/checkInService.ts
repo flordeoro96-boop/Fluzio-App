@@ -17,8 +17,8 @@ import {
   getDoc,
   updateDoc,
   increment
-} from 'firebase/firestore';
-import { db } from './AuthContext';
+} from '../services/firestoreCompat';
+import { db } from './apiService';
 import { CheckIn } from '../types';
 
 // ============================================================================

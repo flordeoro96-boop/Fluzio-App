@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Sparkles, Loader2, Calendar, MapPin, Info } from 'lucide-react';
+import { X, Plus, Trash2, Sparkles, Loader2, Calendar, MapPin, Info, Image, Upload } from 'lucide-react';
 import { ProjectSlot, ProjectType, Project } from '../types';
 import { generateProjectIdeas } from '../services/openaiService';
+import { uploadProjectImage } from '../services/fileUploadService';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ interface CreateProjectModalProps {
     dateRange: { start: string; end: string };
     slots: ProjectSlot[];
     creatorRoles?: Array<{ role: string; budget: number; description?: string }>;
+    images?: string[];
+    coverImage?: string;
   }, projectId?: string) => void;
   businessId: string;
   businessName?: string;
@@ -45,6 +48,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [isLoadingIdeas, setIsLoadingIdeas] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [coverImageIndex, setCoverImageIndex] = useState<number>(0);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Populate form when editing
   useEffect(() => {
@@ -72,6 +78,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         description: ''
       }));
       setCreatorRoles(creators);
+      
+      // Set images
+      setUploadedImages(editingProject.images || []);
+      if (editingProject.coverImage && editingProject.images) {
+        const coverIdx = editingProject.images.indexOf(editingProject.coverImage);
+        setCoverImageIndex(coverIdx >= 0 ? coverIdx : 0);
+      }
     } else if (!isOpen) {
       // Reset form when modal closes
       setTitle('');
@@ -83,6 +96,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setSlots([{ role: '', cost: 0, status: 'OPEN' }]);
       setCreatorRoles([]);
       setShowSuggestions(false);
+      setUploadedImages([]);
+      setCoverImageIndex(0);
     }
   }, [editingProject, isOpen]);
 
@@ -149,6 +164,38 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     setShowSuggestions(false);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploadingImage(true);
+    try {
+      const uploadPromises = Array.from(files).map(file => 
+        uploadProjectImage(file, editingProject?.id || 'temp-' + Date.now(), businessId)
+      );
+      
+      const urls = await Promise.all(uploadPromises);
+      setUploadedImages([...uploadedImages, ...urls]);
+      
+      console.log('Images uploaded successfully:', urls);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      alert('Failed to upload images. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const newImages = uploadedImages.filter((_, i) => i !== index);
+    setUploadedImages(newImages);
+    
+    // Adjust cover image index if needed
+    if (coverImageIndex >= newImages.length) {
+      setCoverImageIndex(Math.max(0, newImages.length - 1));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim() || !city.trim() || !startDate || !endDate) {
@@ -171,7 +218,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       city: city.trim(),
       dateRange: { start: startDate, end: endDate },
       slots, // Business partner roles
-      creatorRoles: creatorRoles.length > 0 ? creatorRoles : undefined
+      creatorRoles: creatorRoles.length > 0 ? creatorRoles : undefined,
+      images: uploadedImages.length > 0 ? uploadedImages : undefined,
+      coverImage: uploadedImages.length > 0 ? uploadedImages[coverImageIndex] : undefined
     }, editingProject?.id);
     
     // Reset form handled by useEffect
@@ -381,6 +430,87 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   required
                 />
+              </div>
+            </div>
+
+            {/* Project Images Upload */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <Image className="w-4 h-4" />
+                Project Images
+              </label>
+              <p className="text-xs text-gray-600 mb-3">
+                Upload images to showcase your project (optional)
+              </p>
+              
+              <div className="space-y-3">
+                {/* Upload Button */}
+                <label className="relative cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    disabled={isUploadingImage}
+                    className="hidden"
+                  />
+                  <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-400 hover:bg-purple-50/30 transition-all">
+                    {isUploadingImage ? (
+                      <>
+                        <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+                        <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-gray-600" />
+                        <span className="text-sm font-medium text-gray-700">Click to upload images</span>
+                      </>
+                    )}
+                  </div>
+                </label>
+
+                {/* Image Preview Grid */}
+                {uploadedImages.length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-600 mb-2">
+                      Click an image to set it as cover
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {uploadedImages.map((url, index) => (
+                        <div
+                          key={index}
+                          className={`relative group aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
+                            index === coverImageIndex
+                              ? 'border-purple-500 ring-2 ring-purple-200'
+                              : 'border-gray-200 hover:border-purple-300'
+                          }`}
+                          onClick={() => setCoverImageIndex(index)}
+                        >
+                          <img
+                            src={url}
+                            alt={`Project image ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          {index === coverImageIndex && (
+                            <div className="absolute top-1 left-1 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                              Cover
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveImage(index);
+                            }}
+                            className="absolute top-1 right-1 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

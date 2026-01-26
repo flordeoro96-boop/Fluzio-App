@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Mail, MessageSquare, Tag, Target, Users, Zap, Settings, Check, X } from 'lucide-react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { doc, getDoc, updateDoc } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 
 interface NotificationPreference {
   id: string;
@@ -305,7 +305,7 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
               <ul className="space-y-1 text-blue-700">
                 <li><strong>Email:</strong> Receive notifications via email</li>
                 <li><strong>Push:</strong> Browser/mobile push notifications</li>
-                <li><strong>In-App:</strong> Notifications within Fluzio</li>
+                <li><strong>In-App:</strong> Notifications within Beevvy</li>
               </ul>
             </div>
           </div>

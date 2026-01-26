@@ -226,7 +226,7 @@ const BusinessLeaderboardView: React.FC<BusinessLeaderboardViewProps> = ({ busin
                           <h3 className="font-bold text-gray-900 truncate">
                             {isCurrentBusiness ? `${entry.name} (You)` : entry.name}
                           </h3>
-                          {entry.subscriptionLevel && entry.subscriptionLevel !== 'FREE' && (
+                          {entry.subscriptionLevel && entry.subscriptionLevel !== 'STARTER' && (
                             <Crown className="w-4 h-4 text-yellow-500" />
                           )}
                         </div>

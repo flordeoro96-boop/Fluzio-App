@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { User, SubscriptionLevel } from '../types';
 import { store } from '../services/mockStore';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { useAuth } from '../services/AuthContext';
 import { Card, Button, Badge } from './Common';
 import { Check, X, CreditCard, Download, Zap, Crown, ShieldCheck } from 'lucide-react';

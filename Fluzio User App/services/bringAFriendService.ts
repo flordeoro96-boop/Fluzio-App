@@ -19,8 +19,8 @@ import {
   Timestamp,
   updateDoc,
   increment
-} from 'firebase/firestore';
-import { db } from './AuthContext';
+} from '../services/firestoreCompat';
+import { db } from './apiService';
 import { createNotification } from './notificationService';
 import { logPointsTransaction } from './pointsMarketplaceService';
 import { api } from './apiService';

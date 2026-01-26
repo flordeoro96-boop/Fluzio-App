@@ -42,8 +42,8 @@ import {
   type SummaryStats 
 } from '../services/analyticsService';
 import { useAuth } from '../services/AuthContext';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { collection, query, where, getDocs, Timestamp } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 
 // ============================================================================
 // TYPES

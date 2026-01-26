@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, BusinessCategory, SocialConnection, UserPreferences } from '../types';
 import { store } from '../services/mockStore';
 import { useAuth } from '../services/AuthContext';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { Card, Button, Input, TextArea, Select } from './Common';
 import { 
   X, 
@@ -32,8 +32,8 @@ import {
   ChevronRight,
   Smartphone
 } from 'lucide-react';
-import { storage } from '../services/AuthContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../services/storageCompat';
+import { ref, uploadBytes, getDownloadURL } from '../services/storageCompat';
 import { InstagramConnector } from './InstagramConnector';
 import { LanguageSelector } from './LanguageSelector';
 import { useTranslation } from 'react-i18next';

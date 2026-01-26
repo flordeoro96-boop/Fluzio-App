@@ -4,8 +4,8 @@ import {
   UserCheck, Globe, MapPin, Calendar, AlertCircle,
   CheckCircle, XCircle, Save, X, Activity
 } from 'lucide-react';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, orderBy, addDoc } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, orderBy, addDoc } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { AdminRole, AdminUser } from '../../src/types/models';
 import { AdminPermissions, getRoleName, getRoleColor, getScopeDescription } from '../../services/adminAuthService';
 

@@ -3,8 +3,8 @@ import { X, ChevronRight, ChevronLeft, Check, Gift, Target, MapPin, Users, Star,
 import { Button } from './Common';
 import { Confetti } from './SkeletonLoader';
 import { User } from '../types';
-import { db } from '../services/AuthContext';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { doc, updateDoc, increment } from '../services/firestoreCompat';
 import { useTranslation } from 'react-i18next';
 
 interface OnboardingStep {

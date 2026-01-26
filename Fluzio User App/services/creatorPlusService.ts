@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, getDoc, setDoc, updateDoc, Timestamp } from '../services/firestoreCompat';
 
 /**
  * Creator Plus Subscription Service

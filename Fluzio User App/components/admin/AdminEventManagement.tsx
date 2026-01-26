@@ -3,9 +3,9 @@ import {
   Calendar, Plus, Edit2, Trash2, Eye, MapPin, Users, Clock,
   Search, Filter, Save, X, Image as ImageIcon, AlertCircle, Sparkles, Zap
 } from 'lucide-react';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, Timestamp } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
+import { ref, uploadBytes, getDownloadURL } from '../../services/storageCompat';
 import { storage } from '../../services/AuthContext';
 import { generateEventIdeas } from '../../services/openaiService';
 import { AdminPermissions, filterByScope } from '../../services/adminAuthService';

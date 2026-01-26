@@ -13,6 +13,7 @@ import { generateCreativeMissionIdeas } from '../services/openaiService';
 import { store } from '../services/mockStore';
 import { auth, useAuth } from '../services/AuthContext';
 import { useTranslation } from 'react-i18next';
+import TrafficInsights from './TrafficInsights';
 
 interface MissionIdea {
   title: string;
@@ -50,13 +51,22 @@ const CATEGORIES = [
 ];
 
 const POST_TYPES = [
-  { value: 'STORY', label: 'Instagram Story', platform: '📸 Instagram', icon: '📱' },
-  { value: 'POST', label: 'Instagram Post', platform: '📸 Instagram', icon: '🖼️' },
-  { value: 'REEL', label: 'Instagram Reel', platform: '📸 Instagram', icon: '🎬' },
-  { value: 'VIDEO', label: 'TikTok Video', platform: '🎵 TikTok', icon: '📹' },
-  { value: 'REVIEW', label: 'Google Review', platform: '⭐ Google', icon: '⭐' },
-  { value: 'CHECK_IN', label: 'Check-In', platform: '📍 In-Person', icon: '📍' },
-  { value: 'ANY', label: 'Any Format', platform: '✨ Flexible', icon: '✨' }
+  // In-Person Actions
+  { value: 'CHECK_IN', label: 'Check-In', platform: 'In-Person', icon: '📍', category: 'location' },
+  
+  // Content Types
+  { value: 'PHOTO', label: 'Photo', platform: 'Beevvy App', icon: '📷', category: 'content' },
+  { value: 'VIDEO', label: 'Video', platform: 'Beevvy App', icon: '🎬', category: 'content' },
+  { value: 'STORY', label: 'Story Post', platform: 'Beevvy App', icon: '📱', category: 'content' },
+  { value: 'REEL', label: 'Short Video', platform: 'Beevvy App', icon: '🎥', category: 'content' },
+  
+  // Engagement Actions
+  { value: 'REVIEW', label: 'Review', platform: 'Beevvy App', icon: '⭐', category: 'engagement' },
+  { value: 'FOLLOW', label: 'Follow', platform: 'Beevvy App', icon: '👥', category: 'engagement' },
+  { value: 'SHARE', label: 'Share', platform: 'Beevvy App', icon: '🔄', category: 'engagement' },
+  
+  // Flexible
+  { value: 'ANY', label: 'Any Format', platform: 'Flexible', icon: '✨', category: 'flexible' }
 ];
 
 const PROOF_TYPES = [
@@ -156,7 +166,7 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
   const generateAiIdeas = async () => {
     setLoadingAI(true);
     try {
-      const currentUser = auth.currentUser;
+      const { data: { user: currentUser } } = await auth.auth.getUser();
       if (!currentUser) {
         console.error('[MissionCreationModal] No authenticated user');
         setLoadingAI(false);
@@ -444,22 +454,22 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
                   <button
                     onClick={() => handleInputChange('missionType', 'SOCIAL_MEDIA')}
                     className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      formData.goal === 'CONTENT'
+                      formData.missionType === 'SOCIAL_MEDIA'
                         ? 'border-purple-500 bg-purple-50 shadow-md'
                         : 'border-gray-200 hover:border-purple-300'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">📱</span>
+                      <span className="text-2xl">👥</span>
                       <span className="font-bold text-gray-900">Social Media</span>
                     </div>
-                    <p className="text-xs text-gray-600">Instagram, TikTok posts</p>
+                    <p className="text-xs text-gray-600">Content sharing missions</p>
                   </button>
                   
                   <button
                     onClick={() => handleInputChange('missionType', 'GOOGLE')}
                     className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      formData.title?.toLowerCase().includes('google review') || formData.title?.toLowerCase().includes('review')
+                      formData.missionType === 'GOOGLE'
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 hover:border-blue-300'
                     }`}
@@ -468,13 +478,43 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
                       <span className="text-2xl">⭐</span>
                       <span className="font-bold text-gray-900">Google Review</span>
                     </div>
-                    <p className="text-xs text-gray-600">Automated verification</p>
+                    <p className="text-xs text-gray-600">Review missions</p>
                   </button>
                   
                   <button
                     onClick={() => handleInputChange('missionType', 'IN_PERSON')}
                     className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      formData.goal === 'TRAFFIC'
+                      formData.missionType === 'IN_PERSON'
+                        ? 'border-teal-500 bg-teal-50 shadow-md'
+                        : 'border-gray-200 hover:border-teal-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">📸</span>
+                      <span className="font-bold text-gray-900">In-Person</span>
+                    </div>
+                    <p className="text-xs text-gray-600">Visit and check-in missions</p>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleInputChange('missionType', 'CUSTOM')}
+                    className={`p-4 rounded-xl border-2 transition-all text-left ${
+                      formData.missionType === 'CUSTOM'
+                        ? 'border-pink-500 bg-pink-50 shadow-md'
+                        : 'border-gray-200 hover:border-pink-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">📱</span>
+                      <span className="font-bold text-gray-900">Custom</span>
+                    </div>
+                    <p className="text-xs text-gray-600">Auto-complete, 100 points</p>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleInputChange('missionType', 'IN_PERSON')}
+                    className={`p-4 rounded-xl border-2 transition-all text-left ${
+                      formData.missionType === 'IN_PERSON'
                         ? 'border-green-500 bg-green-50 shadow-md'
                         : 'border-gray-200 hover:border-green-300'
                     }`}
@@ -489,7 +529,7 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
                   <button
                     onClick={() => handleInputChange('missionType', 'CUSTOM')}
                     className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      formData.goal === 'SALES'
+                      formData.missionType === 'CUSTOM'
                         ? 'border-orange-500 bg-orange-50 shadow-md'
                         : 'border-gray-200 hover:border-orange-300'
                     }`}
@@ -501,6 +541,17 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
                     <p className="text-xs text-gray-600">Manual verification</p>
                   </button>
                 </div>
+              </div>
+
+              {/* Traffic Insights - Show optimal times for missions */}
+              <div className="mb-6">
+                <TrafficInsights
+                  businessId={businessId}
+                  type="MISSION"
+                  onSuggestionSelect={(suggestion) => {
+                    console.log('[Missions] Suggested optimal time:', suggestion);
+                  }}
+                />
               </div>
 
               {/* AI Smart Ideas - Always visible, auto-loads */}
@@ -651,11 +702,11 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
                   {t('missionCreate.postTypeLabel')}
                 </label>
                 
-                {/* Instagram Posts */}
+                {/* Content Types */}
                 <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">📸 Instagram</p>
+                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">📱 Content</p>
                   <div className="grid grid-cols-3 gap-2">
-                    {POST_TYPES.filter(t => t.platform.includes('Instagram')).map(type => (
+                    {POST_TYPES.filter(t => t.category === 'content').map(type => (
                       <button
                         key={type.value}
                         onClick={() => handleInputChange('postType', type.value)}
@@ -666,44 +717,44 @@ export const MissionCreationModal: React.FC<MissionCreationModalProps> = ({
                         }`}
                       >
                         <div className="text-xl mb-1">{type.icon}</div>
-                        <div className="text-xs font-medium">{type.label.replace('Instagram ', '')}</div>
+                        <div className="text-xs font-medium">{type.label}</div>
                       </button>
                     ))}
                   </div>
                 </div>
                 
-                {/* TikTok */}
+                {/* Engagement Actions */}
                 <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">🎵 TikTok</p>
+                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">💬 Engagement</p>
                   <div className="grid grid-cols-3 gap-2">
-                    {POST_TYPES.filter(t => t.platform.includes('TikTok')).map(type => (
-                      <button
-                        key={type.value}
-                        onClick={() => handleInputChange('postType', type.value)}
-                        className={`p-3 rounded-lg border-2 transition-all text-left ${
-                          formData.postType === type.value
-                            ? 'border-pink-500 bg-pink-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="text-xl mb-1">{type.icon}</div>
-                        <div className="text-xs font-medium">{type.label.replace('TikTok ', '')}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Google & In-Person */}
-                <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">⭐ Other Actions</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {POST_TYPES.filter(t => t.platform.includes('Google') || t.platform.includes('In-Person')).map(type => (
+                    {POST_TYPES.filter(t => t.category === 'engagement').map(type => (
                       <button
                         key={type.value}
                         onClick={() => handleInputChange('postType', type.value)}
                         className={`p-3 rounded-lg border-2 transition-all text-left ${
                           formData.postType === type.value
                             ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="text-xl mb-1">{type.icon}</div>
+                        <div className="text-xs font-medium">{type.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Location & Flexible */}
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">📍 Other Actions</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {POST_TYPES.filter(t => t.category === 'location' || t.category === 'flexible').map(type => (
+                      <button
+                        key={type.value}
+                        onClick={() => handleInputChange('postType', type.value)}
+                        className={`p-3 rounded-lg border-2 transition-all text-left ${
+                          formData.postType === type.value
+                            ? 'border-green-500 bg-green-50'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { Check, X, Sparkles } from 'lucide-react';
 
 interface PreferencesManagerProps {

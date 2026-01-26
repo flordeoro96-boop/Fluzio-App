@@ -20,8 +20,8 @@ import {
   arrayUnion,
   arrayRemove,
   increment
-} from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+} from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { Event } from '../types/models';
 import { canAttendBusinessEvent as canJoinEventLevel1, recordBusinessEventAttendance as recordEventLevel1 } from '../../services/level1SubscriptionService';
 import { canJoinEvent as canJoinEventLevel2, recordEventAttendance as recordEventLevel2 } from '../../services/level2SubscriptionService';
@@ -63,6 +63,7 @@ const docToEvent = (docData: DocumentData, docId: string): Event => {
     entryFeePoints: docData.entryFeePoints,
     tags: docData.tags,
     status: docData.status,
+    ticketing: docData.ticketing,
     createdAt: docData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
     updatedAt: docData.updatedAt?.toDate?.()?.toISOString()
   };

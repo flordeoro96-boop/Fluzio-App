@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from '../services/authCompat';
 import { auth } from '../services/AuthContext';
 
 interface ChangePasswordModalProps {

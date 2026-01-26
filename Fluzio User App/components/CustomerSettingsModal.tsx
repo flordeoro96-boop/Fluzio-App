@@ -26,8 +26,6 @@ import {
   Coins,
   Flame
 } from 'lucide-react';
-import { InstagramConnector } from './InstagramConnector';
-import { SocialAccountConnector } from './SocialAccountConnector';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { ContactSupportModal } from './ContactSupportModal';
 import { BlockedUsersModal } from './BlockedUsersModal';
@@ -43,7 +41,7 @@ import {
   requestNotificationPermission,
   isGeofencingSupported
 } from '../services/geofencingService';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { PreferencesManager } from './PreferencesManager';
 
 interface CustomerSettingsModalProps {
@@ -279,16 +277,7 @@ export const CustomerSettingsModal: React.FC<CustomerSettingsModalProps> = ({
             </div>
           </section>
 
-          {/* ===== SOCIAL ACCOUNTS SECTION ===== */}
-          <section>
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">🔗 Connected Accounts</h3>
-            <div className="space-y-4">
-              <SocialAccountConnector user={user} platform="google" />
-              <SocialAccountConnector user={user} platform="instagram" />
-              <SocialAccountConnector user={user} platform="tiktok" />
-              <SocialAccountConnector user={user} platform="linkedin" />
-            </div>
-          </section>
+          {/* Social accounts section removed - Beevvy uses native content system */}
 
           {/* ===== PRIVACY SECTION ===== */}
           <section>

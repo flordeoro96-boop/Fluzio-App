@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Upload
 } from 'lucide-react';
+import TrafficInsights from '../TrafficInsights';
 
 interface Reward {
   id: string;
@@ -432,6 +433,20 @@ const RewardFormModal: React.FC<{
           <h2 className="text-2xl font-bold text-[#1E0E62] mb-6">
             {reward ? 'Edit Reward' : 'Create New Reward'}
           </h2>
+
+          {/* Traffic Insights - Show only when creating new reward */}
+          {!reward && (
+            <div className="mb-6">
+              <TrafficInsights
+                businessId={businessId}
+                type="REWARD"
+                onSuggestionSelect={(suggestion) => {
+                  // User can see suggestions, manual timing implementation
+                  console.log('[Rewards] Suggested optimal time:', suggestion);
+                }}
+              />
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

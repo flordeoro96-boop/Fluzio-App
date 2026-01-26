@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, query, where, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, query, where, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, Timestamp } from '../services/firestoreCompat';
 import { Project, ProjectSlot } from '../types';
 
 /**
@@ -33,6 +33,8 @@ export const getProjects = async (): Promise<Project[]> => {
           creatorRoles: data.creatorRoles || [],
           tasks: data.tasks || [],
           slots: data.slots || [],
+          images: data.images || [],
+          coverImage: data.coverImage,
           chatId: data.chatId,
           createdAt: data.createdAt?.toDate().toISOString(),
           updatedAt: data.updatedAt?.toDate().toISOString()
@@ -42,6 +44,46 @@ export const getProjects = async (): Promise<Project[]> => {
   } catch (error) {
     console.error('[ProjectService] Error fetching projects:', error);
     return [];
+  }
+};
+
+// Get a single project by ID
+export const getProjectById = async (projectId: string): Promise<Project | null> => {
+  try {
+    const projectRef = doc(db, 'projects', projectId);
+    const projectDoc = await getDoc(projectRef);
+    
+    if (!projectDoc.exists()) {
+      console.log('[ProjectService] Project not found:', projectId);
+      return null;
+    }
+    
+    const data = projectDoc.data();
+    return {
+      id: projectDoc.id,
+      title: data.title,
+      description: data.description || 'Create shared marketing visuals for participating brands to use across web and social media.',
+      projectType: data.projectType || 'PHOTOSHOOT',
+      city: data.city || 'Unknown',
+      dateRange: data.dateRange || { start: '', end: '' },
+      totalCost: data.totalCost || 0,
+      organizerId: data.organizerId,
+      leadBusinessId: data.leadBusinessId || data.organizerId,
+      participatingBusinesses: data.participatingBusinesses || [],
+      status: data.status || 'PLANNING',
+      businessRoles: data.businessRoles || [],
+      creatorRoles: data.creatorRoles || [],
+      tasks: data.tasks || [],
+      slots: data.slots || [],
+      images: data.images || [],
+      coverImage: data.coverImage,
+      chatId: data.chatId,
+      createdAt: data.createdAt?.toDate().toISOString(),
+      updatedAt: data.updatedAt?.toDate().toISOString()
+    };
+  } catch (error) {
+    console.error('[ProjectService] Error fetching project:', error);
+    return null;
   }
 };
 
@@ -71,6 +113,8 @@ export const createProject = async (projectData: {
   slots: ProjectSlot[];
   creatorRoles?: Array<{ role: string; budget: number; quantity?: number; description?: string }>;
   status: string;
+  images?: string[];
+  coverImage?: string;
 }): Promise<string> => {
   try {
     // Convert slots to business roles
@@ -128,6 +172,8 @@ export const createProject = async (projectData: {
       creatorRoles,
       tasks: [], // Empty at creation
       slots: projectData.slots, // Legacy support
+      images: projectData.images || [],
+      coverImage: projectData.coverImage || (projectData.images && projectData.images.length > 0 ? projectData.images[0] : undefined),
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     });
@@ -243,6 +289,8 @@ export const updateProject = async (
     slots?: any[];
     creatorRoles?: Array<{ role: string; budget: number; quantity?: number; description?: string }>;
     status?: string;
+    images?: string[];
+    coverImage?: string;
   }
 ): Promise<void> => {
   try {
@@ -264,6 +312,8 @@ export const updateProject = async (
     if (updates.city) updateData.city = updates.city;
     if (updates.dateRange) updateData.dateRange = updates.dateRange;
     if (updates.status) updateData.status = updates.status;
+    if (updates.images) updateData.images = updates.images;
+    if (updates.coverImage) updateData.coverImage = updates.coverImage;
 
     // Update business roles if slots provided
     if (updates.slots) {

@@ -198,7 +198,7 @@ export const TwitterConnector: React.FC<TwitterConnectorProps> = ({ user }) => {
                     <ul className="text-xs text-blue-800 space-y-1.5 ml-6 list-disc">
                       <li>An active Twitter/X account</li>
                       <li>Access to your Twitter/X login credentials</li>
-                      <li>Permission to allow Fluzio to access basic info</li>
+                      <li>Permission to allow Beevvy to access basic info</li>
                     </ul>
                   </div>
 
@@ -208,7 +208,7 @@ export const TwitterConnector: React.FC<TwitterConnectorProps> = ({ user }) => {
                       <li>Click "Connect Twitter / X" above</li>
                       <li>Log in to your Twitter/X account</li>
                       <li>Review and approve permissions</li>
-                      <li>You'll be redirected back to Fluzio</li>
+                      <li>You'll be redirected back to Beevvy</li>
                     </ol>
                   </div>
 

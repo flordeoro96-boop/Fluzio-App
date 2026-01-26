@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, Timestamp } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 import { Gift, Search, Filter, CheckCircle, Clock, XCircle, Calendar, User, Hash, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 

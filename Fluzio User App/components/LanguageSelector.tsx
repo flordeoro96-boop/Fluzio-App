@@ -17,7 +17,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ className = 
 
   const handleLanguageChange = (languageCode: string) => {
     i18n.changeLanguage(languageCode);
-    localStorage.setItem('fluzio_language', languageCode);
+    localStorage.setItem('beevvy_language', languageCode);
   };
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];

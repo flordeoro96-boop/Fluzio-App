@@ -3,8 +3,8 @@ import {
   Target, Search, Eye, Ban, Trash2, CheckCircle, XCircle,
   MapPin, Calendar, Users, Award, TrendingUp, AlertCircle, Clock
 } from 'lucide-react';
-import { collection, getDocs, query, orderBy, limit, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, getDocs, query, orderBy, limit, doc, updateDoc, deleteDoc, where } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { AdminPermissions, filterByScope } from '../../services/adminAuthService';
 import type { Mission, MissionLifecycleStatus } from '../../types';
 

@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, serverTimestamp, Timestamp } from './firestoreCompat';
 import { notifyCheckInMilestone, notifyNewCustomer, notifyCustomerCheckIn } from './notificationServiceEnhanced';
 
 /**

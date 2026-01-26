@@ -1,5 +1,5 @@
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 export interface LeaderboardEntry {
   userId: string;
@@ -28,7 +28,7 @@ export const getLeaderboard = async (
 ): Promise<LeaderboardEntry[]> => {
   try {
     const usersRef = collection(db, 'users');
-    let q = query(usersRef);
+    let q = query(usersRef, where('accountType', '==', 'creator'));
 
     // Filter by city if specified
     if (city) {
@@ -149,7 +149,7 @@ export const getUserRank = async (
       : userData.points || 0;
 
     // Count users with higher scores
-    let q = query(usersRef);
+    let q = query(usersRef, where('accountType', '==', 'creator'));
     
     if (city) {
       q = query(q, where('city', '==', city));
@@ -162,7 +162,7 @@ export const getUserRank = async (
     const rank = snapshot.size + 1;
 
     // Get total users
-    let totalQuery = query(usersRef);
+    let totalQuery = query(usersRef, where('accountType', '==', 'creator'));
     if (city) {
       totalQuery = query(totalQuery, where('city', '==', city));
     }

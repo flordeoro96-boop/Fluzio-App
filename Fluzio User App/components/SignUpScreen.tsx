@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { OnboardingState, BusinessCategory } from '../types';
 import { Button, Input, Select, Modal, Card } from './Common';
-import { Store, Sparkles, ArrowRight, ArrowLeft, Check, Smartphone, Rocket, MapPin, Search, Mail, ShoppingBag, Globe, DownloadCloud, Instagram, X, Briefcase, Dumbbell, Coffee, CheckCircle2, Building2, FileText, ShieldCheck, Upload, Info, Linkedin, Phone, FileCheck, Lock, User as UserIcon, Facebook, Shield } from 'lucide-react';
-import { api } from '../services/apiService';
+import { Store, Sparkles, ArrowRight, ArrowLeft, Check, Smartphone, Rocket, MapPin, Search, Mail, ShoppingBag, Globe, DownloadCloud, X, Briefcase, Dumbbell, Coffee, CheckCircle2, Building2, FileText, ShieldCheck, Upload, Info, Phone, FileCheck, Lock, User as UserIcon, Shield } from 'lucide-react';
+import { api } from '../services/AuthContext';
 import { useAuth } from '../services/AuthContext';
 import { getCurrentLocation } from '../services/locationService';
 import { useTranslation } from 'react-i18next';
@@ -38,7 +38,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
     category: 'GASTRONOMY',
     businessMode: 'PHYSICAL',
     website: '',
-    instagram: '',
     referralCode: '',
     vibes: [],
     // New Fields
@@ -48,28 +47,28 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
     street: '',
     zipCode: '',
     phone: '',
-    linkedin: '',
     documents: [],
     isAuthorized: false,
     verifiedSources: { google: false, shopify: false },
-    subCategory: ''
+    subCategory: '',
+    // Contact Person
+    firstName: '',
+    lastName: '',
+    position: ''
   });
 
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [isInstagramConnecting, setIsInstagramConnecting] = useState(false);
-  const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [isGoogleConnecting, setIsGoogleConnecting] = useState(false);
   const [showWhyVerify, setShowWhyVerify] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState({
-    google: false,
-    facebook: false,
-    instagram: false
+    google: false
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState('+49');
+  const [operatingCountry, setOperatingCountry] = useState('DE'); // ISO country code where business operates
   const [showInterestsScreen, setShowInterestsScreen] = useState(false);
   const [showGoalsScreen, setShowGoalsScreen] = useState(false);
   const [showMaturityAssessment, setShowMaturityAssessment] = useState(false);
@@ -423,9 +422,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
     if (current.includes(tag)) {
         updateField('vibes', current.filter(t => t !== tag));
     } else {
-        if (current.length < 3) {
-            updateField('vibes', [...current, tag]);
-        }
+        updateField('vibes', [...current, tag]);
     }
   };
 
@@ -445,10 +442,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
               updateField('legalName', firebaseUser.displayName);
               updateField('handle', firebaseUser.displayName);
           }
-          if (firebaseUser.phoneNumber) {
+          if ((firebaseUser as any).phone || (firebaseUser as any).phoneNumber) {
               // Remove country code prefix if present
-              const phone = firebaseUser.phoneNumber.replace(/^\+49/, '').trim();
-              updateField('phone', phone);
+              const phone = ((firebaseUser as any).phoneNumber || (firebaseUser as any).phone || '').replace(/^\+49/, '').trim();
+              if (phone) updateField('phone', phone);
           }
           
           updateField('authMethod', 'GOOGLE');
@@ -524,7 +521,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
       console.log("Creating Firebase auth account...");
       const userCredential = await signUpWithEmail(formData.email, formData.password);
       firebaseUser = userCredential.user;
-      console.log("Firebase user created:", firebaseUser.uid);
+      console.log("Supabase user created:", firebaseUser.uid);
     }
 
     // 2) ENSURE FIRESTORE USER DOC EXISTS (createuser)
@@ -541,7 +538,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
     };
 
     console.log("Creating/ensuring initial Firestore user:", initialUserData);
-    const createResult = await api.createUser(initialUserData as any);
+    const createResult = await api.createUser(initialUserData as any, firebaseUser.uid);
         if (!createResult.success) {
             throw new Error(createResult.error || t('signup.createProfileFailed'));
     }
@@ -554,7 +551,8 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
       // Map legalName/handle to 'name' field for Firestore
       name: formData.legalName || formData.handle || formData.email.split('@')[0],
       accountType: formData.accountType,     // business or creator (IMMUTABLE)
-      countryCode: countryCode, // Save selected country code
+      countryCode: countryCode, // Phone country code (+49, +961, etc.)
+      operatingCountry: operatingCountry, // ISO country code where business/user operates (DE, LB, CH, etc.)
       profileComplete: formData.step === 4,   // optional: true only on final step
       updatedAt: new Date().toISOString(),
       // Map vibes to proper fields for personalization
@@ -686,33 +684,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
       }, 1500);
   };
 
-  const handleConnectInstagram = async (isCreator = false) => {
-      setIsInstagramConnecting(true);
-      try {
-          // TODO: Implement linkInstagram in socialAuthService
-          // const result = await socialAuthService.linkInstagram();
-          console.log('Instagram linking not yet implemented');
-          // Placeholder until linkInstagram is implemented
-          alert('Instagram linking feature is coming soon!');
-          /*
-          if (result.success && result.displayName) {
-              updateField('instagram', result.displayName);
-              if (isCreator) {
-                  updateField('handle', result.displayName);
-              }
-              setConnectedAccounts(prev => ({ ...prev, instagram: true }));
-          } else {
-              alert(result.error || 'Failed to connect Instagram');
-          }
-          */
-      } catch (error) {
-          console.error('Instagram connection error:', error);
-          alert('Failed to connect Instagram. Please try again.');
-      } finally {
-          setIsInstagramConnecting(false);
-      }
-  };
-
   const handleConnectGoogle = async () => {
       setIsGoogleConnecting(true);
       try {
@@ -731,23 +702,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
       }
   };
 
-  const handleConnectFacebook = async () => {
-      setIsFacebookConnecting(true);
-      try {
-          const result = await socialAuthService.linkFacebook();
-          if (result.success) {
-              setConnectedAccounts(prev => ({ ...prev, facebook: true }));
-              alert('Facebook account connected successfully!');
-          } else {
-              alert(result.error || 'Failed to connect Facebook');
-          }
-      } catch (error) {
-          console.error('Facebook connection error:', error);
-          alert('Failed to connect Facebook. Please try again.');
-      } finally {
-          setIsFacebookConnecting(false);
-      }
-  };
 
   const handleVerifyPhone = () => {
       // Mock OTP
@@ -1156,10 +1110,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                       <label className="text-sm font-bold text-[#1E0E62]">Gender</label>
                       
                       {[
-                          { value: 'MALE', label: 'Male', icon: '👨', color: 'blue' },
-                          { value: 'FEMALE', label: 'Female', icon: '👩', color: 'pink' },
-                          { value: 'OTHER', label: 'Other', icon: '✨', color: 'purple' },
-                          { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say', icon: '🤐', color: 'gray' }
+                          { value: 'MALE', label: 'Male', color: 'blue' },
+                          { value: 'FEMALE', label: 'Female', color: 'pink' },
+                          { value: 'OTHER', label: 'Other', color: 'purple' },
+                          { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say', color: 'gray' }
                       ].map((option) => (
                           <button
                               key={option.value}
@@ -1170,7 +1124,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                       : 'border-gray-200 bg-white hover:border-gray-300'
                               }`}
                           >
-                              <span className="text-2xl">{option.icon}</span>
                               <div className="flex-1 text-left">
                                   <div className="font-bold text-[#1E0E62]">{option.label}</div>
                               </div>
@@ -1193,6 +1146,8 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
   if (formData.step === 4) {
       const isBusiness = formData.role === 'BUSINESS';
       const isAspiring = formData.isAspiringBusiness;
+      const isCreator = formData.role === 'CREATOR';
+      const isCustomer = formData.role === 'MEMBER';
 
     let headerTitle = t('signup.step3.createProfileTitle');
     let headerSub = t('signup.step3.createProfileSubtitle');
@@ -1205,9 +1160,12 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
               headerTitle = t('signup.step3.menteeProfileTitle');
               headerSub = t('signup.step3.menteeProfileSubtitle');
           }
-      } else {
+      } else if (isCreator) {
           headerTitle = t('signup.step3.creatorProfileTitle');
           headerSub = t('signup.step3.creatorProfileSubtitle');
+      } else if (isCustomer) {
+          headerTitle = 'Complete Your Profile';
+          headerSub = 'Just a few more details to personalize your experience';
       }
 
       // Business Flow (Active & Aspiring)
@@ -1252,6 +1210,29 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                             }}
                          />
                          
+                         {/* Contact Person Information */}
+                         <div className="grid grid-cols-2 gap-3">
+                            <Input 
+                                label="First Name *"
+                                placeholder="John" 
+                                value={formData.firstName}
+                                onChange={e => updateField('firstName', e.target.value)}
+                            />
+                            <Input 
+                                label="Last Name *"
+                                placeholder="Smith" 
+                                value={formData.lastName}
+                                onChange={e => updateField('lastName', e.target.value)}
+                            />
+                         </div>
+                         
+                         <Input 
+                            label="Your Position/Role *"
+                            placeholder="Owner, Manager, Marketing Director, etc." 
+                            value={formData.position}
+                            onChange={e => updateField('position', e.target.value)}
+                         />
+                         
                          {!isAspiring && (
                             <Input 
                                 label={t('signup.identity.vatIdLabel')} 
@@ -1290,23 +1271,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                  </button>
                              </div>
                                       {otpSent && <div className="text-xs text-green-600 mt-1 ml-1">{t('signup.phone.verificationSent')}</div>}
-                         </div>
-
-                         {/* LinkedIn */}
-                         <div className="relative">
-                              <label className="text-xs font-bold text-[#8F8FA3] uppercase tracking-wider ml-1 mb-2 block">
-                                  {isAspiring ? t('signup.linkedin.founder') : t('signup.linkedin.ownerOptional')}
-                              </label>
-                              <div className="relative">
-                                  <Linkedin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-600" />
-                                                                    <input 
-                                    type="text" 
-                                                                        placeholder={t('signup.linkedin.placeholder')}
-                                    value={formData.linkedin}
-                                    onChange={e => updateField('linkedin', e.target.value)}
-                                    className="w-full pl-10 px-5 py-3 rounded-2xl border border-gray-300 bg-white outline-none font-medium text-[#1E0E62]"
-                                  />
-                              </div>
                          </div>
 
                          {/* Category Grid */}
@@ -1391,6 +1355,68 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                          </div>
                                  <p className="text-xs text-[#8F8FA3] -mt-3 mb-2">{t('signup.location.matchingHint')}</p>
                          
+                         {/* Operating Country Selection */}
+                         <div className="space-y-2">
+                            <label className="block text-sm font-semibold text-[#1E0E62]">
+                                <Globe className="w-4 h-4 inline mr-2" />
+                                Operating Country *
+                            </label>
+                            <select
+                                value={operatingCountry}
+                                onChange={(e) => setOperatingCountry(e.target.value)}
+                                className="w-full p-3 rounded-xl border border-gray-200 focus:border-[#7209B7] focus:ring-2 focus:ring-[#7209B7]/20 outline-none transition-all"
+                                required
+                            >
+                                <option value="">Select country...</option>
+                                <option value="DE">🇩🇪 Germany</option>
+                                <option value="AE">🇦🇪 United Arab Emirates</option>
+                                <option value="CH">🇨🇭 Switzerland</option>
+                                <option value="LB">🇱🇧 Lebanon</option>
+                                <option value="US">🇺🇸 United States</option>
+                                <option value="GB">🇬🇧 United Kingdom</option>
+                                <option value="FR">🇫🇷 France</option>
+                                <option value="ES">🇪🇸 Spain</option>
+                                <option value="IT">🇮🇹 Italy</option>
+                                <option value="AT">🇦🇹 Austria</option>
+                                <option value="NL">🇳🇱 Netherlands</option>
+                                <option value="BE">🇧🇪 Belgium</option>
+                                <option value="SE">🇸🇪 Sweden</option>
+                                <option value="NO">🇳🇴 Norway</option>
+                                <option value="DK">🇩🇰 Denmark</option>
+                                <option value="PL">🇵🇱 Poland</option>
+                                <option value="CZ">🇨🇿 Czech Republic</option>
+                                <option value="GR">🇬🇷 Greece</option>
+                                <option value="PT">🇵🇹 Portugal</option>
+                                <option value="TR">🇹🇷 Turkey</option>
+                                <option value="SA">🇸🇦 Saudi Arabia</option>
+                                <option value="QA">🇶🇦 Qatar</option>
+                                <option value="KW">🇰🇼 Kuwait</option>
+                                <option value="BH">🇧🇭 Bahrain</option>
+                                <option value="OM">🇴🇲 Oman</option>
+                                <option value="EG">🇪🇬 Egypt</option>
+                                <option value="JO">🇯🇴 Jordan</option>
+                                <option value="AU">🇦🇺 Australia</option>
+                                <option value="CA">🇨🇦 Canada</option>
+                                <option value="SG">🇸🇬 Singapore</option>
+                                <option value="HK">🇭🇰 Hong Kong</option>
+                                <option value="JP">🇯🇵 Japan</option>
+                                <option value="KR">🇰🇷 South Korea</option>
+                                <option value="CN">🇨🇳 China</option>
+                                <option value="IN">🇮🇳 India</option>
+                                <option value="BR">🇧🇷 Brazil</option>
+                                <option value="MX">🇲🇽 Mexico</option>
+                                <option value="AR">🇦🇷 Argentina</option>
+                                <option value="CL">🇨🇱 Chile</option>
+                                <option value="CO">🇨🇴 Colombia</option>
+                                <option value="ZA">🇿🇦 South Africa</option>
+                                <option value="NG">🇳🇬 Nigeria</option>
+                                <option value="KE">🇰🇪 Kenya</option>
+                            </select>
+                            <p className="text-xs text-[#8F8FA3]">
+                                Select the country where your business operates (independent of your phone number)
+                            </p>
+                         </div>
+                         
                          <AddressAutocomplete
                             label={t('signup.address.streetLabel')}
                             placeholder={t('signup.address.streetPlaceholder')}
@@ -1473,45 +1499,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                  </>
                              )}
 
-                             {/* Instagram (Ownership Proof) - Optional */}
-                             <div className="space-y-2">
-                                <div className="flex items-center justify-between mb-1">
-                                    <p className="text-xs text-gray-500">{t('signup.socialConnect.optional')}</p>
-                                </div>
-                             {!formData.instagram ? (
-                                <button 
-                                    onClick={() => handleConnectInstagram(false)}
-                                    disabled={isInstagramConnecting}
-                                    className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-pink-500 bg-white transition-all"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-sm">
-                                            <Instagram className="w-4 h-4 text-pink-500" />
-                                        </div>
-                                        <div className="text-left">
-                                            <div className="text-sm font-bold text-[#1E0E62]">Instagram</div>
-                                            <div className="text-[10px] text-gray-500">{isAspiring ? t('signup.instagram.verifyIdea') : t('signup.instagram.verifyOwnership')}</div>
-                                        </div>
-                                    </div>
-                                    <span className="text-xs font-bold text-pink-600">{isInstagramConnecting ? t('signup.instagram.connecting') : t('common.connect')}</span>
-                                </button>
-                             ) : (
-                                <div className="w-full flex items-center justify-between p-3 rounded-xl border border-green-200 bg-green-50">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                                            <Instagram className="w-4 h-4 text-green-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <div className="text-sm font-bold text-[#1E0E62]">{formData.instagram}</div>
-                                            <div className="text-[10px] text-green-700">{t('signup.instagram.verified')}</div>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => updateField('instagram', '')} className="p-1 text-gray-400 hover:text-red-500">
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                             )}
-
                              {/* Google Account - Optional */}
                              {!connectedAccounts.google ? (
                                 <button 
@@ -1544,40 +1531,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                     <CheckCircle2 className="w-5 h-5 text-green-600" />
                                 </div>
                              )}
-
-                             {/* Facebook - Optional */}
-                             {!connectedAccounts.facebook ? (
-                                <button 
-                                    onClick={handleConnectFacebook}
-                                    disabled={isFacebookConnecting}
-                                    className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-600 bg-white transition-all"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-sm">
-                                            <Facebook className="w-4 h-4 text-blue-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <div className="text-sm font-bold text-[#1E0E62]">Facebook</div>
-                                            <div className="text-[10px] text-gray-500">Connect your Facebook account</div>
-                                        </div>
-                                    </div>
-                                    <span className="text-xs font-bold text-blue-700">{isFacebookConnecting ? 'Connecting...' : t('common.connect')}</span>
-                                </button>
-                             ) : (
-                                <div className="w-full flex items-center justify-between p-3 rounded-xl border border-green-200 bg-green-50">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                                            <Facebook className="w-4 h-4 text-green-600" />
-                                        </div>
-                                        <div className="text-left">
-                                            <div className="text-sm font-bold text-[#1E0E62]">Facebook Connected</div>
-                                            <div className="text-[10px] text-green-700">Account linked successfully</div>
-                                        </div>
-                                    </div>
-                                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                </div>
-                             )}
-                             </div>
                          </div>
 
                          <div className="space-y-2 pt-2">
@@ -1654,7 +1607,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                   <div className="bg-white p-5 rounded-[24px] border border-white shadow-sm space-y-4">
                          <div className="flex items-center gap-2 mb-1">
                             <UserIcon className="w-4 h-4 text-[#8F8FA3]" />
-                                     <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">{t('signup.creator.personalDetails')}</h3>
+                            <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">
+                              {formData.role === 'MEMBER' ? 'Your Details' : t('signup.creator.personalDetails')}
+                            </h3>
                          </div>
                          
                          <Input 
@@ -1700,9 +1655,16 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                   <div className="bg-white p-5 rounded-[24px] border border-white shadow-sm space-y-4">
                          <div className="flex items-center gap-2 mb-1">
                             <MapPin className="w-4 h-4 text-[#8F8FA3]" />
-                                     <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">{t('signup.creator.shippingAddress')}</h3>
+                            <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">
+                              {formData.role === 'MEMBER' ? 'Delivery Address' : t('signup.creator.shippingAddress')}
+                            </h3>
                          </div>
-                                 <p className="text-xs text-[#8F8FA3] -mt-3 mb-2">{t('signup.creator.shippingHint')}</p>
+                         <p className="text-xs text-[#8F8FA3] -mt-3 mb-2">
+                           {formData.role === 'MEMBER' 
+                             ? 'Where should we send your rewards and goodies?' 
+                             : t('signup.creator.shippingHint')
+                           }
+                         </p>
                          
                          <AddressAutocomplete
                             label={t('signup.address.streetLabel')}
@@ -1716,16 +1678,17 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                          />
                   </div>
 
-                  {/* Section C: Social Identity */}
+                  {/* Section C: Social Identity (Only for Creators) */}
+                  {formData.role === 'CREATOR' && (
                   <div className="bg-white p-5 rounded-[24px] border border-white shadow-sm space-y-4">
                          <div className="flex items-center gap-2 mb-1">
-                            <Instagram className="w-4 h-4 text-[#8F8FA3]" />
+                            <Globe className="w-4 h-4 text-[#8F8FA3]" />
                             <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">{t('signup.creator.socialIdentity')}</h3>
                          </div>
                          
                          <div>
                             <Input 
-                               label="Instagram Username (Optional)" 
+                               label="Social Media Handle (Optional)" 
                                placeholder="@yourusername"
                                value={formData.instagram || ''}
                                onChange={(e) => {
@@ -1735,11 +1698,66 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                }}
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                               📸 Optional: Share your Instagram to connect with businesses
+                               Optional: Share your social handle to connect with businesses
                             </p>
                          </div>
+                  </div>
+                  )}
+
+                  {/* Quick Interests - For Customers Only */}
+                  {formData.role === 'MEMBER' && (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-[24px] border border-blue-100 shadow-sm space-y-4">
+                         <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="w-4 h-4 text-blue-600" />
+                            <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">Your Interests</h3>
+                         </div>
+                         <p className="text-xs text-[#8F8FA3] -mt-2">
+                            Help us show you the best places and rewards
+                         </p>
                          
-                         <div className="mt-4">
+                         <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { id: 'food', label: 'Food & Dining' },
+                              { id: 'fitness', label: 'Fitness' },
+                              { id: 'beauty', label: 'Beauty & Spa' },
+                              { id: 'shopping', label: 'Shopping' },
+                              { id: 'entertainment', label: 'Entertainment' },
+                              { id: 'travel', label: 'Travel' }
+                            ].map((interest) => {
+                              const isSelected = formData.interests?.includes(interest.id);
+                              return (
+                                <button
+                                  key={interest.id}
+                                  onClick={() => {
+                                    const current = formData.interests || [];
+                                    const updated = isSelected 
+                                      ? current.filter(i => i !== interest.id)
+                                      : [...current, interest.id];
+                                    updateField('interests', updated);
+                                  }}
+                                  className={`p-3 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                                    isSelected
+                                      ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg'
+                                      : 'bg-white text-[#1E0E62] border border-gray-200 hover:border-blue-300'
+                                  }`}
+                                >
+                                  <span className="text-[11px] leading-tight">{interest.label}</span>
+                                  {isSelected && <Check className="w-3 h-3 ml-auto" />}
+                                </button>
+                              );
+                            })}
+                         </div>
+                  </div>
+                  )}
+
+                  {/* Referral Code - For Everyone */}
+                  <div className="bg-white p-5 rounded-[24px] border border-white shadow-sm space-y-4">
+                         <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="w-4 h-4 text-[#8F8FA3]" />
+                            <h3 className="text-sm font-bold text-[#1E0E62] uppercase tracking-wide">Referral Code</h3>
+                         </div>
+                         
+                         <div>
                              <Input 
                                 label={t('signup.referral.label')} 
                                 placeholder={t('signup.referral.placeholder')}
@@ -1770,7 +1788,11 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
 
               <Button 
                 onClick={nextStep} 
-                disabled={!formData.legalName || !formData.street || !formData.isAuthorized} 
+                disabled={
+                  !formData.legalName || 
+                  !formData.street || 
+                  !formData.isAuthorized
+                } 
                 className="w-full py-4 text-lg mt-6 shadow-xl shadow-[#00E5FF]/30"
               >
                   {t('signup.nextStep')} <ArrowRight className="w-5 h-5 ml-2" />
@@ -1782,38 +1804,84 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
   // --- Step 5: Final Setup (Goals & Interests) ---
   if (formData.step === 5) {
       console.log('[SignUp] RENDERING step 5 - Goals/Vibes selection');
-      const isCustomer = formData.role === 'CREATOR';
+      const isCustomer = formData.role === 'MEMBER';
+      const isBusiness = formData.role === 'BUSINESS';
+      const isCreator = formData.role === 'CREATOR';
       
       // Customer rewards interests - what do they want to GET
       const CUSTOMER_REWARD_INTERESTS = [
-        { id: 'free_food', label: 'Free Food & Drinks', icon: '🍔', desc: 'Meals, snacks, coffee' },
-        { id: 'discounts', label: 'Discounts & Deals', icon: '🏷️', desc: 'Coupons and special offers' },
-        { id: 'fashion', label: 'Fashion & Clothing', icon: '👕', desc: 'Clothes, shoes, accessories' },
-        { id: 'beauty', label: 'Beauty Products', icon: '💄', desc: 'Makeup, skincare, haircare' },
-        { id: 'jewelry', label: 'Jewelry & Accessories', icon: '💎', desc: 'Rings, necklaces, watches' },
-        { id: 'tech', label: 'Tech & Gadgets', icon: '📱', desc: 'Electronics, accessories' },
-        { id: 'fitness', label: 'Fitness & Wellness', icon: '🏋️', desc: 'Gym passes, supplements' },
-        { id: 'home', label: 'Home & Lifestyle', icon: '🏠', desc: 'Decor, furniture, tools' },
-        { id: 'pet', label: 'Pet Products', icon: '🐾', desc: 'Pet food, toys, supplies' },
-        { id: 'experiences', label: 'Experiences', icon: '🎟️', desc: 'Events, classes, activities' },
-        { id: 'gift_cards', label: 'Gift Cards', icon: '🎁', desc: 'Store credit and vouchers' },
-        { id: 'entertainment', label: 'Entertainment', icon: '🎬', desc: 'Movies, games, books' }
+        { id: 'free_food', label: 'Food & Drinks', desc: 'Meals, snacks, coffee' },
+        { id: 'discounts', label: 'Discounts & Deals', desc: 'Coupons and special offers' },
+        { id: 'fashion', label: 'Fashion & Clothing', desc: 'Clothes, shoes, accessories' },
+        { id: 'beauty', label: 'Beauty Products', desc: 'Makeup, skincare, haircare' },
+        { id: 'jewelry', label: 'Jewelry & Accessories', desc: 'Rings, necklaces, watches' },
+        { id: 'tech', label: 'Tech & Gadgets', desc: 'Electronics, accessories' },
+        { id: 'fitness', label: 'Fitness & Wellness', desc: 'Gym passes, supplements' },
+        { id: 'home', label: 'Home & Lifestyle', desc: 'Decor, furniture, tools' },
+        { id: 'pet', label: 'Pet Products', desc: 'Pet food, toys, supplies' },
+        { id: 'experiences', label: 'Experiences', desc: 'Events, classes, activities' },
+        { id: 'gift_cards', label: 'Gift Cards', desc: 'Store credit and vouchers' },
+        { id: 'entertainment', label: 'Entertainment', desc: 'Movies, games, books' }
+      ];
+
+      // Creator collaboration interests - what types of work they want
+      const CREATOR_INTERESTS = [
+        { id: 'photographer', label: 'Photographer', desc: 'Professional photography' },
+        { id: 'videographer', label: 'Videographer', desc: 'Video production & filming' },
+        { id: 'content_creator', label: 'Content Creator', desc: 'Social media content' },
+        { id: 'influencer', label: 'Influencer', desc: 'Social media influence' },
+        { id: 'model', label: 'Model', desc: 'Fashion & product modeling' },
+        { id: 'makeup_artist', label: 'Makeup Artist', desc: 'Beauty & makeup services' },
+        { id: 'hair_stylist', label: 'Hair Stylist', desc: 'Hair styling & design' },
+        { id: 'graphic_designer', label: 'Graphic Designer', desc: 'Visual design & branding' },
+        { id: 'video_editor', label: 'Video Editor', desc: 'Post-production editing' },
+        { id: 'copywriter', label: 'Copywriter', desc: 'Marketing & ad copy' },
+        { id: 'blogger', label: 'Blogger', desc: 'Blog writing & articles' },
+        { id: 'vlogger', label: 'Vlogger', desc: 'Video blogging' },
+        { id: 'podcaster', label: 'Podcaster', desc: 'Podcast creation' },
+        { id: 'voice_actor', label: 'Voice Actor', desc: 'Voiceovers & narration' },
+        { id: 'musician', label: 'Musician', desc: 'Music & audio creation' },
+        { id: 'dj', label: 'DJ', desc: 'Music mixing & events' },
+        { id: 'dancer', label: 'Dancer', desc: 'Dance & choreography' },
+        { id: 'actor', label: 'Actor', desc: 'Acting & performance' },
+        { id: 'comedian', label: 'Comedian', desc: 'Comedy & entertainment' },
+        { id: 'animator', label: 'Animator', desc: 'Animation & motion graphics' },
+        { id: 'illustrator', label: 'Illustrator', desc: 'Digital & traditional art' },
+        { id: 'web_designer', label: 'Web Designer', desc: 'Website design & UX' },
+        { id: 'social_media_manager', label: 'Social Media Manager', desc: 'Account management' },
+        { id: 'brand_strategist', label: 'Brand Strategist', desc: 'Brand consulting' },
+        { id: 'marketing_consultant', label: 'Marketing Consultant', desc: 'Marketing strategy' },
+        { id: 'seo_specialist', label: 'SEO Specialist', desc: 'Search optimization' },
+        { id: 'pr_specialist', label: 'PR Specialist', desc: 'Public relations' },
+        { id: 'event_planner', label: 'Event Planner', desc: 'Event organization' },
+        { id: 'stylist', label: 'Stylist', desc: 'Fashion styling' },
+        { id: 'interior_designer', label: 'Interior Designer', desc: 'Space design' },
+        { id: 'chef', label: 'Chef/Food Creator', desc: 'Culinary content' },
+        { id: 'fitness_trainer', label: 'Fitness Trainer', desc: 'Fitness & wellness' },
+        { id: 'nutritionist', label: 'Nutritionist', desc: 'Nutrition coaching' },
+        { id: 'life_coach', label: 'Life Coach', desc: 'Personal development' },
+        { id: 'teacher', label: 'Teacher/Educator', desc: 'Educational content' },
+        { id: 'tech_reviewer', label: 'Tech Reviewer', desc: 'Tech reviews & unboxing' },
+        { id: 'gaming_creator', label: 'Gaming Creator', desc: 'Gaming & esports' },
+        { id: 'travel_creator', label: 'Travel Creator', desc: 'Travel content' },
+        { id: 'pet_influencer', label: 'Pet Influencer', desc: 'Pet-focused content' },
+        { id: 'parent_influencer', label: 'Parent Influencer', desc: 'Parenting content' }
       ];
 
       // Business goals - what do they want to ACHIEVE
       const BUSINESS_GOALS = [
-        { id: 'more_followers', label: 'More Social Followers', icon: '📈', desc: 'Grow Instagram, TikTok, Twitter' },
-        { id: 'foot_traffic', label: 'Foot Traffic', icon: '🚶', desc: 'More customers visiting location' },
-        { id: 'online_sales', label: 'Online Sales', icon: '🛒', desc: 'Increase e-commerce revenue' },
-        { id: 'brand_awareness', label: 'Brand Awareness', icon: '📢', desc: 'Get known in the community' },
-        { id: 'reviews', label: 'Reviews & Ratings', icon: '⭐', desc: 'Build trust and credibility' },
-        { id: 'ugc', label: 'User Content', icon: '📸', desc: 'Photos, videos, testimonials' },
-        { id: 'email_list', label: 'Email Subscribers', icon: '📧', desc: 'Build marketing list' },
-        { id: 'events', label: 'Event Attendance', icon: '🎉', desc: 'Fill workshops and meetups' },
-        { id: 'loyalty', label: 'Customer Loyalty', icon: '💝', desc: 'Repeat customers' },
-        { id: 'partnerships', label: 'Collaborations', icon: '🤝', desc: 'Work with creators' },
-        { id: 'product_testing', label: 'Product Feedback', icon: '🧪', desc: 'Test new products' },
-        { id: 'local_buzz', label: 'Local Buzz', icon: '🔥', desc: 'Word-of-mouth marketing' }
+        { id: 'more_followers', label: 'Social Media Growth', desc: 'Grow your social media presence' },
+        { id: 'foot_traffic', label: 'Foot Traffic', desc: 'More customers visiting location' },
+        { id: 'online_sales', label: 'Online Sales', desc: 'Increase e-commerce revenue' },
+        { id: 'brand_awareness', label: 'Brand Awareness', desc: 'Get known in the community' },
+        { id: 'reviews', label: 'Reviews & Ratings', desc: 'Build trust and credibility' },
+        { id: 'ugc', label: 'User Content', desc: 'Photos, videos, testimonials' },
+        { id: 'email_list', label: 'Email Subscribers', desc: 'Build marketing list' },
+        { id: 'events', label: 'Event Attendance', desc: 'Fill workshops and meetups' },
+        { id: 'loyalty', label: 'Customer Loyalty', desc: 'Repeat customers' },
+        { id: 'partnerships', label: 'Collaborations', desc: 'Work with creators' },
+        { id: 'product_testing', label: 'Product Feedback', desc: 'Test new products' },
+        { id: 'local_buzz', label: 'Local Buzz', desc: 'Word-of-mouth marketing' }
       ];
 
       // Business aesthetic tags (kept for businesses)
@@ -1828,11 +1896,13 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                   </button>
                   <div className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider mb-1">Step 5 of 5</div>
                   <h1 className="text-3xl font-clash font-bold text-[#1E0E62] mb-2">
-                    {isCustomer ? "What Rewards Do You Want?" : "What Are Your Goals?"}
+                    {isCustomer ? "What Rewards Do You Want?" : isCreator ? "What's Your Expertise?" : "What Are Your Goals?"}
                   </h1>
                   <p className="text-[#8F8FA3] font-medium">
                     {isCustomer 
                       ? "Select at least 3 categories so we can match you with the best missions and rewards" 
+                      : isCreator
+                      ? "Select your primary skill, then add any additional capabilities you offer"
                       : "Tell us what you want to achieve so we can help you create effective missions"
                     }
                   </p>
@@ -1842,8 +1912,8 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                   {/* Customer Reward Interests */}
                   {isCustomer ? (
                       <div>
-                          <h3 className="font-bold text-[#1E0E62] mb-1">I'm interested in getting:</h3>
-                          <p className="text-xs text-[#8F8FA3] mb-4">Choose at least 3 (the more you select, the better we can match you)</p>
+                          <h3 className="font-bold text-[#1E0E62] mb-1">Select your reward preferences:</h3>
+                          <p className="text-xs text-[#8F8FA3] mb-4">Choose at least 3 categories (the more you select, the better we can match you)</p>
                           <div className="grid grid-cols-2 gap-3">
                               {CUSTOMER_REWARD_INTERESTS.map(interest => {
                                   const active = formData.vibes.includes(interest.id);
@@ -1851,14 +1921,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                       <button
                                         key={interest.id}
                                         onClick={() => toggleVibe(interest.id)}
-                                        className={`p-4 rounded-2xl border-2 transition-all text-left ${
+                                        className={`p-4 rounded-2xl border-2 transition-all text-left relative ${
                                             active 
-                                            ? 'border-[#00E5FF] bg-gradient-to-br from-pink-50 to-purple-50 shadow-md' 
+                                            ? 'border-blue-500 bg-blue-50 shadow-md' 
                                             : 'border-gray-200 bg-white hover:border-gray-300'
                                         }`}
                                       >
-                                          <div className="text-3xl mb-2">{interest.icon}</div>
-                                          <div className={`text-sm font-bold mb-1 ${active ? 'text-[#00E5FF]' : 'text-[#1E0E62]'}`}>
+                                          {active && (
+                                            <div className="absolute top-2 right-2">
+                                              <Check className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                          )}
+                                          <div className={`text-sm font-bold mb-1 ${active ? 'text-blue-600' : 'text-[#1E0E62]'}`}>
                                             {interest.label}
                                           </div>
                                           <div className="text-xs text-gray-500">{interest.desc}</div>
@@ -1875,9 +1949,109 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                       ? 'bg-green-100 text-green-700' 
                                       : 'bg-gray-100 text-gray-600'
                                   }`}>
-                                      {formData.vibes.length >= 3 ? '✓' : '•'} {formData.vibes.length} selected
+                                      {formData.vibes.length >= 3 ? <Check className="w-4 h-4" /> : <span>•</span>} {formData.vibes.length} selected
                                       {formData.vibes.length < 3 && ` (${3 - formData.vibes.length} more needed)`}
                                   </div>
+                              </div>
+                          )}
+                      </div>
+                  ) : isCreator ? (
+                      // Creator Skills Selection
+                      <div className="space-y-6">
+                          {/* Primary Skill Selection */}
+                          <div>
+                              <h3 className="font-bold text-[#1E0E62] mb-1">What is your primary expertise?</h3>
+                              <p className="text-xs text-[#8F8FA3] mb-4">Select your main professional skill or role</p>
+                              <div className="grid grid-cols-2 gap-3">
+                                  {CREATOR_INTERESTS.map(skill => {
+                                      const isSelected = formData.vibes.length > 0 && formData.vibes[0] === skill.id;
+                                      return (
+                                          <button
+                                            key={skill.id}
+                                            onClick={() => {
+                                              // Replace first item (primary skill)
+                                              const additionalSkills = formData.vibes.slice(1);
+                                              updateField('vibes', [skill.id, ...additionalSkills]);
+                                            }}
+                                            className={`p-4 rounded-2xl border-2 transition-all text-left relative ${
+                                                isSelected 
+                                                ? 'border-purple-600 bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg' 
+                                                : 'border-gray-200 bg-white hover:border-purple-300'
+                                            }`}
+                                          >
+                                              {isSelected && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check className="w-4 h-4 text-white" />
+                                                </div>
+                                              )}
+                                              <div className={`text-sm font-bold mb-1 ${isSelected ? 'text-white' : 'text-[#1E0E62]'}`}>
+                                                {skill.label}
+                                              </div>
+                                              <div className={`text-xs ${isSelected ? 'text-purple-100' : 'text-gray-500'}`}>{skill.desc}</div>
+                                          </button>
+                                      );
+                                  })}
+                              </div>
+                              
+                              {formData.vibes.length > 0 && (
+                                  <div className="mt-3 p-3 bg-purple-50 rounded-xl border border-purple-200">
+                                      <div className="flex items-center gap-2 text-sm">
+                                          <Check className="w-4 h-4 text-purple-600" />
+                                          <span className="text-purple-900 font-bold">Primary: {CREATOR_INTERESTS.find(s => s.id === formData.vibes[0])?.label}</span>
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+
+                          {/* Additional Skills Selection */}
+                          {formData.vibes.length > 0 && (
+                              <div>
+                                  <h3 className="font-bold text-[#1E0E62] mb-1">Additional skills (optional)</h3>
+                                  <p className="text-xs text-[#8F8FA3] mb-4">Select any other skills you can offer to businesses</p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                      {CREATOR_INTERESTS
+                                        .filter(skill => skill.id !== formData.vibes[0]) // Exclude primary skill
+                                        .map(skill => {
+                                          const isSelected = formData.vibes.slice(1).includes(skill.id);
+                                          return (
+                                              <button
+                                                key={skill.id}
+                                                onClick={() => {
+                                                  const primarySkill = formData.vibes[0];
+                                                  const additionalSkills = formData.vibes.slice(1);
+                                                  const updated = isSelected
+                                                    ? additionalSkills.filter(s => s !== skill.id)
+                                                    : [...additionalSkills, skill.id];
+                                                  updateField('vibes', [primarySkill, ...updated]);
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 transition-all text-left relative ${
+                                                    isSelected 
+                                                    ? 'border-purple-500 bg-purple-50 shadow-md' 
+                                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                                }`}
+                                              >
+                                                  {isSelected && (
+                                                    <div className="absolute top-2 right-2">
+                                                      <Check className="w-4 h-4 text-purple-600" />
+                                                    </div>
+                                                  )}
+                                                  <div className={`text-sm font-bold mb-1 ${isSelected ? 'text-purple-600' : 'text-[#1E0E62]'}`}>
+                                                    {skill.label}
+                                                  </div>
+                                                  <div className="text-xs text-gray-500">{skill.desc}</div>
+                                              </button>
+                                          );
+                                      })}
+                                  </div>
+                                  
+                                  {/* Selected count indicator */}
+                                  {formData.vibes.length > 1 && (
+                                      <div className="mt-4 text-center">
+                                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-purple-100 text-purple-700">
+                                              <Check className="w-4 h-4" /> {formData.vibes.length - 1} additional skill{formData.vibes.length > 2 ? 's' : ''} selected
+                                          </div>
+                                      </div>
+                                  )}
                               </div>
                           )}
                       </div>
@@ -1892,39 +2066,54 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                   <button
                                       type="button"
                                       onClick={() => updateField('businessMode', 'PHYSICAL')}
-                                      className={`p-4 rounded-2xl border-2 transition-all ${
+                                      className={`p-4 rounded-2xl border-2 transition-all relative ${
                                           formData.businessMode === 'PHYSICAL'
-                                              ? 'border-[#00E5FF] bg-pink-50'
+                                              ? 'border-blue-500 bg-blue-50'
                                               : 'border-gray-200 bg-white hover:border-gray-300'
                                       }`}
                                   >
-                                      <div className="text-2xl mb-2">🏪</div>
+                                      {formData.businessMode === 'PHYSICAL' && (
+                                        <div className="absolute top-2 right-2">
+                                          <Check className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                      )}
+                                      <Store className="w-6 h-6 mx-auto mb-2 text-blue-600" />
                                       <div className="text-xs font-bold text-[#1E0E62]">{t('signup.final.mode.physical')}</div>
                                       <div className="text-[10px] text-gray-500">{t('signup.final.mode.physicalDesc')}</div>
                                   </button>
                                   <button
                                       type="button"
                                       onClick={() => updateField('businessMode', 'ONLINE')}
-                                      className={`p-4 rounded-2xl border-2 transition-all ${
+                                      className={`p-4 rounded-2xl border-2 transition-all relative ${
                                           formData.businessMode === 'ONLINE'
-                                              ? 'border-[#00E5FF] bg-pink-50'
+                                              ? 'border-blue-500 bg-blue-50'
                                               : 'border-gray-200 bg-white hover:border-gray-300'
                                       }`}
                                   >
-                                      <div className="text-2xl mb-2">💻</div>
+                                      {formData.businessMode === 'ONLINE' && (
+                                        <div className="absolute top-2 right-2">
+                                          <Check className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                      )}
+                                      <ShoppingBag className="w-6 h-6 mx-auto mb-2 text-blue-600" />
                                       <div className="text-xs font-bold text-[#1E0E62]">{t('signup.final.mode.online')}</div>
                                       <div className="text-[10px] text-gray-500">{t('signup.final.mode.onlineDesc')}</div>
                                   </button>
                                   <button
                                       type="button"
                                       onClick={() => updateField('businessMode', 'HYBRID')}
-                                      className={`p-4 rounded-2xl border-2 transition-all ${
+                                      className={`p-4 rounded-2xl border-2 transition-all relative ${
                                           formData.businessMode === 'HYBRID'
-                                              ? 'border-[#00E5FF] bg-pink-50'
+                                              ? 'border-blue-500 bg-blue-50'
                                               : 'border-gray-200 bg-white hover:border-gray-300'
                                       }`}
                                   >
-                                      <div className="text-2xl mb-2">🌐</div>
+                                      {formData.businessMode === 'HYBRID' && (
+                                        <div className="absolute top-2 right-2">
+                                          <Check className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                      )}
+                                      <Globe className="w-6 h-6 mx-auto mb-2 text-blue-600" />
                                       <div className="text-xs font-bold text-[#1E0E62]">{t('signup.final.mode.hybrid')}</div>
                                       <div className="text-[10px] text-gray-500">{t('signup.final.mode.hybridDesc')}</div>
                                   </button>
@@ -1933,8 +2122,8 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
 
                           {/* Business Goals - what they want to achieve */}
                           <div>
-                              <h3 className="font-bold text-[#1E0E62] mb-1">I want to achieve:</h3>
-                              <p className="text-xs text-[#8F8FA3] mb-4">Select your top 3-5 marketing goals</p>
+                              <h3 className="font-bold text-[#1E0E62] mb-1">Select your business goals:</h3>
+                              <p className="text-xs text-[#8F8FA3] mb-4">Choose your top 3-5 marketing objectives</p>
                               <div className="grid grid-cols-2 gap-3">
                                   {BUSINESS_GOALS.map(goal => {
                                       const active = formData.vibes.includes(goal.id);
@@ -1942,14 +2131,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                           <button
                                             key={goal.id}
                                             onClick={() => toggleVibe(goal.id)}
-                                            className={`p-4 rounded-2xl border-2 transition-all text-left ${
+                                            className={`p-4 rounded-2xl border-2 transition-all text-left relative ${
                                                 active 
-                                                ? 'border-[#6C4BFF] bg-gradient-to-br from-purple-50 to-indigo-50 shadow-md' 
+                                                ? 'border-indigo-500 bg-indigo-50 shadow-md' 
                                                 : 'border-gray-200 bg-white hover:border-gray-300'
                                             }`}
                                           >
-                                              <div className="text-3xl mb-2">{goal.icon}</div>
-                                              <div className={`text-sm font-bold mb-1 ${active ? 'text-[#6C4BFF]' : 'text-[#1E0E62]'}`}>
+                                              {active && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check className="w-4 h-4 text-indigo-600" />
+                                                </div>
+                                              )}
+                                              <div className={`text-sm font-bold mb-1 ${active ? 'text-indigo-600' : 'text-[#1E0E62]'}`}>
                                                 {goal.label}
                                               </div>
                                               <div className="text-xs text-gray-500">{goal.desc}</div>
@@ -1963,10 +2156,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                                   <div className="mt-4 text-center">
                                       <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
                                           formData.vibes.length >= 3 
-                                          ? 'bg-purple-100 text-purple-700' 
+                                          ? 'bg-indigo-100 text-indigo-700' 
                                           : 'bg-gray-100 text-gray-600'
                                       }`}>
-                                          {formData.vibes.length >= 3 ? '✓' : '•'} {formData.vibes.length} selected
+                                          {formData.vibes.length >= 3 ? <Check className="w-4 h-4" /> : <span>•</span>} {formData.vibes.length} selected
                                           {formData.vibes.length < 3 && ` (${3 - formData.vibes.length} more recommended)`}
                                       </div>
                                   </div>
@@ -2008,7 +2201,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
 
               <Button 
                   onClick={handleSubmit} 
-                  disabled={isSubmitting || formData.vibes.length < 3}
+                  disabled={isSubmitting || (isCustomer ? formData.vibes.length < 3 : formData.vibes.length < 1)}
                   isLoading={isSubmitting}
                   className="w-full py-4 text-lg mt-4 shadow-xl shadow-[#00E5FF]/30"
               >
@@ -2018,6 +2211,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onComplete, onBack }
                       ? formData.vibes.length >= 3 
                         ? `Start Earning Rewards! 🎉`
                         : `Select ${3 - formData.vibes.length} More to Continue`
+                      : isCreator
+                        ? formData.vibes.length >= 1
+                          ? `Complete Setup! 🚀`
+                          : `Select Your Primary Skill to Continue`
                       : (formData.role === 'BUSINESS' && !formData.isAspiringBusiness) 
                         ? formData.vibes.length >= 3
                           ? t('signup.final.submitApplication')

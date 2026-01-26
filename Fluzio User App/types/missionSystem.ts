@@ -92,7 +92,7 @@ export interface MinEngagementRule {
 
 export interface SocialVerifyRule {
   type: 'SOCIAL_VERIFY';
-  platform: 'INSTAGRAM' | 'TIKTOK' | 'FACEBOOK';
+  platform: 'INSTAGRAM' | 'FACEBOOK';
   requirePublicPost: boolean;
   minFollowers?: number;
   requireHashtags?: string[];
@@ -321,7 +321,7 @@ export interface StandardMissionTemplate {
   defaultCooldown: CooldownRules;
   rewardLockDelayDays: number | null;
   requiresBusinessConfirmation: boolean;
-  minSubscriptionTier?: 'FREE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  minSubscriptionTier?: 'STARTER' | 'SILVER' | 'GOLD' | 'PLATINUM';
 }
 
 // ============================================================================

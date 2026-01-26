@@ -1,5 +1,5 @@
-import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { doc, getDoc, updateDoc, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 import { createNotification, getUserNotificationPreferences } from './notificationService';
 
 interface UserLocation {

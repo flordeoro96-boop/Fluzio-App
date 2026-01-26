@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { sendEmailVerification } from 'firebase/auth';
+import { sendEmailVerification } from '../services/authCompat';
 import { auth } from '../services/AuthContext';
 import { Mail, X, CheckCircle } from 'lucide-react';
 

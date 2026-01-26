@@ -7,7 +7,7 @@ import {
   Megaphone, TrendingUp, Coffee, Briefcase, Star, 
   CheckCircle2, ArrowLeft, Edit2, Trash2
 } from 'lucide-react';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { useAuth } from '../services/AuthContext';
 
 interface CreatorSkillsScreenProps {

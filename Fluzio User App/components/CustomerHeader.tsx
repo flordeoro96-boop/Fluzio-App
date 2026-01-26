@@ -38,11 +38,8 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
       </button>
 
       {/* Center: Logo */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none">
-        <div className="w-8 h-8 bg-gradient-to-br from-[#FFB86C] via-[#00E5FF] to-[#6C4BFF] rounded-xl text-white flex items-center justify-center shadow-lg shadow-[#00E5FF]/30 rotate-3">
-          <Sparkles className="w-5 h-5" />
-        </div>
-        <span className="font-clash font-bold text-xl text-[#1E0E62] tracking-tight hidden sm:block">Fluzio</span>
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+        <img src="/beevvy-logo.png?v=2" alt="Beevvy" className="h-10 w-auto" />
       </div>
 
       {/* Right: Actions */}

@@ -13,8 +13,8 @@ import {
   Timestamp,
   updateDoc,
   serverTimestamp 
-} from 'firebase/firestore';
-import { db } from './AuthContext';
+} from '../services/firestoreCompat';
+import { db } from './apiService';
 
 export interface MeetupChatMessage {
   id: string;

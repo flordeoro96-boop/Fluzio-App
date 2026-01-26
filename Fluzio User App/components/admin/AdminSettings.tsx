@@ -3,8 +3,8 @@ import {
   Shield, Save, RefreshCw, AlertCircle, CheckCircle,
   Database, Mail, Bell, Lock, Globe, Zap
 } from 'lucide-react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { doc, getDoc, updateDoc } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { AdminPermissions } from '../../services/adminAuthService';
 
 interface PlatformSettings {

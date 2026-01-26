@@ -1,158 +1,164 @@
 /**
- * Business Market Screen
- * Find and hire local service providers (creators) for your business
+ * Partners Screen (formerly Business Market)
+ * Find and select professionals for your project
  */
 
 import React, { useState, useEffect } from 'react';
 import {
-  Search,
+  X,
+  SlidersHorizontal,
   MapPin,
-  CheckCircle,
-  Clock,
-  Heart,
+  Star,
+  Zap,
+  Gem,
   Users,
-  Briefcase,
-  Award
+  CheckCircle
 } from 'lucide-react';
 import { User } from '../../types';
-import { getCreatorsByCity, getUserById } from '../../services/userService';
+import { getCreatorsByCity } from '../../services/userService';
 
 interface BusinessMarketScreenProps {
   user: User;
   onNavigate: (route: string) => void;
 }
 
-interface ServiceProvider {
+type ProfessionalRole = 
+  | 'photographer' 
+  | 'videographer' 
+  | 'model' 
+  | 'graphic_designer' 
+  | 'social_media_creator' 
+  | 'makeup_artist' 
+  | 'stylist';
+
+interface Professional {
   id: string;
   name: string;
-  role: string;
+  role: ProfessionalRole;
   avatar: string;
-  availability: 'available_now' | 'available_soon' | 'busy';
-  description: string;
-  specialization: string;
-  badges?: string[];
-  taskCount?: { completed: number; total: number };
-  location?: string;
+  location: string;
+  verified?: boolean;
+  fastResponder?: boolean;
+  premium?: boolean;
   rating?: number;
-  saved?: boolean;
 }
 
-
-
-const serviceCategories = [
-  'Photography',
-  'Videography',
-  'Modeling',
-  'Content Creation',
-  'Social Media',
-  'Graphic Design'
+const ROLE_OPTIONS: { value: ProfessionalRole; label: string }[] = [
+  { value: 'photographer', label: 'Photographer' },
+  { value: 'videographer', label: 'Videographer' },
+  { value: 'model', label: 'Model' },
+  { value: 'graphic_designer', label: 'Graphic Designer' },
+  { value: 'social_media_creator', label: 'Social Media Creator' },
+  { value: 'makeup_artist', label: 'Makeup Artist' },
+  { value: 'stylist', label: 'Stylist' }
 ];
+
+const ROLE_LABELS: Record<ProfessionalRole, string> = {
+  photographer: 'Photographer',
+  videographer: 'Videographer',
+  model: 'Model',
+  graphic_designer: 'Graphic Designer',
+  social_media_creator: 'Social Media Creator',
+  makeup_artist: 'Makeup Artist',
+  stylist: 'Stylist'
+};
 
 export const BusinessMarketScreen: React.FC<BusinessMarketScreenProps> = ({
   user,
   onNavigate
 }) => {
-  const [providers, setProviders] = useState<ServiceProvider[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [savedProviders, setSavedProviders] = useState<Set<string>>(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<ProfessionalRole>('photographer');
+  const [locationFilter, setLocationFilter] = useState<string>('');
+  const [countryFilter, setCountryFilter] = useState<string>('Germany');
 
   useEffect(() => {
-    loadProviders();
-  }, [user.currentCity]);
+    loadProfessionals();
+  }, [selectedRole, user.currentCity]);
 
-  const loadProviders = async () => {
+  const loadProfessionals = async () => {
     try {
       setLoading(true);
       
-      // Fetch creators from the user's city
       const city = user.currentCity || user.address?.city || 'Munich';
-      console.log('[BusinessMarket] Fetching creators for city:', city);
+      console.log('[Partners] Loading creators from city:', city);
       const creators = await getCreatorsByCity(city);
-      console.log('[BusinessMarket] Found creators:', creators.length, creators);
+      console.log('[Partners] Found creators:', creators.length);
       
-      // Convert to service providers
-      const serviceProviders: ServiceProvider[] = creators
-        .filter(creator => creator.accountType === 'creator' && creator.creator?.roles)
-        .map(creator => {
-          const roles = creator.creator?.roles || [];
-          const primaryRole = roles[0] || 'Creator';
-          const formattedRole = primaryRole.split('_').map(w => 
-            w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      // Map role names to our professional roles
+      const roleMap: Record<string, ProfessionalRole> = {
+        'photographer': 'photographer',
+        'videographer': 'videographer',
+        'model': 'model',
+        'graphic_designer': 'graphic_designer',
+        'social_media_creator': 'social_media_creator',
+        'makeup_artist': 'makeup_artist',
+        'stylist': 'stylist'
+      };
+      
+      const mappedProfessionals: Professional[] = creators
+        .filter(creator => {
+          // Check account type
+          if (creator.accountType !== 'creator') {
+            console.log('[Partners] Skipping non-creator:', creator.id, creator.accountType);
+            return false;
+          }
           
-          return {
-            id: creator.id,
-            name: creator.name,
-            role: formattedRole,
-            avatar: creator.avatarUrl || 'https://via.placeholder.com/150',
-            availability: creator.creator?.availability === 'open' ? 'available_now' : 
-                         creator.creator?.availability === 'busy' ? 'busy' : 'available_soon',
-            description: creator.bio || `Experienced ${formattedRole.toLowerCase()}`,
-            specialization: roles.slice(0, 2).map(r => 
-              r.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-            ).join(' & '),
-            location: creator.currentCity || city,
-            rating: 4.5 + Math.random(),
-            badges: roles.slice(0, 2)
-          };
-        });
+          // Get roles from multiple possible locations
+          const roles = creator.creator?.roles || 
+                       (creator.creator as any)?.role ? [(creator.creator as any).role] : 
+                       creator.category ? [creator.category] : [];
+          
+          if (!roles || roles.length === 0) {
+            console.log('[Partners] Creator has no roles:', creator.id, creator.name);
+            return false;
+          }
+          
+          console.log('[Partners] Creator roles:', creator.name, roles);
+          
+          // Check if creator has the selected role
+          const creatorRoles = roles.map(r => r.toLowerCase().replace(/\s+/g, '_'));
+          const matches = creatorRoles.some(r => 
+            r === selectedRole || 
+            roleMap[r] === selectedRole ||
+            r.includes(selectedRole.replace('_', '')) ||
+            selectedRole.includes(r)
+          );
+          
+          console.log('[Partners] Role match for', creator.name, ':', matches, 'Selected:', selectedRole, 'Has:', creatorRoles);
+          return matches;
+        })
+        .map(creator => ({
+          id: creator.id,
+          name: creator.name,
+          role: selectedRole,
+          avatar: creator.photoUrl || creator.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.name)}&background=6C4BFF&color=fff`,
+          location: creator.currentCity || city,
+          verified: creator.isVerified || false,
+          fastResponder: false,
+          premium: false,
+          rating: creator.rating || 5.0
+        }));
       
-      console.log('[BusinessMarket] Converted to service providers:', serviceProviders.length);
-      setProviders(serviceProviders);
+      console.log('[Partners] Mapped professionals:', mappedProfessionals.length);
+      setProfessionals(mappedProfessionals);
     } catch (error) {
-      console.error('[BusinessMarket] Error loading providers:', error);
+      console.error('[Partners] Error loading professionals:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getAvailabilityBadge = (availability: string) => {
-    switch (availability) {
-      case 'available_now':
-        return {
-          text: 'Available now',
-          icon: CheckCircle,
-          color: 'bg-green-100 text-green-700 border-green-200'
-        };
-      case 'available_soon':
-        return {
-          text: 'Available soon',
-          icon: Clock,
-          color: 'bg-orange-100 text-orange-700 border-orange-200'
-        };
-      default:
-        return {
-          text: 'Busy',
-          icon: Clock,
-          color: 'bg-gray-100 text-gray-600 border-gray-200'
-        };
+  const filteredProfessionals = professionals.filter(prof => {
+    if (locationFilter && !prof.location.toLowerCase().includes(locationFilter.toLowerCase())) {
+      return false;
     }
-  };
-
-  const toggleSave = (providerId: string) => {
-    setSavedProviders(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(providerId)) {
-        newSet.delete(providerId);
-      } else {
-        newSet.add(providerId);
-      }
-      return newSet;
-    });
-  };
-
-  const filteredProviders = providers.filter(provider => {
-    const matchesSearch = !searchQuery || 
-      provider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      provider.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      provider.specialization.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = !activeCategory || 
-      provider.role.toLowerCase().includes(activeCategory.toLowerCase());
-    
-    return matchesSearch && matchesCategory;
+    return true;
   });
+
+  const availableCount = filteredProfessionals.length;
 
   if (loading) {
     return (
@@ -163,137 +169,227 @@ export const BusinessMarketScreen: React.FC<BusinessMarketScreenProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white pb-24">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-[#1E0E62] mb-2">Market</h1>
-          <p className="text-gray-600 flex items-center justify-center gap-1">
-            Find and hire local service providers<br />for your business
-            <button className="text-purple-600 hover:text-purple-700">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </p>
+    <div className="min-h-screen bg-white pb-24">
+      {/* Header */}
+      <div className="p-6 pb-4">
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Partners</h1>
+            <p className="text-gray-600">Select professionals for your project</p>
+          </div>
+          <button
+            onClick={() => setShowFilters(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <SlidersHorizontal className="w-5 h-5" />
+            Filters & Sort
+          </button>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="What type of service do you need?"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-700"
-          />
+        {/* Current Filter Display */}
+        <div className="mt-4 flex items-center gap-2 text-sm">
+          <span className="font-semibold text-gray-900">Role</span>
+          <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg font-medium">
+            {ROLE_LABELS[selectedRole]}
+          </span>
+          <span className="text-gray-400">·</span>
+          <span className="text-gray-600">{countryFilter}</span>
+          <span className="text-gray-400">·</span>
+          <span className="text-gray-600 font-medium">{availableCount} available</span>
         </div>
+      </div>
 
-        {/* Category Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {serviceCategories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setActiveCategory(activeCategory === category ? null : category)}
-              className={`px-6 py-2.5 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
-                activeCategory === category
-                  ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                  : 'bg-purple-50 text-gray-700 hover:bg-purple-100'
-              }`}
+      {/* Professionals Grid */}
+      <div className="px-6">
+        <div className="grid grid-cols-2 gap-4">
+          {filteredProfessionals.map((professional) => (
+            <div
+              key={professional.id}
+              className="group relative rounded-2xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-xl transition-all"
+              onClick={() => onNavigate(`/creator/${professional.id}`)}
             >
-              {category}
-            </button>
+              {/* Professional Image */}
+              <div className="aspect-[3/4] relative overflow-hidden">
+                <img
+                  src={professional.avatar}
+                  alt={professional.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                
+                {/* Badges Overlay */}
+                <div className="absolute top-3 right-3 flex flex-col gap-2">
+                  {professional.verified && (
+                    <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-lg" title="Verified">
+                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    </div>
+                  )}
+                  {professional.fastResponder && (
+                    <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-lg" title="Fast Responder">
+                      <Zap className="w-4 h-4 text-blue-500 fill-blue-500" />
+                    </div>
+                  )}
+                  {professional.premium && (
+                    <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-lg" title="Premium">
+                      <Gem className="w-4 h-4 text-purple-500 fill-purple-500" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Info Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4">
+                  <h3 className="text-white font-bold text-lg mb-1">{professional.name}</h3>
+                  <p className="text-white/90 text-sm mb-1">{ROLE_LABELS[professional.role]}</p>
+                  <div className="flex items-center gap-1 text-white/80 text-sm">
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{professional.location}</span>
+                  </div>
+                </div>
+
+                {/* Hover CTA */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="space-y-2">
+                    <button className="w-full bg-white text-gray-900 font-semibold py-2 px-6 rounded-lg hover:bg-gray-100 transition-colors">
+                      View profile
+                    </button>
+                    <button className="w-full bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors">
+                      Add to project
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
 
-        {/* Service Provider Cards */}
-        <div className="space-y-4">
-          {filteredProviders.map((provider) => {
-            const availabilityBadge = getAvailabilityBadge(provider.availability);
-            const AvailabilityIcon = availabilityBadge.icon;
-            const isSaved = savedProviders.has(provider.id);
-
-            return (
-              <div
-                key={provider.id}
-                className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all"
-              >
-                {/* Header with Avatar and Info */}
-                <div className="flex gap-4 mb-4">
-                  <img
-                    src={provider.avatar}
-                    alt={provider.name}
-                    className="w-20 h-20 rounded-2xl object-cover flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-[#1E0E62] mb-1">
-                      {provider.name}
-                    </h3>
-                    <p className="text-gray-600 text-sm mb-2">{provider.role}</p>
-                    <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${availabilityBadge.color}`}>
-                      <AvailabilityIcon className="w-3.5 h-3.5" />
-                      {availabilityBadge.text}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
-                <p className="text-sm text-gray-700 mb-4 leading-relaxed">
-                  {provider.description}
-                </p>
-
-                {/* Badges and Actions */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {provider.badges?.map((badge, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200"
-                      >
-                        {badge}
-                      </span>
-                    ))}
-                    {provider.taskCount && (
-                      <span className="text-xs text-gray-500">
-                        {provider.taskCount.completed}/{provider.taskCount.total} tasks
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => onNavigate(`/creator/${provider.id}`)}
-                    className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-2xl hover:shadow-lg transition-all"
-                  >
-                    View Profile
-                  </button>
-                </div>
-
-                {/* Save for Later */}
-                <button
-                  onClick={() => toggleSave(provider.id)}
-                  className="w-full mt-3 flex items-center justify-center gap-2 text-gray-600 hover:text-purple-600 py-2 text-sm font-medium transition-colors"
-                >
-                  <Heart className={`w-4 h-4 ${isSaved ? 'fill-purple-600 text-purple-600' : ''}`} />
-                  {isSaved ? 'Saved for future projects' : 'Save for future projects'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
         {/* Empty State */}
-        {filteredProviders.length === 0 && (
-          <div className="text-center py-12">
+        {filteredProfessionals.length === 0 && (
+          <div className="text-center py-16">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">No service providers found</p>
-            <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              No {ROLE_LABELS[selectedRole].toLowerCase()}s found in {locationFilter || countryFilter}
+            </h3>
+            <p className="text-gray-600">
+              Try expanding location or adjusting filters
+            </p>
           </div>
         )}
       </div>
+
+      {/* Filters Drawer */}
+      {showFilters && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center md:justify-center">
+          <div className="bg-white w-full md:max-w-2xl md:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">Filters & Sort</h2>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Role Selection (MANDATORY) */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="font-bold text-gray-900">Role</h3>
+                  <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded">REQUIRED</span>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">Select exactly one role</p>
+                <div className="space-y-2">
+                  {ROLE_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                        selectedRole === option.value
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="relative">
+                        <input
+                          type="radio"
+                          name="role"
+                          value={option.value}
+                          checked={selectedRole === option.value}
+                          onChange={(e) => setSelectedRole(e.target.value as ProfessionalRole)}
+                          className="sr-only"
+                        />
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          selectedRole === option.value
+                            ? 'border-purple-500 bg-purple-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedRole === option.value && (
+                            <div className="w-2 h-2 bg-white rounded-full" />
+                          )}
+                        </div>
+                      </div>
+                      <span className="font-medium text-gray-900">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Location Filters */}
+              <div>
+                <h3 className="font-bold text-gray-900 mb-3">Location</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+                    <input
+                      type="text"
+                      value={countryFilter}
+                      onChange={(e) => setCountryFilter(e.target.value)}
+                      placeholder="e.g., Germany"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                    <input
+                      type="text"
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
+                      placeholder="e.g., Munich"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-300">
+                    <input type="checkbox" className="w-5 h-5 text-purple-600 rounded" />
+                    <span className="font-medium text-gray-900">Remote / Worldwide</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => {
+                  setLocationFilter('');
+                  setCountryFilter('Germany');
+                }}
+                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => {
+                  setShowFilters(false);
+                  loadProfessionals();
+                }}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

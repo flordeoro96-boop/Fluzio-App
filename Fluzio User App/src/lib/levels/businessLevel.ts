@@ -17,8 +17,8 @@
  *    - Admin must approve main level upgrades
  */
 
-import { db } from '../../../services/AuthContext';
-import { doc, getDoc, updateDoc, increment, Timestamp } from 'firebase/firestore';
+import { db } from '../../../services/apiService';
+import { doc, getDoc, updateDoc, increment, Timestamp } from '../../../services/firestoreCompat';
 
 // ==================== CONSTANTS ====================
 
@@ -421,7 +421,7 @@ export async function getPendingUpgradeRequests(): Promise<Array<{
   requestedAt: Date;
 }>> {
   try {
-    const { collection, query, where, getDocs } = await import('firebase/firestore');
+    const { collection, query, where, getDocs } = await import('../../../services/firestoreCompat');
     
     const usersRef = collection(db, 'users');
     const q = query(

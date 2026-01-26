@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { Mission, User, SubscriptionLevel, MissionCategory, RewardType, ProofType, BusinessCategory } from '../types';
 import { store } from '../services/mockStore';
 import { Card, Button, Modal, Input, TextArea } from './Common';
-import { Star, Instagram, Users, Video, MapPin, Lock, ChevronRight, Edit2, QrCode, Navigation } from 'lucide-react';
+import { Star, Users, Video, MapPin, Lock, ChevronRight, Edit2, QrCode, Navigation, MessageSquare, Camera, Share2 } from 'lucide-react';
 import { createMission, publishMission, getMaxParticipantsBySubscription, toggleMissionStatus } from '../services/missionService';
-import { db } from '../services/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { doc, getDoc } from '../services/firestoreCompat';
 
 // Helper to map BusinessCategory to MissionCategory
 const mapBusinessCategoryToMissionCategory = (businessCat?: BusinessCategory): MissionCategory => {
@@ -79,56 +79,47 @@ export const StandardMissionsList: React.FC<StandardMissionsListProps> = ({ miss
   console.log('[StandardMissionsList] User businessMode:', user.businessMode, 'User ID:', user.id);
 
   const getIcon = (title: string) => {
-    if (title.includes("Google")) return <Star className="w-5 h-5" />;
-    if (title.includes("Instagram")) return <Instagram className="w-5 h-5" />;
+    if (title.includes("Review")) return <Star className="w-5 h-5" />;
+    if (title.includes("Photo")) return <Camera className="w-5 h-5" />;
+    if (title.includes("Follow")) return <Users className="w-5 h-5" />;
+    if (title.includes("Share")) return <Share2 className="w-5 h-5" />;
+    if (title.includes("Visit") || title.includes("Check")) return <MapPin className="w-5 h-5" />;
     if (title.includes("Refer")) return <Users className="w-5 h-5" />;
-    if (title.includes("TikTok")) return <Video className="w-5 h-5" />;
-    if (title.includes("Facebook")) return <MapPin className="w-5 h-5" />;
     return <Star className="w-5 h-5" />;
   };
 
   const getIconColor = (title: string, isActive: boolean) => {
      if (isActive) return "text-white";
-     if (title.includes("Google")) return "text-yellow-500";
-     if (title.includes("Instagram")) return "text-pink-500";
-     if (title.includes("Refer")) return "text-blue-500";
-     if (title.includes("TikTok")) return "text-black";
-     if (title.includes("Facebook")) return "text-blue-600";
+     if (title.includes("Review")) return "text-yellow-500";
+     if (title.includes("Photo")) return "text-purple-500";
+     if (title.includes("Follow")) return "text-blue-500";
+     if (title.includes("Share")) return "text-pink-500";
+     if (title.includes("Visit") || title.includes("Check")) return "text-green-500";
+     if (title.includes("Refer")) return "text-teal-500";
      return "text-gray-500";
   };
 
   const getIconBg = (title: string, isActive: boolean) => {
       if (isActive) return "bg-gradient-to-br from-[#FFB86C] via-[#00E5FF] to-[#6C4BFF]";
-      if (title.includes("Google")) return "bg-yellow-50";
-      if (title.includes("Instagram")) return "bg-pink-50";
-      if (title.includes("Refer")) return "bg-blue-50";
-      if (title.includes("TikTok")) return "bg-gray-100";
-      if (title.includes("Facebook")) return "bg-blue-50";
+      if (title.includes("Review")) return "bg-yellow-50";
+      if (title.includes("Photo")) return "bg-purple-50";
+      if (title.includes("Follow")) return "bg-blue-50";
+      if (title.includes("Share")) return "bg-pink-50";
+      if (title.includes("Visit") || title.includes("Check")) return "bg-green-50";
+      if (title.includes("Refer")) return "bg-teal-50";
       return "bg-gray-50";
   };
 
   const isLocked = (title: string) => {
       const isFree = currentSubscription === SubscriptionLevel.FREE || currentSubscription === SubscriptionLevel.SILVER;
       
-      // TikTok missions locked for free/silver
-      if (title.includes("TikTok") && isFree) return true;
+      // All missions are now internal - no social connections needed
+      // Only subscription tiers matter
       
-      // Google missions locked if Google not connected
-      if (title.includes("Google Review")) {
-        const hasGoogle = user.socialAccounts?.google?.connected || 
-                          user.integrations?.googleBusiness?.connected;
-        return !hasGoogle;
-      }
+      // Premium missions for GOLD+ (if any future premium features)
+      // Currently all missions available for all tiers
       
-      // Instagram missions locked if Instagram not connected
-      if (title.includes("Instagram") || title.includes("Story") || 
-          title.includes("Feed") || title.includes("Reel")) {
-        const hasInstagram = user.socialAccounts?.instagram?.connected ||
-                             user.integrations?.instagram?.connected;
-        return !hasInstagram;
-      }
-      
-      return false;
+      return false; // No missions locked - all internal
   };
 
   const handleEditClick = (m: Mission) => {
@@ -503,32 +494,52 @@ export const StandardMissionsList: React.FC<StandardMissionsListProps> = ({ miss
     }
   };
 
-  // Categorize missions
-  const googleMissions = missions.filter(m => m.title.includes('Google Review'));
-  const instagramMissions = missions.filter(m => 
-    m.title.includes('Instagram') || 
-    m.title.includes('Story') || 
-    m.title.includes('Feed') || 
-    m.title.includes('Reel') ||
-    m.title.includes('Photo') && !m.title.includes('Google')
+  // Categorize missions into 7 specific categories
+  const reviewMissions = missions.filter(m => 
+    m.title.includes('Review') || m.title.includes('review')
+  );
+  
+  const socialMissions = missions.filter(m => 
+    (m.title.includes('Follow') || m.title.includes('Share') || m.title.includes('share')) &&
+    !m.title.includes('Review')
+  );
+  
+  const contentMissions = missions.filter(m => 
+    (m.title.includes('Photo') || m.title.includes('Video') || m.title.includes('UGC') || m.title.includes('Create')) &&
+    !m.title.includes('Review') && !m.title.includes('Share')
+  );
+  
+  const conversionMissions = missions.filter(m => 
+    m.title.includes('Purchase') || m.title.includes('Consultation') || m.title.includes('Redeem') || m.title.includes('Offer')
+  );
+  
+  const referralMissions = missions.filter(m => 
+    m.title.includes('Refer') || m.title.includes('Friend')
+  );
+  
+  const loyaltyMissions = missions.filter(m => 
+    m.title.includes('Loyalty') || m.title.includes('Repeat')
   );
   
   // Define which missions are in-person (these should be hidden for online-only businesses)
   const isInPersonMission = (m: Mission) => 
     m.title.includes('Visit') || 
     m.title.includes('Check-In') ||
-    m.title.includes('Friend') ||
-    m.title.includes('Consultation');
+    m.title.includes('Friend');
   
   // Filter in-person missions based on business mode (use businessMode field, not businessType)
   const businessMode = user.businessMode || 'PHYSICAL';
   const isOnlineOnly = businessMode === 'ONLINE';
-  const inPersonMissions = isOnlineOnly ? [] : missions.filter(isInPersonMission);
+  const visitMissions = isOnlineOnly ? [] : missions.filter(isInPersonMission);
   
-  // For other missions: exclude google, instagram, and ALL in-person missions (even if online-only)
+  // For other missions: exclude all categorized missions
   const otherMissions = missions.filter(m => 
-    !googleMissions.includes(m) && 
-    !instagramMissions.includes(m) && 
+    !reviewMissions.includes(m) && 
+    !socialMissions.includes(m) && 
+    !contentMissions.includes(m) && 
+    !conversionMissions.includes(m) && 
+    !referralMissions.includes(m) && 
+    !loyaltyMissions.includes(m) && 
     !isInPersonMission(m)
   );
 
@@ -583,9 +594,6 @@ export const StandardMissionsList: React.FC<StandardMissionsListProps> = ({ miss
                  )}
               </div>
               <p className="text-xs text-[#8F8FA3] font-medium truncate pr-2">{m.description}</p>
-              <p className="text-[10px] text-[#00E5FF] font-bold mt-1">
-                {t('missions.maxParticipants', { count: getMaxParticipantsBySubscription(currentSubscription) })}
-              </p>
           </button>
 
           {/* Toggle Switch */}
@@ -610,41 +618,132 @@ export const StandardMissionsList: React.FC<StandardMissionsListProps> = ({ miss
 
   return (
     <div className="space-y-6">
-       {/* Google Reviews Section */}
-       {googleMissions.length > 0 && (
+       {/* Reviews Section */}
+       {reviewMissions.length > 0 && (
          <div className="space-y-3">
            <div className="flex items-center gap-2 px-1">
              <Star className="w-4 h-4 text-yellow-500" />
-             <h4 className="font-bold text-gray-900 text-sm">⭐ Google Reviews</h4>
+             <h4 className="font-bold text-gray-900 text-sm">⭐ Reviews & Ratings</h4>
            </div>
            <div className="space-y-3">
-             {googleMissions.map(renderMission)}
+             {reviewMissions.map(renderMission)}
            </div>
          </div>
        )}
 
-       {/* Instagram / Social Media Section */}
-       {instagramMissions.length > 0 && (
+       {/* Social Actions Section */}
+       {socialMissions.length > 0 && (
          <div className="space-y-3">
            <div className="flex items-center gap-2 px-1">
-             <Instagram className="w-4 h-4 text-pink-500" />
-             <h4 className="font-bold text-gray-900 text-sm">📸 Instagram & Social</h4>
+             <Share2 className="w-4 h-4 text-pink-500" />
+             <h4 className="font-bold text-gray-900 text-sm">💗 Social Actions</h4>
            </div>
            <div className="space-y-3">
-             {instagramMissions.map(renderMission)}
+             {socialMissions.map(renderMission)}
            </div>
          </div>
        )}
 
-       {/* In-Person / Visit Section */}
-       {inPersonMissions.length > 0 && (
+       {/* Content Creation Section */}
+       {contentMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <Camera className="w-4 h-4 text-purple-500" />
+             <h4 className="font-bold text-gray-900 text-sm">📷 Content Creation</h4>
+           </div>
+           <div className="space-y-3">
+             {contentMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Visits Section */}
+       {visitMissions.length > 0 && (
          <div className="space-y-3">
            <div className="flex items-center gap-2 px-1">
              <MapPin className="w-4 h-4 text-green-500" />
-             <h4 className="font-bold text-gray-900 text-sm">📍 In-Person & Visits</h4>
+             <h4 className="font-bold text-gray-900 text-sm">📍 Visits & Check-Ins</h4>
            </div>
            <div className="space-y-3">
-             {inPersonMissions.map(renderMission)}
+             {visitMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Conversions Section */}
+       {conversionMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <MessageSquare className="w-4 h-4 text-blue-500" />
+             <h4 className="font-bold text-gray-900 text-sm">💰 Sales & Conversions</h4>
+           </div>
+           <div className="space-y-3">
+             {conversionMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Referrals Section */}
+       {referralMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <Users className="w-4 h-4 text-indigo-500" />
+             <h4 className="font-bold text-gray-900 text-sm">👥 Referrals</h4>
+           </div>
+           <div className="space-y-3">
+             {referralMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Loyalty Section */}
+       {loyaltyMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <Star className="w-4 h-4 text-orange-500" />
+             <h4 className="font-bold text-gray-900 text-sm">🏆 Loyalty Rewards</h4>
+           </div>
+           <div className="space-y-3">
+             {loyaltyMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Conversions Section */}
+       {conversionMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <MessageSquare className="w-4 h-4 text-blue-500" />
+             <h4 className="font-bold text-gray-900 text-sm">💰 Sales & Conversions</h4>
+           </div>
+           <div className="space-y-3">
+             {conversionMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Referrals Section */}
+       {referralMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <Users className="w-4 h-4 text-indigo-500" />
+             <h4 className="font-bold text-gray-900 text-sm">👥 Referrals</h4>
+           </div>
+           <div className="space-y-3">
+             {referralMissions.map(renderMission)}
+           </div>
+         </div>
+       )}
+
+       {/* Loyalty Section */}
+       {loyaltyMissions.length > 0 && (
+         <div className="space-y-3">
+           <div className="flex items-center gap-2 px-1">
+             <Star className="w-4 h-4 text-orange-500" />
+             <h4 className="font-bold text-gray-900 text-sm">🏆 Loyalty Rewards</h4>
+           </div>
+           <div className="space-y-3">
+             {loyaltyMissions.map(renderMission)}
            </div>
          </div>
        )}

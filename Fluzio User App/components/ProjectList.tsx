@@ -3,13 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Project, ProjectType } from '../types';
 import { Card } from './Common';
-import { PiggyBank, Users, Briefcase, Calendar, MapPin, FileText } from 'lucide-react';
+import { PiggyBank, Users, Briefcase, Calendar, MapPin, FileText, Crown, Sparkles, Globe } from 'lucide-react';
 import { ZeroState } from './ZeroState';
 import { getProjectApplications } from '../services/projectService';
 
 interface ProjectListProps {
   projects: Project[];
   currentUserId: string; // To determine if user is lead
+  currentUserBusinessType?: string; // Business type for matching
+  currentUserCategory?: string; // Business category for matching
   onCreateProject: () => void;
   onOpenProject: (projectId: string) => void;
 }
@@ -50,15 +52,71 @@ const formatDateRange = (dateRange: { start: string; end: string }) => {
 export const ProjectList: React.FC<ProjectListProps> = ({ 
   projects, 
   currentUserId,
+  currentUserBusinessType,
+  currentUserCategory,
   onCreateProject,
   onOpenProject 
 }) => {
   const { t } = useTranslation();
   const [applicationCounts, setApplicationCounts] = useState<Record<string, number>>({});
+  const [activeTab, setActiveTab] = useState<'your' | 'interesting' | 'all'>('your');
 
   useEffect(() => {
     loadApplicationCounts();
   }, [projects]);
+
+  // Helper function to check if a project is interesting for the current business
+  const isProjectInteresting = (project: Project): boolean => {
+    // Don't show own projects or projects already joined
+    if (project.leadBusinessId === currentUserId || 
+        project.participatingBusinesses.includes(currentUserId)) {
+      return false;
+    }
+
+    // Check if any business role matches the user's business type or category
+    return project.businessRoles.some(role => {
+      if (role.status !== 'OPEN') return false;
+      
+      const roleTitle = role.title.toLowerCase();
+      const businessType = currentUserBusinessType?.toLowerCase() || '';
+      const category = currentUserCategory?.toLowerCase() || '';
+      
+      // Check if role title contains business type or category
+      return roleTitle.includes(businessType) || 
+             roleTitle.includes(category) ||
+             (businessType && roleTitle.includes(businessType.replace(/\s+/g, ''))) ||
+             (category && roleTitle.includes(category.replace(/\s+/g, '')));
+    });
+  };
+
+  // Categorize projects
+  const yourProjects = projects.filter(p => 
+    p.leadBusinessId === currentUserId || p.participatingBusinesses.includes(currentUserId)
+  );
+  
+  const interestingProjects = projects.filter(p => isProjectInteresting(p));
+  
+  const allOtherProjects = projects.filter(p => 
+    p.leadBusinessId !== currentUserId && 
+    !p.participatingBusinesses.includes(currentUserId) &&
+    !isProjectInteresting(p)
+  );
+
+  // Get current projects based on active tab
+  const getCurrentProjects = () => {
+    switch (activeTab) {
+      case 'your':
+        return yourProjects;
+      case 'interesting':
+        return interestingProjects;
+      case 'all':
+        return allOtherProjects;
+      default:
+        return yourProjects;
+    }
+  };
+
+  const currentProjects = getCurrentProjects();
 
   const loadApplicationCounts = async () => {
     const counts: Record<string, number> = {};
@@ -80,38 +138,147 @@ export const ProjectList: React.FC<ProjectListProps> = ({
     setApplicationCounts(counts);
   };
   
-  if (projects.length === 0) {
+  // Get empty state based on active tab
+  const getEmptyState = () => {
+    switch (activeTab) {
+      case 'your':
+        return (
+          <ZeroState 
+            icon={PiggyBank}
+            title={t('business.splitCosts')}
+            description={t('business.splitCostsDescription')}
+            actionLabel={t('business.createFirstProject')}
+            onAction={onCreateProject}
+          />
+        );
+      case 'interesting':
+        return (
+          <div className="text-center py-12">
+            <Sparkles className="w-16 h-16 text-purple-300 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">No matching projects yet</h3>
+            <p className="text-gray-600">
+              We'll show you projects that need businesses like yours
+            </p>
+          </div>
+        );
+      case 'all':
+        return (
+          <div className="text-center py-12">
+            <Globe className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">No other projects</h3>
+            <p className="text-gray-600">
+              All available projects are shown in other tabs
+            </p>
+          </div>
+        );
+    }
+  };
+  
+  if (currentProjects.length === 0) {
     return (
-      <ZeroState 
-        icon={PiggyBank}
-        title={t('business.splitCosts')}
-        description={t('business.splitCostsDescription')}
-        actionLabel={t('business.createFirstProject')}
-        onAction={onCreateProject}
-      />
+      <div className="space-y-4">
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-1 flex gap-1">
+          <button
+            onClick={() => setActiveTab('your')}
+            className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'your'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Crown className="w-4 h-4" />
+            Your Projects ({yourProjects.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('interesting')}
+            className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'interesting'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            Interesting for you ({interestingProjects.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'all'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            All Others ({allOtherProjects.length})
+          </button>
+        </div>
+        
+        {getEmptyState()}
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Create New Project Button */}
-      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-gray-900 mb-1">Your Projects</h3>
-            <p className="text-sm text-gray-600">You can create and participate in multiple projects</p>
-          </div>
-          <button
-            onClick={onCreateProject}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold py-2 px-4 rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
-          >
-            <PiggyBank className="w-4 h-4" />
-            Create New Project
-          </button>
-        </div>
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-1 flex gap-1">
+        <button
+          onClick={() => setActiveTab('your')}
+          className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'your'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Crown className="w-4 h-4" />
+          Your Projects ({yourProjects.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('interesting')}
+          className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'interesting'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          Interesting ({interestingProjects.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'all'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          All Others ({allOtherProjects.length})
+        </button>
       </div>
 
-      {projects.map(project => {
+      {/* Create New Project Button - Only show in "Your Projects" tab */}
+      {activeTab === 'your' && (
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-gray-900 mb-1">Your Projects</h3>
+              <p className="text-sm text-gray-600">You can create and participate in multiple projects</p>
+            </div>
+            <button
+              onClick={onCreateProject}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold py-2 px-4 rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
+            >
+              <PiggyBank className="w-4 h-4" />
+              Create New Project
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Projects List */}
+      {currentProjects.map(project => {
         const isLead = project.leadBusinessId === currentUserId;
         const totalBusinesses = 1 + project.participatingBusinesses.length; // Lead + partners
         const filledSlots = project.slots.filter(s => s.status === 'FUNDED').length;
@@ -123,6 +290,17 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
             onClick={() => onOpenProject(project.id)}
           >
+            {/* Cover Image */}
+            {(project.coverImage || (project.images && project.images.length > 0)) && (
+              <div className="w-full h-48 overflow-hidden bg-gray-100">
+                <img 
+                  src={project.coverImage || project.images![0]} 
+                  alt={project.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            
             <div className="p-5">
               {/* A. Project Identity */}
               <div className="mb-3">
@@ -145,13 +323,19 @@ export const ProjectList: React.FC<ProjectListProps> = ({
 
               {/* C. Your Position */}
               <div className="mb-3">
-                <span className={`text-xs font-bold ${
-                  isLead 
-                    ? 'text-purple-700 bg-purple-50' 
-                    : 'text-blue-700 bg-blue-50'
-                } px-3 py-1.5 rounded-full`}>
-                  {isLead ? '👑 You are lead business' : '🤝 You are a co-partner'}
-                </span>
+                {activeTab === 'your' ? (
+                  <span className={`text-xs font-bold ${
+                    isLead 
+                      ? 'text-purple-700 bg-purple-50' 
+                      : 'text-blue-700 bg-blue-50'
+                  } px-3 py-1.5 rounded-full`}>
+                    {isLead ? '👑 You are lead business' : '🤝 You are a co-partner'}
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-full">
+                    🌟 Open to join
+                  </span>
+                )}
               </div>
 
               {/* D. Project Status */}

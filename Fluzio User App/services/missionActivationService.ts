@@ -6,8 +6,8 @@
  * Tracks user-level connection requirements for mission completion.
  */
 
-import { db } from './AuthContext';
-import { doc, getDoc, setDoc, updateDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, getDoc, setDoc, updateDoc, collection, serverTimestamp, Timestamp } from '../services/firestoreCompat';
 import { LOCKED_MISSION_CATALOG } from './lockedMissionCatalog';
 
 // ============================================================================

@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { useAuth } from '../services/AuthContext';
 import { Modal, Button, Input } from './Common';
-import { storage } from '../services/AuthContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../services/storageCompat';
+import { ref, uploadBytes, getDownloadURL } from '../services/storageCompat';
 import { 
-  X, User as UserIcon, Mail, MapPin, Tag, Edit2, Save, Instagram, Link as LinkIcon, 
+  X, User as UserIcon, Mail, MapPin, Tag, Edit2, Save, Link as LinkIcon, 
   Sparkles, Award, Calendar, Camera, Video, Briefcase, Star, TrendingUp, 
   Heart, MapPinned, Gift, Target, CheckCircle, Users, MessageCircle, Bookmark,
   Plus, Share2, BarChart3, Zap, Handshake, Folder, Medal, Trophy, CreditCard, FileText, Building2,
   Flame, Clock, Globe, ExternalLink, Copy, Bell
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { CustomerPortfolioView } from './CustomerPortfolioView';
+
+import { standardizeCityName } from '../utils/cityUtils';
 
 interface CustomerProfileModalProps {
   isOpen: boolean;
@@ -80,7 +83,8 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
       const updates: any = {
         name: editedName,
         bio: editedBio,
-        homeCity: editedCity,
+        homeCity: standardizeCityName(editedCity), // Standardize to English
+        city: standardizeCityName(editedCity), // Also update city field
         country: editedCountry,
         instagram: editedInstagram.replace('@', ''),
         website: editedWebsite
@@ -361,7 +365,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full text-xs font-bold hover:shadow-lg transition-all"
             >
-              <Instagram className="w-3.5 h-3.5" />
+              <Globe className="w-3.5 h-3.5" />
               {displayHandle}
             </a>
           )}
@@ -598,25 +602,8 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">📸 {t('customerProfile.portfolio')}</h4>
-                  {isOwner && (
-                    <button className="text-xs text-[#00E5FF] font-bold hover:underline flex items-center gap-1">
-                      <Plus className="w-3 h-3" />
-                      {t('linkedAccounts.add')}
-                    </button>
-                  )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {/* Placeholder portfolio items */}
-                  <div className="aspect-square bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center cursor-pointer hover:scale-105 transition-transform">
-                    <Camera className="w-8 h-8 text-purple-400" />
-                  </div>
-                  <div className="aspect-square bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center cursor-pointer hover:scale-105 transition-transform">
-                    <Video className="w-8 h-8 text-blue-400" />
-                  </div>
-                  <div className="aspect-square bg-gradient-to-br from-orange-100 to-pink-100 rounded-xl flex items-center justify-center cursor-pointer hover:scale-105 transition-transform">
-                    <Briefcase className="w-8 h-8 text-orange-400" />
-                  </div>
-                </div>
+                <CustomerPortfolioView userId={authUser?.uid || user.firebaseUid} isOwner={isOwner} />
               </div>
 
               {/* Reviews */}

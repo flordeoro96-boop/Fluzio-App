@@ -28,8 +28,8 @@ import { getUserProgression } from '../../services/progressionService';
 import { generateMeetupRecommendationReason } from '../../services/openaiService';
 import { updateLoginStreak, getUserGamification, claimStreakRewards } from '../../services/gamificationService';
 import { claimDailyStreakReward, canClaimToday, getStreakStatusMessage, getNextMilestone } from '../../services/dailyStreakService';
-import { db } from '../../services/AuthContext';
-import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { db } from '../../services/apiService';
+import { collection, query, where, getDocs, orderBy, limit, Timestamp } from '../../services/firestoreCompat';
 
 /**
  * Helper functions for time formatting
@@ -78,7 +78,17 @@ import { store } from '../../services/mockStore';
 import { UserRole } from '../../types';
 import { Meetup } from '../../types';
 import { NearbyBusinesses } from '../../components/NearbyBusinesses';
+import { AIRecommendationsWidget } from '../../components/AIRecommendationsWidget';
 import { getCurrentLocation } from '../../services/locationService';
+import { CreatorAnalyticsDashboard } from '../../components/CreatorAnalyticsDashboard';
+import { CreatorBookingsDashboard } from '../../components/CreatorBookingsDashboard';
+import CreatorAcademy from '../components/CreatorAcademy';
+import MediaKitGenerator from '../components/MediaKitGenerator';
+import { SmartOpportunityAlerts } from '../../components/SmartOpportunityAlerts';
+import CreatorPayments from '../../components/CreatorPayments';
+import CompetitiveInsights from '../../components/CompetitiveInsights';
+import CreatorGoalsGamification from '../../components/CreatorGoalsGamification';
+import CreatorProtection from '../../components/CreatorProtection';
 
 // ============================================================================
 // TYPES
@@ -228,6 +238,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const [claimingDailyStreak, setClaimingDailyStreak] = useState(false);
   const [dailyStreakClaimed, setDailyStreakClaimed] = useState(false);
   const [showXPClaimModal, setShowXPClaimModal] = useState(false);
+  
+  // Creator subtabs
+  const [creatorActiveTab, setCreatorActiveTab] = useState<'analytics' | 'business' | 'growth'>('analytics');
   
   const [errorMissions, setErrorMissions] = useState<string | null>(null);
   const [errorEvents, setErrorEvents] = useState<string | null>(null);
@@ -745,95 +758,145 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
         
-        {/* Points and Level */}
-        <div className="flex items-center gap-3">
-          <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2">
-            <Zap className="w-4 h-4 text-yellow-300" />
-            <span className="font-semibold">{userPoints} pts</span>
-          </div>
-          <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-yellow-300" />
-            <span className="font-semibold">{t('home.level')} {calculatedLevel}</span>
-          </div>
-        </div>
+        {/* Points and Level - Only for non-creators */}
+        {userProfile?.role !== 'CREATOR' && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-300" />
+                <span className="font-semibold">{userPoints} pts</span>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-300" />
+                <span className="font-semibold">{t('home.level')} {calculatedLevel}</span>
+              </div>
+            </div>
 
-        {/* Points Progress Bar */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-white/80">{t('home.progressToLevel')} {calculatedLevel + 1}</span>
-            <span className="text-white font-semibold">
-              {Math.round(levelProgress.currentLevelPoints)} / {Math.round(levelProgress.nextLevelPoints)} pts
-            </span>
-          </div>
-          <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-yellow-300 to-orange-300 h-full rounded-full transition-all duration-500"
-              style={{ width: `${levelProgress.progress}%` }}
-            />
-          </div>
-        </div>
+            {/* Points Progress Bar */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-white/80">{t('home.progressToLevel')} {calculatedLevel + 1}</span>
+                <span className="text-white font-semibold">
+                  {Math.round(levelProgress.currentLevelPoints)} / {Math.round(levelProgress.nextLevelPoints)} pts
+                </span>
+              </div>
+              <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-yellow-300 to-orange-300 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${levelProgress.progress}%` }}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Content Sections */}
-      <div className="p-4 space-y-6 mt-4">
-
-        {/* Gamification Actions */}
-        <section>
-          <div className="grid grid-cols-2 gap-3">
-            {/* Daily Challenges Button */}
+      {/* Creator Subtabs Navigation - Only for Creators */}
+      {userProfile?.role === 'CREATOR' && (
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+          <div className="flex overflow-x-auto no-scrollbar">
             <button
-              onClick={() => setShowChallengesModal(true)}
-              className="bg-gradient-to-r from-[#00E5FF] to-[#6C4BFF] text-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all flex items-center justify-between"
+              onClick={() => setCreatorActiveTab('analytics')}
+              className={`flex-1 min-w-[120px] px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all ${
+                creatorActiveTab === 'analytics'
+                  ? 'text-[#00E5FF] border-b-2 border-[#00E5FF] bg-blue-50/50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <Target className="w-5 h-5" />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-bold">{t('home.dailyChallenges')}</div>
-                  <div className="text-xs text-white/80">{t('home.earnBonusXp')}</div>
-                </div>
-              </div>
-              <ArrowRight className="w-5 h-5" />
+              📈 Analytics
             </button>
-
-            {/* Leaderboard Button */}
             <button
-              onClick={() => setShowLeaderboardModal(true)}
-              className="bg-gradient-to-r from-[#FFB86C] to-[#00E5FF] text-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all flex items-center justify-between"
+              onClick={() => setCreatorActiveTab('business')}
+              className={`flex-1 min-w-[120px] px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all ${
+                creatorActiveTab === 'business'
+                  ? 'text-[#00E5FF] border-b-2 border-[#00E5FF] bg-blue-50/50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <Trophy className="w-5 h-5" />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-bold">{t('home.leaderboard')}</div>
-                  <div className="text-xs text-white/80">{t('home.seeYourRank')}</div>
-                </div>
-              </div>
-              <ArrowRight className="w-5 h-5" />
+              💼 Business
+            </button>
+            <button
+              onClick={() => setCreatorActiveTab('growth')}
+              className={`flex-1 min-w-[120px] px-4 py-3 text-sm font-semibold whitespace-nowrap transition-all ${
+                creatorActiveTab === 'growth'
+                  ? 'text-[#00E5FF] border-b-2 border-[#00E5FF] bg-blue-50/50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              🚀 Growth
             </button>
           </div>
-        </section>
+        </div>
+      )}
 
-        {/* Nearby Businesses Section - Proximity Check-ins */}
-        {userLocation && (
-          <section>
-            <NearbyBusinesses
-              userId={userProfile.id}
-              userLatitude={userLocation.latitude}
-              userLongitude={userLocation.longitude}
-              onBusinessClick={(businessId) => {
-                if (onNavigate) {
-                  onNavigate('BusinessProfile', { businessId });
-                }
-              }}
-            />
-          </section>
-        )}
+      {/* Creator Analytics Dashboard - Only for Creators */}
+      {userProfile?.role === 'CREATOR' && creatorActiveTab === 'analytics' && (
+        <div className="p-4 mt-4">
+          <CreatorAnalyticsDashboard 
+            creatorId={userProfile.uid}
+            creatorName={userProfile.name || userProfile.displayName || 'Creator'}
+          />
+        </div>
+      )}
 
-        {/* Active Missions Widget */}
-        {activeMissions.length > 0 && (
+      {/* Creator Bookings Dashboard - Only for Creators */}
+      {userProfile?.role === 'CREATOR' && creatorActiveTab === 'business' && (
+        <div className="p-4 mt-4">
+          <CreatorBookingsDashboard 
+            creatorId={userProfile.uid}
+            creatorName={userProfile.name || userProfile.displayName || 'Creator'}
+          />
+        </div>
+      )}
+
+      {/* Payment & Invoicing - Only for Creators */}
+      {userProfile?.role === 'CREATOR' && creatorActiveTab === 'business' && (
+        <div className="p-4 mt-4">
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl p-6 text-white mb-4">
+            <h2 className="text-2xl font-bold mb-2">Payment & Invoicing</h2>
+            <p className="text-sm opacity-90">Manage invoices, track earnings, and get paid</p>
+          </div>
+          <CreatorPayments 
+            creatorId={userProfile.uid}
+            creatorName={userProfile.name || userProfile.displayName || 'Creator'}
+          />
+        </div>
+      )}
+
+      {/* Goals & Achievements - Only for Creators */}
+      {userProfile?.role === 'CREATOR' && creatorActiveTab === 'growth' && (
+        <div className="p-4 mt-4">
+          <div className="bg-gradient-to-r from-pink-600 to-rose-600 rounded-xl p-6 text-white mb-4">
+            <h2 className="text-2xl font-bold mb-2">Goals & Achievements</h2>
+            <p className="text-sm opacity-90">Track progress and earn rewards</p>
+          </div>
+          <CreatorGoalsGamification 
+            creatorId={userProfile.uid}
+            creatorName={userProfile.name || userProfile.displayName || 'Creator'}
+          />
+        </div>
+      )}
+
+      {/* Smart Opportunity Alerts - Only for Creators */}
+      {userProfile?.role === 'CREATOR' && creatorActiveTab === 'growth' && (
+        <div className="p-4 mt-4">
+          <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl p-6 text-white mb-4">
+            <h2 className="text-2xl font-bold mb-2">Smart Opportunity Alerts</h2>
+            <p className="text-sm opacity-90">AI-powered opportunities matched to your skills</p>
+          </div>
+          <SmartOpportunityAlerts 
+            creatorId={userProfile.uid}
+            creatorName={userProfile.name || userProfile.displayName || 'Creator'}
+          />
+        </div>
+      )}
+
+      {/* Content Sections - Only for customers/members */}
+      {(userProfile?.role === 'MEMBER' || !userProfile?.role) && (
+        <div className="p-4 space-y-6 mt-4">
+
+          {/* Active Missions Widget - Only for customers */}
+          {activeMissions.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -875,7 +938,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </section>
         )}
 
-        {/* Completed Missions Widget */}
+        {/* Completed Missions Widget - Only for customers */}
         {completedMissions.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-3">
@@ -1041,7 +1104,42 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </section>
         )}
         
-        {/* AI-Powered Recommendations Section */}
+        {/* Nearby Businesses Section - Only for customers */}
+        <section>
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin className="w-5 h-5 text-[#FFB86C]" />
+              <h2 className="text-lg font-bold text-[#1E0E62]">Businesses Around You</h2>
+            </div>
+            <p className="text-xs text-[#8F8FA3] ml-7">
+              Discover places near your location
+            </p>
+          </div>
+          {userLocation ? (
+            <NearbyBusinesses 
+              userId={userProfile?.uid || ''}
+              userLatitude={userLocation.latitude}
+              userLongitude={userLocation.longitude}
+              onBusinessClick={(businessId: string) => {
+                // Convert businessId to BusinessProfile for handleBusinessClick
+                const business = { id: businessId } as any;
+                handleBusinessClick(business);
+              }}
+            />
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <MapPin className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>Getting your location...</p>
+            </div>
+          )}
+        </section>
+
+        {/* AI Recommendations Widget */}
+        <section className="mb-6">
+          <AIRecommendationsWidget />
+        </section>
+
+        {/* AI-Powered Recommendations Section - Only for customers */}
         <section>
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
@@ -1162,6 +1260,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           </section>
         )}
       </div>
+      )}
 
       {/* Gamification Modals */}
       <DailyChallengesModal 

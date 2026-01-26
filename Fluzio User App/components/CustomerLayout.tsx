@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { User } from '../types';
-import { Home, Search, Gift, Target, Calendar } from 'lucide-react';
+import { Home, Search, Gift, Target, Calendar, LayoutGrid } from 'lucide-react';
 import { CustomerHeader } from './CustomerHeader';
 import { UserSwitcher } from './UserSwitcher';
 import { store } from '../services/mockStore';
@@ -9,9 +9,9 @@ import { startGeofencing, isGeofencingActive } from '../services/geofencingServi
 
 export enum CustomerTab {
   HOME = 'HOME',
+  FEED = 'FEED',
   DISCOVER = 'DISCOVER',
-  REWARDS = 'REWARDS',
-  MISSIONS = 'MISSIONS',
+  EARN = 'EARN',
   EVENTS = 'EVENTS'
 }
 
@@ -62,9 +62,9 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({
   
   const tabs = [
     { id: CustomerTab.HOME, icon: Home, label: t('navigation.home'), dataAttr: 'home-tab' },
+    { id: CustomerTab.FEED, icon: LayoutGrid, label: 'Feed', dataAttr: 'feed-tab' },
     { id: CustomerTab.DISCOVER, icon: Search, label: t('navigation.explore'), dataAttr: 'explore-tab' },
-    { id: CustomerTab.REWARDS, icon: Gift, label: t('navigation.rewards'), dataAttr: 'rewards-tab' },
-    { id: CustomerTab.MISSIONS, icon: Target, label: t('navigation.missions'), dataAttr: 'missions-tab' },
+    { id: CustomerTab.EARN, icon: Target, label: 'Earn', dataAttr: 'earn-tab' },
     { id: CustomerTab.EVENTS, icon: Calendar, label: t('navigation.events'), dataAttr: 'meetups-tab' },
   ];
 

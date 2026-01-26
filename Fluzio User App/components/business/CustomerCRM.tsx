@@ -5,8 +5,8 @@ import {
   ChevronDown, X, Edit, Trash2, Plus, MessageSquare
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { db } from '../../services/AuthContext';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../../services/apiService';
+import { collection, query, where, getDocs, orderBy } from '../../services/firestoreCompat';
 
 interface Customer {
   userId: string;

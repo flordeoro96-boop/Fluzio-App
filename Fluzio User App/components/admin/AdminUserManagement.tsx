@@ -4,8 +4,8 @@ import {
   CheckCircle, XCircle, Crown, MapPin, Calendar, Mail,
   Phone, Shield, Award, TrendingUp
 } from 'lucide-react';
-import { collection, getDocs, updateDoc, doc, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, getDocs, updateDoc, doc, deleteDoc, query, orderBy, limit } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { AdminPermissions, filterByScope, canPerformAction } from '../../services/adminAuthService';
 
 interface User {

@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, query, where, getDocs, orderBy, limit } from '../services/firestoreCompat';
 
 /**
  * Advanced Filter Service

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, BellOff, Mail, Smartphone, Clock, MapPin, Save, X } from 'lucide-react';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { doc, getDoc, setDoc, Timestamp } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 import { useAuth } from '../services/AuthContext';
 
 export interface NotificationPreferences {

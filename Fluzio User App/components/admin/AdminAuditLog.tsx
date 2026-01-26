@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, query, orderBy, limit, getDocs, where, Timestamp } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { Download, Filter, RefreshCw, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import './AdminAuditLog.css';

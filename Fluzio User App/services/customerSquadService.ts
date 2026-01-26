@@ -1,5 +1,5 @@
-import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 import { User } from '../types';
 
 export interface SquadMember {

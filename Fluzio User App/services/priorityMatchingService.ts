@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, getDoc } from '../services/firestoreCompat';
 import { Project } from '../types';
 import { getUserFeatures } from './creatorPlusService';
 

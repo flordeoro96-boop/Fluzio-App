@@ -3,7 +3,7 @@
  * Manages creator's business connections and collaborator relationships
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   query, 
@@ -11,7 +11,7 @@ import {
   getDocs,
   doc as firebaseDoc,
   getDoc
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 
 export interface BusinessConnection {
   id: string;

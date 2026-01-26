@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { User, SubscriptionLevel } from '../types';
 import { MapPin, X, Globe, Clock, Check } from 'lucide-react';
-import { db } from '../services/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { doc, updateDoc } from '../services/firestoreCompat';
 
 interface LocationChangeModalProps {
   isOpen: boolean;

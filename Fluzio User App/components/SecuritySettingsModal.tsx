@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Shield, Smartphone, Clock, MapPin, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
-import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 import { TwoFactorAuth } from './security/TwoFactorAuth';
 import { SecurityDashboard } from './security/SecurityDashboard';
 

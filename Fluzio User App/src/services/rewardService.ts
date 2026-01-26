@@ -17,8 +17,8 @@ import {
   deleteDoc,
   Timestamp,
   DocumentData
-} from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+} from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { Reward } from '../types/models';
 
 // ============================================================================

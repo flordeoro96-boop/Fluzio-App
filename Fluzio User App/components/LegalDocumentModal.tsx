@@ -17,11 +17,11 @@ const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({ isOpen, onClose
           sections: [
             {
               heading: '1. Acceptance of Terms',
-              content: 'By accessing and using Fluzio ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to these Terms of Service, please do not use the Service.'
+              content: 'By accessing and using Beevvy ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to these Terms of Service, please do not use the Service.'
             },
             {
               heading: '2. Description of Service',
-              content: 'Fluzio is a platform that connects users with local businesses through missions, rewards, and community events. The Service allows users to discover businesses, complete missions, earn rewards, and participate in meetups.'
+              content: 'Beevvy is a platform that connects users with local businesses through missions, rewards, and community events. The Service allows users to discover businesses, complete missions, earn rewards, and participate in meetups.'
             },
             {
               heading: '3. User Accounts',
@@ -37,11 +37,11 @@ const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({ isOpen, onClose
             },
             {
               heading: '6. Intellectual Property',
-              content: 'The Service and its original content, features, and functionality are owned by Fluzio and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws. You may not modify, reproduce, distribute, create derivative works of, publicly display, or exploit the Service without our prior written consent.'
+              content: 'The Service and its original content, features, and functionality are owned by Beevvy and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws. You may not modify, reproduce, distribute, create derivative works of, publicly display, or exploit the Service without our prior written consent.'
             },
             {
               heading: '7. User-Generated Content',
-              content: 'You retain ownership of content you submit to the Service. By submitting content, you grant Fluzio a worldwide, non-exclusive, royalty-free license to use, reproduce, modify, adapt, publish, and distribute such content in connection with the Service.'
+              content: 'You retain ownership of content you submit to the Service. By submitting content, you grant Beevvy a worldwide, non-exclusive, royalty-free license to use, reproduce, modify, adapt, publish, and distribute such content in connection with the Service.'
             },
             {
               heading: '8. Privacy',
@@ -53,7 +53,7 @@ const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({ isOpen, onClose
             },
             {
               heading: '10. Limitation of Liability',
-              content: 'To the maximum extent permitted by law, Fluzio shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses.'
+              content: 'To the maximum extent permitted by law, Beevvy shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses.'
             },
             {
               heading: '11. Changes to Terms',
@@ -61,7 +61,7 @@ const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({ isOpen, onClose
             },
             {
               heading: '12. Contact Information',
-              content: 'If you have any questions about these Terms, please contact us at legal@fluzio.com'
+              content: 'If you have any questions about these Terms, please contact us at legal@beevvy.com'
             }
           ]
         };
@@ -121,7 +121,7 @@ const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({ isOpen, onClose
             },
             {
               heading: '13. Contact Us',
-              content: 'For privacy-related questions or to exercise your rights, contact us at privacy@fluzio.com'
+              content: 'For privacy-related questions or to exercise your rights, contact us at privacy@beevvy.com'
             }
           ]
         };
@@ -212,9 +212,9 @@ const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({ isOpen, onClose
           {/* Footer */}
           <div className="border-t pt-6 mt-8">
             <p className="text-sm text-gray-600 text-center">
-              By using Fluzio, you agree to these terms. For questions, contact us at{' '}
-              <a href="mailto:legal@fluzio.com" className="text-purple-600 hover:text-purple-700 font-medium">
-                legal@fluzio.com
+              By using Beevvy, you agree to these terms. For questions, contact us at{' '}
+              <a href="mailto:legal@beevvy.com" className="text-purple-600 hover:text-purple-700 font-medium">
+                legal@beevvy.com
               </a>
             </p>
           </div>

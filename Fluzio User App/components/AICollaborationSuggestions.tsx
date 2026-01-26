@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { User, CollaborationSuggestion } from '../types';
 import { Sparkles, TrendingUp, MessageCircle, Eye, Loader2, MapPin } from 'lucide-react';
-import { db } from '../services/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { doc, getDoc } from '../services/firestoreCompat';
 
 interface AICollaborationSuggestionsProps {
   user: User;
@@ -29,6 +29,16 @@ export const AICollaborationSuggestions: React.FC<AICollaborationSuggestionsProp
     setError(null);
 
     try {
+      // TODO: Replace with Supabase Edge Function or skip for now
+      // Firebase Cloud Functions are no longer available
+      console.log('[AICollabSuggestions] Feature temporarily disabled - Firebase Cloud Functions not available');
+      
+      setSuggestions([]);
+      setError('AI Collaboration Suggestions temporarily unavailable');
+      setLoading(false);
+      return;
+      
+      /* Original Firebase Cloud Function call - commented out
       const response = await fetch(
         'https://us-central1-fluzio-13af2.cloudfunctions.net/generateCollaborationSuggestions',
         {
@@ -68,6 +78,7 @@ export const AICollaborationSuggestions: React.FC<AICollaborationSuggestionsProp
       );
 
       setSuggestions(enrichedSuggestions);
+      */
     } catch (err: any) {
       console.error('Error fetching suggestions:', err);
       setError(err.message || 'Failed to load suggestions');

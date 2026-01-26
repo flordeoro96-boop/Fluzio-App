@@ -3,7 +3,9 @@
  * Fetches verified business data from Google Business Profile API
  */
 
-import { auth } from './AuthContext';
+import { getAuth } from './authCompat';
+
+const auth = getAuth();
 import { api } from './apiService';
 
 export interface GoogleBusinessLocation {

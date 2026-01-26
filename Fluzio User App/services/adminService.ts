@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, Timestamp, increment } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, Timestamp, increment } from '../services/firestoreCompat';
 import { MeetupCategory } from '../types';
 
 /**

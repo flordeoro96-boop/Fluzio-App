@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Button, Input } from './Common';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { sendPasswordResetEmail } from '../services/authCompat';
 import { auth } from '../services/AuthContext';
 import { Mail, CheckCircle, AlertCircle } from 'lucide-react';
 

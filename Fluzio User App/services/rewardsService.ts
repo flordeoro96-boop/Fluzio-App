@@ -3,7 +3,7 @@
  * Manages rewards catalog and customer redemptions
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import {
   collection,
   doc,
@@ -17,7 +17,7 @@ import {
   orderBy,
   Timestamp,
   increment
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { Reward, CustomerRedemption, RewardCategory } from '../types/rewards';
 import { secureApi } from './secureApiService';
 import { createNotification } from './notificationService';

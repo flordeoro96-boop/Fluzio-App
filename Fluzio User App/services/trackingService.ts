@@ -3,7 +3,10 @@
  * Handles creator and regular customer tracking for businesses
  */
 
-import { db, auth } from './AuthContext';
+import { db } from './apiService';
+import { getAuth } from './authCompat';
+
+const auth = getAuth();
 import { 
   collection, 
   doc, 
@@ -17,7 +20,7 @@ import {
   increment,
   serverTimestamp,
   Timestamp
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { CreatorInsight, RegularInsight } from '../types';
 
 interface TrackEventData {
@@ -160,9 +163,6 @@ export async function getTopCreators(
           let totalReach = 0;
           if (userData.socialAccounts?.instagram?.followers) {
             totalReach += userData.socialAccounts.instagram.followers;
-          }
-          if (userData.socialAccounts?.tiktok?.followers) {
-            totalReach += userData.socialAccounts.tiktok.followers;
           }
           if (userData.followersCount) {
             totalReach += userData.followersCount;

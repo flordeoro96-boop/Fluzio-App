@@ -1,5 +1,5 @@
-import { doc, updateDoc, increment, arrayUnion, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { doc, updateDoc, increment, arrayUnion, getDoc, setDoc, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 import { PassportStamp } from '../types';
 
 interface UserProgression {
@@ -297,7 +297,7 @@ export async function getUserProgression(userId: string): Promise<UserProgressio
  */
 export async function getMeetupHistory(userId: string, limit: number = 20): Promise<any[]> {
   try {
-    const { collection, query, orderBy, limit: limitQuery, getDocs } = await import('firebase/firestore');
+    const { collection, query, orderBy, limit: limitQuery, getDocs } = await import('./firestoreCompat');
     
     const historyRef = collection(db, 'users', userId, 'meetupHistory');
     const q = query(historyRef, orderBy('completedAt', 'desc'), limitQuery(limit));

@@ -1,0 +1,104 @@
+[
+  {
+    "contentType": "EXPERIENCE_POST",
+    "createdBy": "test-user-001",
+    "creatorName": "Sarah Martinez",
+    "creatorAvatar": "https://i.pravatar.cc/150?img=1",
+    "creatorRole": "MEMBER",
+    "caption": "Just discovered this amazing coffee shop in Berlin Mitte! ☕✨ Perfect spot for working or meeting friends. The flat white is incredible and the vibe is so cozy!",
+    "media": [
+      {
+        "id": "m1",
+        "type": "IMAGE",
+        "url": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800",
+        "order": 0
+      }
+    ],
+    "location": {
+      "name": "Café Mitte, Berlin",
+      "city": "Berlin",
+      "country": "Germany",
+      "geo": {
+        "_latitude": 52.5200,
+        "_longitude": 13.4050
+      }
+    },
+    "tags": ["coffee", "cafe", "berlin", "mitte"],
+    "status": "PUBLISHED",
+    "moderationStatus": "APPROVED",
+    "viewCount": 0,
+    "saveCount": 0,
+    "shareCount": 0,
+    "createdAt": "2025-12-31T12:00:00.000Z",
+    "publishedAt": "2025-12-31T12:00:00.000Z",
+    "updatedAt": "2025-12-31T12:00:00.000Z"
+  },
+  {
+    "contentType": "EVENT_PREVIEW",
+    "createdBy": "test-user-002",
+    "creatorName": "Community Berlin",
+    "creatorAvatar": "https://i.pravatar.cc/150?img=10",
+    "creatorRole": "MEMBER",
+    "caption": "Join us this Saturday for a community brunch at the park! 🌳🥐 Bring your friends, meet new people, and enjoy great food. Starting at 11 AM!",
+    "media": [
+      {
+        "id": "m2",
+        "type": "IMAGE",
+        "url": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800",
+        "order": 0
+      }
+    ],
+    "location": {
+      "name": "Volkspark Friedrichshain",
+      "city": "Berlin",
+      "country": "Germany",
+      "geo": {
+        "_latitude": 52.5260,
+        "_longitude": 13.4290
+      }
+    },
+    "tags": ["event", "brunch", "community", "berlin"],
+    "status": "PUBLISHED",
+    "moderationStatus": "APPROVED",
+    "viewCount": 0,
+    "saveCount": 0,
+    "shareCount": 0,
+    "createdAt": "2025-12-31T10:00:00.000Z",
+    "publishedAt": "2025-12-31T10:00:00.000Z",
+    "updatedAt": "2025-12-31T10:00:00.000Z"
+  },
+  {
+    "contentType": "MOMENT",
+    "createdBy": "test-user-003",
+    "creatorName": "Lisa Chen",
+    "creatorAvatar": "https://i.pravatar.cc/150?img=25",
+    "creatorRole": "MEMBER",
+    "caption": "Beautiful sunset from Tempelhofer Feld tonight 🌅 Love this city!",
+    "media": [
+      {
+        "id": "m3",
+        "type": "IMAGE",
+        "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
+        "order": 0
+      }
+    ],
+    "location": {
+      "name": "Tempelhofer Feld",
+      "city": "Berlin",
+      "country": "Germany",
+      "geo": {
+        "_latitude": 52.4730,
+        "_longitude": 13.4015
+      }
+    },
+    "tags": ["sunset", "berlin", "nature"],
+    "status": "PUBLISHED",
+    "moderationStatus": "APPROVED",
+    "viewCount": 0,
+    "saveCount": 0,
+    "shareCount": 0,
+    "createdAt": "2025-12-31T08:00:00.000Z",
+    "publishedAt": "2025-12-31T08:00:00.000Z",
+    "updatedAt": "2025-12-31T08:00:00.000Z"
+  }
+]

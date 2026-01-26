@@ -4,30 +4,29 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import {
-  User,
-  getAuth,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  GoogleAuthProvider,
-  OAuthProvider,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  UserCredential,
-} from "firebase/auth";
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { supabase } from "./supabaseClient";
+import { User as SupabaseUser, Session, AuthError } from "@supabase/supabase-js";
 import { api } from "./apiService";
 import { setAnalyticsUserId, setAnalyticsUserProperties, trackLogin, trackSignUp } from "./firebaseAnalytics";
 import { setSentryUser, clearSentryUser } from "./sentryService";
+
+// Note: db, auth, storage are exported from apiService
+// Use supabase directly from services/supabaseClient.ts
+
+// Compatibility type to match Firebase User structure
+export interface User {
+  uid: string;
+  email: string | null;
+  emailVerified: boolean;
+  displayName?: string | null;
+  photoURL?: string | null;
+}
 
 export interface UserProfile {
   uid: string;
   email: string;
   emailVerified?: boolean;
-  role: "CREATOR" | "BUSINESS";
+  role: "CREATOR" | "BUSINESS" | "MEMBER" | "ADMIN";
   name?: string;
   city?: string;
   homeCity?: string;
@@ -61,22 +60,21 @@ export interface UserProfile {
   [key: string]: any;
 }
 
-// ---------- Firebase Init (client) ----------
+// Compatibility type for auth responses
+interface UserCredential {
+  user: User;
+}
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+// Helper to convert Supabase user to our User type
+const convertSupabaseUser = (supabaseUser: SupabaseUser): User => {
+  return {
+    uid: supabaseUser.id,
+    email: supabaseUser.email || null,
+    emailVerified: !!supabaseUser.email_confirmed_at,
+    displayName: supabaseUser.user_metadata?.name || null,
+    photoURL: supabaseUser.user_metadata?.avatar_url || null,
+  };
 };
-
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
 
 // ---------- Auth Context Types ----------
 
@@ -120,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  // Load user profile from backend (Cloud Function -> Firestore)
+  // Load user profile from backend
   const loadUserProfile = async (uid: string) => {
     setLoadingProfile(true);
     try {
@@ -128,16 +126,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const result = await api.getUser(uid);
 
       if (result.success && result.user) {
-        console.log("📦 [AuthContext] Firestore returned profile:");
+        console.log("📦 [AuthContext] Backend returned profile:");
         console.log("  Email:", result.user.email);
         console.log("  Name:", result.user.name);
         console.log("  Role:", result.user.role);
         console.log("  Full data:", result.user);
         
-        // Add emailVerified from Firebase Auth
+        // Add emailVerified from Supabase Auth
+        const session = await supabase.auth.getSession();
         const profileWithVerification = {
           ...result.user,
-          emailVerified: auth.currentUser?.emailVerified || false
+          emailVerified: !!session.data.session?.user.email_confirmed_at
         } as UserProfile;
         
         setUserProfile(profileWithVerification);
@@ -186,8 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     try {
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, updates);
+      // Update via API (which will update the database)
+      await api.updateUser(user.uid, updates);
       
       // Refresh the profile to get updated data
       await loadUserProfile(user.uid);
@@ -199,73 +198,132 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Listen to auth state changes (login / logout)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("[AuthContext] onAuthStateChanged:", firebaseUser?.uid);
-      setUser(firebaseUser);
-
-      if (firebaseUser) {
-        await loadUserProfile(firebaseUser.uid);
-        
-        // Set analytics user ID
-        setAnalyticsUserId(firebaseUser.uid);
-      } else {
-        setUserProfile(null);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("[AuthContext] Initial session:", session?.user?.id);
+      const supaUser = session?.user;
+      if (supaUser) {
+        const convertedUser = convertSupabaseUser(supaUser);
+        setUser(convertedUser);
+        loadUserProfile(convertedUser.uid);
+        setAnalyticsUserId(convertedUser.uid);
       }
-
       setLoading(false);
     });
 
-    return unsubscribe;
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("[AuthContext] Auth event:", event, session?.user?.id);
+        const supaUser = session?.user;
+
+        if (supaUser) {
+          const convertedUser = convertSupabaseUser(supaUser);
+          setUser(convertedUser);
+          await loadUserProfile(convertedUser.uid);
+          setAnalyticsUserId(convertedUser.uid);
+        } else {
+          setUser(null);
+          setUserProfile(null);
+        }
+
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // ---------- Auth Methods ----------
   const signInWithGoogle = async (): Promise<UserCredential> => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({
-      prompt: "select_account",
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
     });
-    const credential = await signInWithPopup(auth, provider);
+
+    if (error) throw error;
+    
     // Track login
     trackLogin('google');
-    return credential;
+    
+    // Return credential-like object
+    const session = await supabase.auth.getSession();
+    if (!session.data.session?.user) {
+      throw new Error('No user after Google sign in');
+    }
+    
+    return {
+      user: convertSupabaseUser(session.data.session.user),
+    };
   };
 
   const signInWithApple = async (): Promise<UserCredential> => {
-    const provider = new OAuthProvider('apple.com');
-    provider.addScope('email');
-    provider.addScope('name');
-    const credential = await signInWithPopup(auth, provider);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) throw error;
+    
     // Track login
     trackLogin('apple');
-    return credential;
+    
+    // Return credential-like object
+    const session = await supabase.auth.getSession();
+    if (!session.data.session?.user) {
+      throw new Error('No user after Apple sign in');
+    }
+    
+    return {
+      user: convertSupabaseUser(session.data.session.user),
+    };
   };
 
   const signInWithEmail = async (
     email: string,
     password: string
   ): Promise<UserCredential> => {
-    const credential = await signInWithEmailAndPassword(
-      auth,
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
-    );
+      password,
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error('No user returned');
+
     // Track login
     trackLogin('email');
-    // profile will be loaded automatically by onAuthStateChanged
-    return credential;
+    
+    return {
+      user: convertSupabaseUser(data.user),
+    };
   };
 
   const signUpWithEmail = async (
     email: string,
     password: string
   ): Promise<UserCredential> => {
-    // after signup, your SignUpScreen will call api.createUser / api.updateUser
-    // to create the Firestore document
-    return await createUserWithEmailAndPassword(auth, email, password);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error('No user returned');
+
+    return {
+      user: convertSupabaseUser(data.user),
+    };
   };
 
   const signOut = async (): Promise<void> => {
-    await firebaseSignOut(auth);
+    await supabase.auth.signOut();
     setUserProfile(null);
     
     // Clear Sentry user context
@@ -291,4 +349,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       {!loading && children}
     </AuthContext.Provider>
   );
+};
+
+// Backward compatibility exports
+export { api } from './apiService';
+export { supabase as auth } from './supabaseClient';
+export { storage } from './storageCompat';
+
+// Stub for uploadImage (was used for file uploads)
+export const uploadImage = async (file: File, path: string) => {
+  console.warn('[AuthContext] uploadImage is deprecated, use storageCompat directly');
+  const { ref, uploadBytes, getDownloadURL } = await import('./storageCompat');
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
 };

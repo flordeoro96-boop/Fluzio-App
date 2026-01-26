@@ -4,8 +4,8 @@
  * Handles visit tracking, verification, and analytics for Shopify store visits.
  */
 
-import { db } from './AuthContext';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp, orderBy, limit, increment } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp, orderBy, limit, increment } from '../services/firestoreCompat';
 
 export interface ShopifyVisit {
   id: string;

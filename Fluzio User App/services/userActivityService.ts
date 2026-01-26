@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc } from '../services/firestoreCompat';
 
 /**
  * Service for tracking user activity and stats

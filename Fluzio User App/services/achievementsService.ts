@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 export interface Achievement {
   id: string;

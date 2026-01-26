@@ -17,7 +17,7 @@ export const QRCodeView: React.FC<QRCodeViewProps> = ({ isOpen, onClose, user })
   
   // Generate QR data
   const qrData = JSON.stringify({
-    type: 'FLUZIO_CHECK_IN',
+    type: 'BEEVVY_CHECK_IN',
     businessId: user.id,
     businessName: user.name,
     timestamp: Date.now()
@@ -46,7 +46,7 @@ export const QRCodeView: React.FC<QRCodeViewProps> = ({ isOpen, onClose, user })
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        const fileName = `${user.name.replace(/\s+/g, '-')}-fluzio-qr.png`;
+        const fileName = `${user.name.replace(/\s+/g, '-')}-beevvy-qr.png`;
         link.download = fileName;
         document.body.appendChild(link); // Required for Firefox
         link.click();
@@ -67,7 +67,7 @@ export const QRCodeView: React.FC<QRCodeViewProps> = ({ isOpen, onClose, user })
   
   const handleOrderEngraved = () => {
     // TODO: Implement order flow for professionally engraved QR codes
-    alert('🎨 Professional Engraving Service\n\nWe can engrave your QR code on:\n• Acrylic signs\n• Metal plaques\n• Wood panels\n• Window decals\n\nContact support@fluzio.com to order!');
+    alert('🎨 Professional Engraving Service\n\nWe can engrave your QR code on:\n• Acrylic signs\n• Metal plaques\n• Wood panels\n• Window decals\n\nContact support@beevvy.com to order!');
   };
 
   if (!isOpen) return null;

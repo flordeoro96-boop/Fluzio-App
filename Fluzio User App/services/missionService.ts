@@ -13,7 +13,7 @@ import {
   limit,
   Timestamp,
   serverTimestamp 
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import { Mission, MissionLifecycleStatus, Participation, MissionStatus } from '../types';
 
 /**
@@ -418,10 +418,62 @@ export const toggleMissionStatus = async (
   missionId: string, 
   pause: boolean
 ): Promise<{ success: boolean; error?: string }> => {
-  return updateMission(missionId, {
-    lifecycleStatus: pause ? 'PAUSED' : 'ACTIVE',
-    isActive: !pause
-  });
+  try {
+    // If activating (unpause), check mission energy
+    if (!pause) {
+      const { checkMissionEnergyAvailability, consumeMissionEnergy, getEnergyCost } = await import('./missionEnergyService');
+      
+      // Get mission details
+      const mission = await getMissionById(missionId);
+      if (!mission || !mission.businessId) {
+        return { success: false, error: 'Mission not found' };
+      }
+      
+      const missionType = mission.goal || mission.type || 'DEFAULT';
+      
+      // Check energy availability
+      const energyCheck = await checkMissionEnergyAvailability(mission.businessId, missionType);
+      
+      if (!energyCheck.canActivate) {
+        console.log('[MissionService] ❌ Insufficient energy to activate mission');
+        return {
+          success: false,
+          error: energyCheck.reason || 'Insufficient mission energy',
+          suggestions: energyCheck.suggestions
+        };
+      }
+      
+      // Consume energy
+      const consumeResult = await consumeMissionEnergy(
+        mission.businessId,
+        missionId,
+        missionType,
+        mission.title || 'Mission'
+      );
+      
+      if (!consumeResult.success) {
+        return {
+          success: false,
+          error: consumeResult.error || 'Failed to consume mission energy'
+        };
+      }
+      
+      console.log(`[MissionService] ✅ Consumed ${getEnergyCost(missionType).cost} energy for mission ${missionId}`);
+    }
+    
+    // Update mission status
+    return updateMission(missionId, {
+      lifecycleStatus: pause ? 'PAUSED' : 'ACTIVE',
+      isActive: !pause
+    });
+    
+  } catch (error) {
+    console.error('[MissionService] Error toggling mission status:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to toggle mission status'
+    };
+  }
 };
 
 // Get max participants based on subscription level

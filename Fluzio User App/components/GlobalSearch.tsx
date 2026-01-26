@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, Clock, TrendingUp, MapPin, Users, Target, Calendar, ChevronRight } from 'lucide-react';
 import { Mission, User, Meetup } from '../types';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { getActiveMissions } from '../services/missionService';
 import * as userService from '../services/userService';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,7 @@ interface SearchResult {
   metadata?: string;
 }
 
-const RECENT_SEARCHES_KEY = 'fluzio_recent_searches';
+const RECENT_SEARCHES_KEY = 'beevvy_recent_searches';
 const MAX_RECENT_SEARCHES = 5;
 
 export const GlobalSearch: React.FC<GlobalSearchProps> = ({

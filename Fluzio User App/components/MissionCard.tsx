@@ -8,6 +8,7 @@ import { calculateDistance, formatDistance, estimateWalkTime } from '../hooks/us
 import { store } from '../services/mockStore';
 import { getMaxParticipantsBySubscription } from '../services/missionService';
 import { useTranslation } from 'react-i18next';
+import { MissionPoolIndicator } from './ParticipantPoolStatus';
 
 interface MissionStats {
   applicants: number;
@@ -177,10 +178,6 @@ export const MissionCard: React.FC<MissionCardProps> = ({
           <MapPin className="w-3.5 h-3.5" />
           {mission.location || distanceInfo || 'Online'}
         </div>
-        <div className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-full text-xs font-bold">
-          <Users className="w-3.5 h-3.5" />
-          {mission.currentParticipants || 0} {t('missions.joined')}
-        </div>
         {mission.reward?.points && (
           <div className="flex items-center gap-1.5 bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-full text-xs font-bold">
             <Gift className="w-3.5 h-3.5" />
@@ -194,6 +191,17 @@ export const MissionCard: React.FC<MissionCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Participant Pool Indicator (Owner Only) */}
+      {isOwner && businessId && mission.isActive && (
+        <div className="px-4 pb-3">
+          <MissionPoolIndicator 
+            businessId={businessId}
+            missionId={mission.id}
+            isActive={mission.isActive || mission.lifecycleStatus === 'ACTIVE'}
+          />
+        </div>
+      )}
 
       {/* Business Stats (Owner Only) */}
       {isOwner && stats && (

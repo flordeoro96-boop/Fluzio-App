@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, doc, setDoc, getDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, doc, setDoc, getDoc, updateDoc, increment, serverTimestamp } from '../services/firestoreCompat';
 
 export interface UserBehavior {
     userId: string;

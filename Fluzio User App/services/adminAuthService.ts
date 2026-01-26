@@ -5,8 +5,8 @@
  * Works with the RBAC system implemented in backend.
  */
 
-import { db } from './AuthContext';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, query, where, getDocs, limit } from '../services/firestoreCompat';
 import { AdminRole } from '../src/types/models';
 
 export interface AdminPermissions {

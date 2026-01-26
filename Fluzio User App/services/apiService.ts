@@ -1,67 +1,62 @@
 import { OnboardingState } from '../types';
-import { db } from './AuthContext';
+import { supabase } from './supabaseClient';
 
-// Export db for other services
-export { db };
+// Export supabase for all services
+export { supabase };
 
-// Cloud Function URLs
-const CREATE_USER_URL = import.meta.env.VITE_CREATE_USER_URL || 'https://createuser-uvpokjrjsq-uc.a.run.app';
-const GET_USER_URL = import.meta.env.VITE_GET_USER_URL || 'https://getuser-uvpokjrjsq-uc.a.run.app';
-const UPDATE_USER_URL = import.meta.env.VITE_UPDATE_USER_URL || 'https://updateuser-uvpokjrjsq-uc.a.run.app';
+// Also export as 'db' for compatibility with existing imports
+export const db = supabase;
 
-// Feature flag to enable/disable backend API calls
-const USE_BACKEND_API = import.meta.env.VITE_USE_BACKEND_API === 'true';
 
 export const api = {
-  async createUser(userData: OnboardingState): Promise<{ success: boolean; userId?: string; error?: string }> {
-    // If backend is not configured, simulate success locally
-    if (!USE_BACKEND_API) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Backend API disabled. User data would be sent to:', userData);
+  async createUser(userData: OnboardingState, authUserId?: string): Promise<{ success: boolean; userId?: string; error?: string }> {
+    try {
+      console.log('🔨 Creating user in Supabase:', userData);
+      
+      // Use provided user ID or get the current authenticated user
+      let userId = authUserId;
+      
+      if (!userId) {
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !authUser) {
+          throw new Error('No authenticated user found');
+        }
+        userId = authUser.id;
       }
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Generate a mock user ID
-      const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
+      // Prepare user data matching actual Supabase schema
+      const userRecord = {
+        id: userId, // Map uid to id
+        email: userData.email,
+        display_name: userData.name || userData.legalName || userData.handle || userData.email?.split('@')[0],
+        role: userData.role || 'MEMBER',
+        city: userData.city || userData.homeCity,
+        country: userData.country,
+        home_city: userData.homeCity,
+        creator_verified: false,
+        approval_status: userData.role === 'BUSINESS' ? 'PENDING' : null,
+      };
+
+      // Insert into users table
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(userRecord, { onConflict: 'id' }) // Use upsert to avoid duplicates
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
+
+      console.log('✅ User created successfully:', data);
       return { 
         success: true, 
-        userId: mockUserId 
+        userId: userId 
       };
-    }
-
-    // Cloud Function API call
-    try {
-      const response = await fetch(CREATE_USER_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('Error response body:', errorText);
-        }        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { message: errorText };
-        }
-        
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return { success: true, userId: data.userId || data.id };
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Failed to create user:', error);
-      }
+      console.error('Failed to create user:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to create user' 
@@ -71,24 +66,53 @@ export const api = {
 
   async getUser(userId: string): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
-      const response = await fetch(`${GET_USER_URL}?userId=${userId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      console.log('🔍 Fetching user from Supabase:', userId);
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned
+          console.warn('User not found:', userId);
+          return { success: false, error: 'User not found' };
+        }
+        throw error;
       }
 
-      const data = await response.json();
-      return { success: true, user: data.user || data };
+      // Transform Supabase data to match expected format
+      const user = {
+        uid: data.id, // Map id back to uid
+        email: data.email,
+        displayName: data.display_name,
+        role: data.role,
+        city: data.city,
+        country: data.country,
+        homeCity: data.home_city,
+        approvalStatus: data.approval_status,
+        // Additional fields from new columns
+        photoUrl: data.photo_url,
+        bio: data.bio,
+        instagram: data.instagram,
+        website: data.website,
+        vibeTags: data.vibe_tags,
+        profileComplete: data.profile_complete,
+        category: data.category,
+        planTier: data.plan_tier,
+        credits: data.credits,
+        referralCode: data.referral_code,
+        referredBy: data.referred_by,
+        referralCount: data.referral_count,
+        referralPoints: data.referral_points,
+      };
+
+      console.log('✅ User fetched:', user);
+      return { success: true, user };
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Failed to get user:', error);
-      }
+      console.error('Failed to get user:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to get user' 
@@ -96,38 +120,59 @@ export const api = {
     }
   },
 
-async updateUser(userId: string, updates: Partial<OnboardingState> | Record<string, any>): Promise<{ success: boolean; error?: string }> {
-  try {
-    const response = await fetch(UPDATE_USER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId,
-        updates,   // <-- must be nested exactly like this
-      }),
-    });
+  async updateUser(userId: string, updates: Partial<OnboardingState> | Record<string, any>): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('📝 Updating user in Supabase:', userId, updates);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
+      // Transform camelCase to snake_case for Supabase
+      const supabaseUpdates: any = {};
+      
+      if (updates.displayName !== undefined) supabaseUpdates.display_name = updates.displayName;
+      if (updates.name !== undefined) supabaseUpdates.display_name = updates.name;
+      if (updates.legalName !== undefined) supabaseUpdates.legal_name = updates.legalName;
+      if (updates.handle !== undefined) supabaseUpdates.handle = updates.handle;
+      if (updates.city !== undefined) supabaseUpdates.city = updates.city;
+      if (updates.homeCity !== undefined) supabaseUpdates.home_city = updates.homeCity;
+      if (updates.country !== undefined) supabaseUpdates.country = updates.country;
+      if (updates.instagram !== undefined) supabaseUpdates.instagram = updates.instagram;
+      if (updates.website !== undefined) supabaseUpdates.website = updates.website;
+      if (updates.vibeTags !== undefined) supabaseUpdates.vibe_tags = updates.vibeTags;
+      if (updates.profileComplete !== undefined) supabaseUpdates.profile_complete = updates.profileComplete;
+      if (updates.category !== undefined) supabaseUpdates.category = updates.category;
+      if (updates.bio !== undefined) supabaseUpdates.bio = updates.bio;
+      if (updates.photoUrl !== undefined) supabaseUpdates.photo_url = updates.photoUrl;
+      if (updates.planTier !== undefined) supabaseUpdates.plan_tier = updates.planTier;
+      if (updates.credits !== undefined) supabaseUpdates.credits = updates.credits;
+      if (updates.referralCode !== undefined) supabaseUpdates.referral_code = updates.referralCode;
+      if (updates.referredBy !== undefined) supabaseUpdates.referred_by = updates.referredBy;
+      if (updates.referralCount !== undefined) supabaseUpdates.referral_count = updates.referralCount;
+      if (updates.referralPoints !== undefined) supabaseUpdates.referral_points = updates.referralPoints;
 
-    const data = await response.json();
-    return { success: true };
-  } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error("Failed to update user:", error);
+      if (updates.role !== undefined) supabaseUpdates.role = updates.role;
+      
+      // Update timestamp
+      supabaseUpdates.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(supabaseUpdates)
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
+
+      console.log('✅ User updated successfully:', data);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update user',
+      };
     }
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Failed to update user",
-    };
   }
-}
-
-
-
-
 };

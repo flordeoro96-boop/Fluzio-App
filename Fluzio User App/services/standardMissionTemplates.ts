@@ -523,7 +523,6 @@ export const ALL_STANDARD_MISSIONS: StandardMissionTemplate[] = [
   INSTAGRAM_STORY,
   INSTAGRAM_POST,
   GOOGLE_REVIEW,
-  TIKTOK_VIDEO,
   
   // Hybrid
   PHOTO_CHECKIN,

@@ -107,9 +107,9 @@ export const MissionDetailScreen: React.FC<MissionDetailScreenProps> = ({ missio
         // Parse QR data
         const data = JSON.parse(qrData);
         
-        // Verify it's a Fluzio check-in QR
-        if (data.type !== 'FLUZIO_CHECK_IN') {
-          alert('Invalid QR code. Please scan the Fluzio check-in code at the business location.');
+        // Verify it's a Beevvy check-in QR
+        if (data.type !== 'BEEVVY_CHECK_IN') {
+          alert('Invalid QR code. Please scan the Beevvy check-in code at the business location.');
           return;
         }
         
@@ -133,7 +133,7 @@ export const MissionDetailScreen: React.FC<MissionDetailScreenProps> = ({ missio
         
       } catch (error) {
         console.error('[MissionDetailScreen] Error parsing QR data:', error);
-        alert('Invalid QR code format. Please scan the Fluzio check-in code.');
+        alert('Invalid QR code format. Please scan the Beevvy check-in code.');
       }
   };
 
@@ -367,7 +367,7 @@ export const MissionDetailScreen: React.FC<MissionDetailScreenProps> = ({ missio
           }
           return (
              <div className="space-y-2">
-                 <div className="text-center text-xs text-gray-500 mb-2">Scan the Fluzio stand at the counter to unlock.</div>
+                 <div className="text-center text-xs text-gray-500 mb-2">Scan the Beevvy stand at the counter to unlock.</div>
                  <Button 
                     className="w-full py-4 text-lg shadow-xl shadow-[#00E5FF]/20 bg-black text-white hover:bg-gray-900"
                     onClick={handleScanSubmit}

@@ -1,10 +1,10 @@
 /**
- * Fluzio Extended User Schema with Subscription Tiers
+ * Beevvy Extended User Schema with Subscription Tiers
  * 
  * TypeScript interfaces for the complete business model
  */
 
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '../../../services/firestoreCompat';
 
 export type SubscriptionTier = 'BASIC' | 'SILVER' | 'GOLD' | 'PLATINUM';
 export type BusinessLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -215,7 +215,7 @@ export interface LevelProgression {
 // COMPLETE USER DOCUMENT
 // ============================================================================
 
-export interface FluzioBusinessUser {
+export interface BeevvyBusinessUser {
   // Basic Info (existing fields)
   uid: string;
   email: string;

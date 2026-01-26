@@ -37,7 +37,7 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ on
 
                 <Button 
                     variant="outline"
-                    onClick={() => window.location.href = 'mailto:support@fluzio.com'}
+                    onClick={() => window.location.href = 'mailto:support@beevvy.com'}
                     className="w-full border-white/20 text-white hover:bg-white/10 h-12"
                 >
                     <HelpCircle className="w-4 h-4 mr-2" /> {t('settings.contactSupport')}

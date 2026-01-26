@@ -5,7 +5,7 @@
  * Includes profile header, creator zone, activity tracking, and account management.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   User, 
@@ -29,7 +29,7 @@ import {
   ChevronRight,
   Instagram,
   Facebook,
-  Linkedin,
+
   Link as LinkIcon,
   Bookmark,
   UserCircle,
@@ -117,11 +117,11 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
   // ============================================================================
   
   const getTierDisplay = () => {
-    return user.subscriptionLevel || 'FREE';
+    return user.subscriptionLevel || 'STARTER';
   };
 
   const getTierColor = () => {
-    const tier = user.subscriptionLevel || 'FREE';
+    const tier = user.subscriptionLevel || 'STARTER';
     if (tier === 'PLATINUM') return 'text-purple-600';
     if (tier === 'GOLD') return 'text-yellow-600';
     if (tier === 'SILVER') return 'text-gray-700';
@@ -145,21 +145,28 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
   ];
 
   const userLevel = user.level || 2;
-  const accountItems: MenuItem[] = [
-    // Level 1 businesses see "Choose Your Plan", Level 2+ see "Manage Subscription"
-    ...(user.role === 'BUSINESS' && userLevel === 1 ? [
-      { id: 'level1-subscription', label: 'Choose Your Plan', icon: Crown, route: 'level1-subscription' }
-    ] : user.role === 'BUSINESS' && userLevel >= 2 ? [
-      { id: 'level2-subscription', label: 'Manage Subscription', icon: Crown, route: 'level2-subscription' }
-    ] : [
-      { id: 'manage-subscription', label: 'Manage Subscription', icon: CreditCard, route: 'manage-subscription' }
-    ]),
-    ...(user.role === 'BUSINESS' ? [
-      { id: 'business-wallet', label: 'Business Wallet', icon: Coins, route: 'business-wallet' }
-    ] : user.accountType === 'creator' ? [
-      { id: 'creator-wallet', label: 'Creator Wallet', icon: Coins, route: 'creator-wallet' }
-    ] : [])
-  ];
+  
+  const accountItems: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = [];
+    
+    // Add subscription item based on role and level
+    if (user.role === 'BUSINESS' && userLevel === 1) {
+      items.push({ id: 'level1-subscription', label: 'Choose Your Plan', icon: Crown, route: 'level1-subscription' });
+    } else if (user.role === 'BUSINESS' && userLevel >= 2) {
+      items.push({ id: 'level2-subscription', label: 'Manage Subscription', icon: Crown, route: 'level2-subscription' });
+    } else {
+      items.push({ id: 'manage-subscription', label: 'Manage Subscription', icon: CreditCard, route: 'manage-subscription' });
+    }
+    
+    // Add wallet item based on role
+    if (user.role === 'BUSINESS') {
+      items.push({ id: 'business-wallet', label: 'Business Wallet', icon: Coins, route: 'business-wallet' });
+    } else if (user.accountType === 'creator') {
+      items.push({ id: 'creator-wallet', label: 'Creator Wallet', icon: Coins, route: 'creator-wallet' });
+    }
+    
+    return items;
+  }, [user.role, user.accountType, userLevel]);
   
   console.log('[SidebarMenu] accountItems:', accountItems.length, 'items', accountItems.map(i => i.label));
 
@@ -301,7 +308,6 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
               <div className="flex items-center gap-1">
                 {user.socialLinks?.instagram?.connected && <Instagram className="w-3.5 h-3.5 text-pink-500" />}
                 {user.socialLinks?.facebook && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
-                {user.socialLinks?.linkedin && <Linkedin className="w-3.5 h-3.5 text-blue-700" />}
               </div>
             </button>
           </div>
@@ -362,7 +368,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
           </button>
         </div>
         <div className="flex items-center justify-between text-xs text-gray-400">
-          <span>Fluzio v1.0</span>
+          <span>Beevvy v1.0</span>
           <div className="flex gap-2">
             <button 
               onClick={() => handleNavigate('privacy')}

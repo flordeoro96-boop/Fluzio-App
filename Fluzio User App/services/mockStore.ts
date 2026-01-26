@@ -21,7 +21,6 @@ export const getCategorySpecificTexts = (category: BusinessCategory) => {
                 review: "Share your favorite dish",
                 story: "Tag us in your food story",
                 refer: "Bring a hungry friend",
-                tiktok: "Film a taste test",
                 checkin: "Check-in for dessert"
             };
         case BusinessCategory.FITNESS:
@@ -29,7 +28,6 @@ export const getCategorySpecificTexts = (category: BusinessCategory) => {
                 review: "Review our facilities",
                 story: "Post a workout selfie",
                 refer: "Workout buddy bonus",
-                tiktok: "Show your progress",
                 checkin: "Check-in at the gym"
             };
         case BusinessCategory.RETAIL:
@@ -37,7 +35,6 @@ export const getCategorySpecificTexts = (category: BusinessCategory) => {
                 review: "Review your purchase",
                 story: "Show off your style",
                 refer: "Shopping spree with a friend",
-                tiktok: "OOTD / Unboxing Video",
                 checkin: "Check-in while shopping"
             };
         default:
@@ -45,7 +42,6 @@ export const getCategorySpecificTexts = (category: BusinessCategory) => {
                 review: "Leave us a 5-star review",
                 story: "Share your experience",
                 refer: "Bring a friend",
-                tiktok: "Create a viral moment",
                 checkin: "Check-in on Facebook"
             };
     }
@@ -129,27 +125,6 @@ export const generateStandardMissionTemplates = (
       maxParticipants: 1000,
       geo,
       triggerType: 'GPS_PROXIMITY'
-    },
-    {
-      id: `std_tiktok_${businessId}`,
-      businessId,
-      businessName,
-      businessLogo,
-      title: "TikTok Video",
-      description: texts.tiktok,
-      category: MissionCategory.TECH,
-      requirements: ["Creative Video", "Tag Us"],
-      reward: { type: RewardType.POINTS_ONLY, points: 150 },
-      proofType: ProofType.LINK,
-      createdAt: now,
-      validUntil: future,
-      isStandard: true,
-      isActive: false,
-      recurrence: 'MONTHLY',
-      currentParticipants: 0,
-      maxParticipants: 1000,
-      geo,
-      triggerType: 'MANUAL'
     },
     {
       id: `std_fb_${businessId}`,
@@ -293,13 +268,14 @@ class MockStore {
     const role = firebaseProfile.role === 'BUSINESS' ? 'BUSINESS' : 
                  firebaseProfile.role === 'MEMBER' ? 'MEMBER' : 'CREATOR';
     
-    // Only assign accountType if explicitly set OR if role is BUSINESS/CREATOR
-    // MEMBER role (customers) should NOT have accountType set
+    // Set accountType based on role if not explicitly provided
     let accountType = firebaseProfile.accountType;
     if (!accountType && firebaseProfile.role === 'BUSINESS') {
       accountType = 'business';
+    } else if (!accountType && firebaseProfile.role === 'CREATOR') {
+      accountType = 'creator';
     }
-    // Don't default to 'creator' for MEMBER role - leave undefined for customers
+    // MEMBER role (customers) should NOT have accountType set - leave undefined
     
     console.log('[MockStore] Determined role:', role, 'accountType:', accountType);
     
@@ -316,7 +292,7 @@ class MockStore {
       currentCity: firebaseProfile.city || 'Munich',
       homeCity: firebaseProfile.city || 'Munich',
       points: 0,
-      level: 1,
+      level: firebaseProfile.businessLevel || firebaseProfile.level || 1,
       subscriptionLevel: (firebaseProfile.subscriptionLevel || 'FREE') as any,
       badges: [],
       socialLinks: firebaseProfile.socialLinks || {},

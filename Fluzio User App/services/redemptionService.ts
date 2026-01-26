@@ -1,5 +1,13 @@
-import { db } from './AuthContext';
-import { collection, addDoc, updateDoc, doc, increment, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, addDoc, updateDoc, doc, increment, Timestamp, getDoc } from '../services/firestoreCompat';
+import { 
+  generateQRCode, 
+  generateAlphanumericCode, 
+  generateValidationToken,
+  checkRedemptionFrequency 
+} from './rewardValidationService';
+import { checkRedemptionEligibility } from './customerLevelService';
+import { RewardValidationType, RedemptionFrequency } from '../types/rewards';
 
 interface RedeemRewardParams {
   rewardId: string;
@@ -13,6 +21,8 @@ interface RedeemRewardParams {
   imageUrl?: string;
   terms?: string;
   expiryDays?: number; // How many days until expiry (default 30)
+  validationType?: RewardValidationType; // NEW: Physical or Online validation
+  redemptionFrequency?: RedemptionFrequency; // NEW: Frequency control
 }
 
 /**
@@ -30,18 +40,70 @@ export const redeemReward = async (params: RedeemRewardParams): Promise<string> 
     type,
     imageUrl,
     terms,
-    expiryDays = 30
+    expiryDays = 30,
+    validationType = 'PHYSICAL', // Default to physical QR code
+    redemptionFrequency = 'unlimited' // Default to unlimited
   } = params;
 
   try {
+    // ============ CHECK CUSTOMER LEVEL ELIGIBILITY ============
+    // Check if user's level allows this redemption (daily/weekly/business limits)
+    const eligibilityCheck = await checkRedemptionEligibility(
+      userId,
+      rewardId,
+      businessId
+    );
+    
+    if (!eligibilityCheck.canRedeem) {
+      // Return human-readable message (NEVER raw numbers)
+      throw new Error(eligibilityCheck.message);
+    }
+    // ============ END LEVEL CHECK ============
+
+    // ============ CHECK REDEMPTION FREQUENCY ============
+    // Verify user hasn't exceeded redemption limits
+    const frequencyCheck = await checkRedemptionFrequency(
+      userId,
+      rewardId,
+      redemptionFrequency
+    );
+    
+    if (!frequencyCheck.canRedeem) {
+      throw new Error(frequencyCheck.reason || 'Cannot redeem at this time');
+    }
+    // ============ END FREQUENCY CHECK ============
+
     // Calculate expiry date
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
-    // Generate voucher code
-    const voucherCode = generateVoucherCode(rewardId, userId);
+    // Generate legacy voucher code (backward compatibility)
+    const legacyVoucherCode = generateVoucherCode(rewardId, userId);
 
-    // Create redeemed reward record
+    // ============ GENERATE ONE-TIME VALIDATION CODES ============
+    let qrCode: string | undefined;
+    let alphanumericCode: string | undefined;
+    let validationToken: string;
+    
+    // Create temporary redemption ID for code generation
+    const tempRedemptionId = `temp_${Date.now()}_${userId.substring(0, 8)}`;
+    
+    if (validationType === 'PHYSICAL') {
+      // Generate QR code for in-store scanning
+      qrCode = await generateQRCode(tempRedemptionId, userId, businessId);
+      validationToken = await generateValidationToken(tempRedemptionId, qrCode);
+      
+      console.log(`[Redemption] Generated QR code for physical validation`);
+    } else {
+      // Generate alphanumeric code for online validation
+      alphanumericCode = generateAlphanumericCode(tempRedemptionId);
+      validationToken = await generateValidationToken(tempRedemptionId, alphanumericCode);
+      
+      console.log(`[Redemption] Generated alphanumeric code: ${alphanumericCode}`);
+    }
+    // ============ END CODE GENERATION ============
+
+    // Create redeemed reward record with validation codes
     const redeemedRewardRef = await addDoc(collection(db, 'redeemedRewards'), {
       rewardId,
       userId,
@@ -51,15 +113,34 @@ export const redeemReward = async (params: RedeemRewardParams): Promise<string> 
       description,
       costPoints,
       type,
-      voucherCode,
-      qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(voucherCode)}`,
+      
+      // Legacy fields (backward compatibility)
+      voucherCode: legacyVoucherCode,
+      
+      // NEW: One-time validation codes
+      qrCode,
+      alphanumericCode,
+      validationToken,
+      validationType,
+      
+      // NEW: Validation status
+      validated: false, // Not yet used
+      validatedAt: null,
+      validatedBy: null,
+      validationMethod: null,
+      
+      // Timestamps
       redeemedAt: Timestamp.now(),
       expiresAt: Timestamp.fromDate(expiresAt),
       usedAt: null,
-      status: 'active',
+      
+      status: 'PENDING', // Changed from 'active' to match new status enum
       terms,
       imageUrl,
-      deleted: false
+      deleted: false,
+      
+      // NEW: Redemption frequency tracking
+      redemptionFrequency
     });
 
     // Deduct points from user
@@ -72,8 +153,32 @@ export const redeemReward = async (params: RedeemRewardParams): Promise<string> 
     // Decrement reward remaining count
     const rewardRef = doc(db, 'rewards', rewardId);
     await updateDoc(rewardRef, {
-      remaining: increment(-1)
+      remaining: increment(-1),
+      claimed: increment(1) // Track total claimed
     });
+
+    // ============ BUSINESS WALLET CREDIT (Points Recycling Loop) ============
+    // Credit the redeemed points to the business wallet
+    try {
+      const { onCustomerRedemption } = await import('./businessPointsWalletService');
+      
+      const walletResult = await onCustomerRedemption(
+        userId,
+        businessId,
+        costPoints,
+        title
+      );
+      
+      if (walletResult) {
+        console.log(`[Redemption] ✅ Credited ${costPoints} points to business ${businessId} wallet`);
+      } else {
+        console.error('[Redemption] ⚠️ Failed to credit business wallet (non-blocking)');
+      }
+    } catch (walletError) {
+      console.error('[Redemption] ⚠️ Business wallet credit failed (non-blocking):', walletError);
+      // Don't fail redemption if wallet credit fails
+    }
+    // ============ END BUSINESS WALLET CREDIT ============
 
     return redeemedRewardRef.id;
   } catch (error) {

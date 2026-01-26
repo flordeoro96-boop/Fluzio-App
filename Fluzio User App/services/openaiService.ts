@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { User, StrategicMatch } from '../types';
 import { captureError, captureMessage } from './sentryService';
+import { getPlatformFeatureGuide } from './aiContextService';
 
 // Support both frontend env and process.env (for consistency with backend)
 const apiKey = import.meta.env.VITE_OPENAI_API_KEY || (typeof process !== 'undefined' && process.env?.OPENAI_API_KEY) || '';
@@ -48,7 +49,7 @@ export const generateMissionDescription = async (
       messages: [
         {
           role: "system",
-          content: "You are a marketing assistant for Fluzio, a platform connecting local businesses with creators. Write short, exciting, professional mission descriptions."
+          content: "You are a marketing assistant for Beevvy, a platform connecting local businesses with creators. Write short, exciting, professional mission descriptions."
         },
         {
           role: "user",
@@ -109,8 +110,8 @@ export const generateMissionIdeas = async (
     return [
       {
         title: `Visit ${businessType}`,
-        description: `Come visit our ${businessType} in ${location} and share your experience on Instagram Stories!`,
-        requirements: ["Take a photo", "Tag us"],
+        description: `Come visit our ${businessType} in ${location} and share your experience on your Beevvy feed!`,
+        requirements: ["Take a photo", "Share on feed"],
         category: "Lifestyle"
       },
       {
@@ -195,17 +196,17 @@ export const generateCreativeMissionIdeas = async (params: {
       },
       {
         title: "Behind the Scenes Story",
-        description: "Post an Instagram Story showing your visit to our location. Give your followers a peek behind the scenes!",
+        description: "Post on your Beevvy feed showing your visit to our location. Give your followers a peek behind the scenes!",
         postType: "STORY",
         suggestedPoints: 75,
         hashtags: ["behindthescenes", "local", "discover"]
       },
       {
-        title: "Product Reel Challenge",
-        description: "Create a fun Reel featuring our products. Get creative and show us your unique style!",
-        postType: "REEL",
+        title: "Product Video Challenge",
+        description: "Create a fun video featuring our products. Get creative and show us your unique style!",
+        postType: "VIDEO",
         suggestedPoints: 150,
-        hashtags: ["reel", "creative", "style"]
+        hashtags: ["video", "creative", "style"]
       }
     ];
   }
@@ -297,15 +298,15 @@ Return a JSON object with this exact structure:
       },
       {
         title: "Behind the Scenes Story",
-        description: `Post an Instagram Story showing your visit. Give your followers a peek behind the scenes and share what makes ${params.businessName} special!`,
+        description: `Post on your Fluzio feed showing your visit. Give your followers a peek behind the scenes and share what makes ${params.businessName} special!`,
         postType: "STORY" as const,
         suggestedPoints: 75,
         hashtags: ["behindthescenes", "local", "discover"]
       },
       {
-        title: "Creative Reel Challenge",
-        description: `Create a fun 15-30 second Reel featuring ${params.businessName}. Show off your creative side and help spread the word!`,
-        postType: "REEL" as const,
+        title: "Creative Video Challenge",
+        description: `Create a fun 15-30 second video featuring ${params.businessName}. Show off your creative side and help spread the word!`,
+        postType: "VIDEO" as const,
         suggestedPoints: 150,
         hashtags: ["reel", "creative", params.category.toLowerCase()]
       },
@@ -380,7 +381,7 @@ export const generateProjectIdeas = async (params: {
       creatorRoles: [
         { role: 'Content Creator', budget: 700, description: 'Creates photos and videos for social media' },
         { role: 'Influencer', budget: 500, description: 'Features products with their audience' },
-        { role: 'Video Editor', budget: 400, description: 'Professional editing for Instagram/TikTok' }
+        { role: 'Video Editor', budget: 400, description: 'Professional editing for content creation' }
       ]
     },
     {
@@ -915,7 +916,7 @@ export const generateRewardSuggestions = async (
     console.log('⏳ Calling Cloud Function for reward suggestions...');
     
     // Get current user's auth token
-    const auth = (await import('firebase/auth')).getAuth();
+    const auth = (await import('./authCompat')).getAuth();
     const user = auth.currentUser;
     
     if (!user) {
@@ -1221,6 +1222,1438 @@ Return JSON with this structure:
     console.error("Error generating event ideas:", error);
     captureError(error as Error);
     return fallbackEvents;
+  }
+};
+
+/**
+ * AI-Powered Proof Verification
+ * Analyzes proof submissions (photos, screenshots, text) to determine validity
+ */
+export const analyzeProofSubmission = async (params: {
+  missionTitle: string;
+  missionRequirements: string;
+  proofType: 'PHOTO' | 'SCREENSHOT' | 'LINK' | 'TEXT';
+  proofDescription?: string;
+  imageUrl?: string;
+}): Promise<{
+  isValid: boolean;
+  confidence: number; // 0-1
+  reasoning: string;
+  flags: string[]; // Potential issues
+  recommendation: 'AUTO_APPROVE' | 'MANUAL_REVIEW' | 'AUTO_REJECT';
+}> => {
+  const client = getClient();
+  
+  const fallbackResponse = {
+    isValid: false,
+    confidence: 0.5,
+    reasoning: "AI verification unavailable. Manual review required.",
+    flags: ['AI_UNAVAILABLE'],
+    recommendation: 'MANUAL_REVIEW' as const
+  };
+
+  if (!client) {
+    console.warn("OpenAI API Key not found for proof verification");
+    return fallbackResponse;
+  }
+
+  try {
+    const { missionTitle, missionRequirements, proofType, proofDescription, imageUrl } = params;
+
+    // Build analysis prompt
+    let prompt = `Analyze this mission proof submission and determine if it's valid.
+
+Mission: "${missionTitle}"
+Requirements: ${missionRequirements}
+Proof Type: ${proofType}
+${proofDescription ? `Description: ${proofDescription}` : ''}
+
+Analyze if the proof meets the requirements. Look for:
+- Does it match what was requested?
+- Is it authentic (not AI-generated, stolen, or manipulated)?
+- Is it appropriate content (no spam, offensive material)?
+- Does it show genuine effort?
+
+Respond in JSON format:
+{
+  "isValid": true/false,
+  "confidence": 0.0-1.0,
+  "reasoning": "Brief explanation",
+  "flags": ["list", "of", "concerns"],
+  "recommendation": "AUTO_APPROVE" | "MANUAL_REVIEW" | "AUTO_REJECT"
+}
+
+Recommendations:
+- AUTO_APPROVE: confidence > 0.9 and clearly valid
+- MANUAL_REVIEW: confidence 0.4-0.9 or any uncertainty
+- AUTO_REJECT: confidence < 0.4 or obvious violations`;
+
+    const messages: any[] = [
+      {
+        role: "system",
+        content: "You are an expert content moderator for a social platform. Your job is to verify proof submissions fairly and accurately. Be thorough but not overly strict. When in doubt, recommend manual review."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
+
+    // If image URL provided, use vision model
+    const model = imageUrl ? "gpt-4o" : "gpt-4o-mini";
+
+    if (imageUrl && model === "gpt-4o") {
+      // Use vision capabilities
+      messages[1] = {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          {
+            type: "image_url",
+            image_url: { url: imageUrl }
+          }
+        ]
+      };
+    }
+
+    const completion = await client.chat.completions.create({
+      model,
+      messages,
+      temperature: 0.3, // Lower temp for consistent moderation
+      max_tokens: 300,
+      response_format: { type: "json_object" }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallbackResponse;
+
+    const result = JSON.parse(response);
+    
+    // Validate and sanitize response
+    return {
+      isValid: result.isValid === true,
+      confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0.5)),
+      reasoning: String(result.reasoning || "Analysis complete"),
+      flags: Array.isArray(result.flags) ? result.flags : [],
+      recommendation: ['AUTO_APPROVE', 'MANUAL_REVIEW', 'AUTO_REJECT'].includes(result.recommendation) 
+        ? result.recommendation 
+        : 'MANUAL_REVIEW'
+    };
+
+  } catch (error) {
+    console.error("Error analyzing proof submission:", error);
+    captureError(error as Error);
+    return fallbackResponse;
+  }
+};
+
+/**
+ * AI-Powered Personalized Feed Ranking
+ * Learns user preferences and ranks posts by relevance
+ * 
+ * @param posts - Array of feed items to rank
+ * @param userProfile - User preferences and engagement history
+ * @returns Ranked array of feed items with scores
+ */
+export const rankFeedPosts = async (
+  posts: Array<{
+    id: string;
+    contentType: string;
+    createdBy: string;
+    creatorName: string;
+    caption?: string;
+    tags?: string[];
+    location?: { city?: string; country?: string };
+    likes?: number;
+    comments?: number;
+  }>,
+  userProfile: {
+    userId: string;
+    interests: string[];
+    followingIds: string[];
+    engagementHistory?: {
+      likedPostIds: string[];
+      commentedPostIds: string[];
+      savedPostIds: string[];
+      viewedCreators: string[];
+    };
+    location?: { city?: string; country?: string };
+  }
+): Promise<Array<{ postId: string; relevanceScore: number }>> => {
+  const client = getClient();
+  
+  // Fallback: prioritize followed creators, then chronological
+  const fallbackRanking = posts.map((post, index) => ({
+    postId: post.id,
+    relevanceScore: userProfile.followingIds.includes(post.createdBy) ? 0.8 : 0.5 - (index * 0.01)
+  }));
+
+  if (!client || posts.length === 0) {
+    return fallbackRanking;
+  }
+
+  try {
+    // Prepare post data (limit to essential info for token efficiency)
+    const postsData = posts.slice(0, 50).map(p => ({
+      id: p.id,
+      type: p.contentType,
+      creator: p.creatorName,
+      caption: p.caption?.substring(0, 100), // Limit caption length
+      tags: p.tags?.slice(0, 5), // Limit tags
+      location: p.location,
+      engagement: { likes: p.likes || 0, comments: p.comments || 0 },
+      isFollowing: userProfile.followingIds.includes(p.createdBy)
+    }));
+
+    // Prepare engagement summary
+    const engagement = userProfile.engagementHistory || {
+      likedPostIds: [],
+      commentedPostIds: [],
+      savedPostIds: [],
+      viewedCreators: []
+    };
+
+    const prompt = `Rank these ${postsData.length} feed posts by relevance for this user.
+
+User Profile:
+- Interests: ${userProfile.interests.join(', ')}
+- Location: ${userProfile.location?.city || 'Unknown'}
+- Following: ${userProfile.followingIds.length} creators
+- Recent Engagement: ${engagement.likedPostIds.length} likes, ${engagement.commentedPostIds.length} comments
+
+Posts to Rank:
+${JSON.stringify(postsData, null, 2)}
+
+Ranking Criteria (weighted):
+1. Content from followed creators (35%)
+2. Interest alignment with user's stated interests (25%)
+3. Similar to previously engaged content (20%)
+4. Geographic relevance (10%)
+5. High engagement signals quality (10%)
+
+Return JSON array of post IDs with relevance scores:
+{
+  "rankings": [
+    {"postId": "id1", "relevanceScore": 0.95},
+    {"postId": "id2", "relevanceScore": 0.82},
+    ...
+  ]
+}
+
+Score range: 0.0 (not relevant) to 1.0 (highly relevant).`;
+
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini", // Cost-efficient model for ranking
+      messages: [
+        {
+          role: "system",
+          content: "You are a personalization engine that ranks social media posts. Analyze user preferences and post characteristics to determine relevance. Respond ONLY with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.3, // Lower temp for consistent ranking
+      max_tokens: 1500,
+      response_format: { type: "json_object" }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallbackRanking;
+
+    const result = JSON.parse(response);
+    const rankings = result.rankings || result.posts || [];
+
+    // Validate rankings and merge with fallback for missing posts
+    const rankingMap = new Map(rankings.map((r: any) => [r.postId, r.relevanceScore]));
+    
+    return posts.map(post => ({
+      postId: post.id,
+      relevanceScore: Number(rankingMap.get(post.id) ?? (userProfile.followingIds.includes(post.createdBy) ? 0.6 : 0.4))
+    }));
+
+  } catch (error) {
+    console.error("Error ranking feed posts with AI:", error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'rankFeedPosts',
+      userId: userProfile.userId,
+      postCount: posts.length
+    });
+    return fallbackRanking;
+  }
+};
+
+/**
+ * AI Chatbot Support Assistant
+ * Provides streaming conversational support with context awareness
+ * 
+ * @param messages - Chat history
+ * @param userContext - User profile and current context
+ * @param onChunk - Callback for streaming response chunks
+ * @returns Complete AI response
+ */
+export const chatWithAssistant = async (
+  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+  userContext: {
+    userId: string;
+    userName: string;
+    userRole: 'USER' | 'BUSINESS' | 'CREATOR';
+    location?: { city?: string; country?: string };
+    currentScreen?: string;
+    subscriptionLevel?: string;
+    businessType?: string;
+    recentActivity?: string[];
+    businessLevel?: number;
+    subscriptionTier?: 'STARTER' | 'SILVER' | 'GOLD' | 'PLATINUM';
+    subscriptionLimits?: {
+      maxActiveMissions: number;
+      maxParticipantsPerMonth: number;
+      currentActiveMissions: number;
+      currentParticipantsThisMonth: number;
+      hasInAppFollowMissions: boolean;
+      hasInAppReviewMissions: boolean;
+      hasPhotoMissions: boolean;
+      hasVideoMissions: boolean;
+      hasEvents: boolean;
+    };
+    upgradeRecommendation?: string;
+  },
+  onChunk?: (chunk: string) => void
+): Promise<string> => {
+  const client = getClient();
+  
+  if (!client) {
+    const fallbackMessage = "I'm currently unavailable. Please try again later or contact support at support@beevvy.com";
+    onChunk?.(fallbackMessage);
+    return fallbackMessage;
+  }
+
+  try {
+    // Build context-aware system prompt based on user role
+    const systemPrompt = buildSystemPrompt(userContext);
+
+    // Prepare messages with system context
+    const chatMessages: any[] = [
+      { role: 'system', content: systemPrompt },
+      ...messages
+    ];
+
+    console.log('[AI Assistant] Starting chat with context:', {
+      role: userContext.userRole,
+      location: userContext.location?.city,
+      screen: userContext.currentScreen,
+      tier: userContext.subscriptionTier,
+      level: userContext.businessLevel
+    });
+
+    // Use streaming for better UX
+    const stream = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: chatMessages,
+      temperature: 0.7,
+      max_tokens: 500,
+      stream: true
+    });
+
+    let fullResponse = '';
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        fullResponse += content;
+        onChunk?.(content);
+      }
+    }
+
+    console.log('[AI Assistant] Response complete:', fullResponse.length, 'characters');
+    return fullResponse;
+
+  } catch (error) {
+    console.error('Error in AI chat:', error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'chatWithAssistant',
+      userId: userContext.userId
+    });
+    
+    const errorMessage = "I encountered an error. Please try rephrasing your question or contact support.";
+    onChunk?.(errorMessage);
+    return errorMessage;
+  }
+};
+
+/**
+ * Build context-aware system prompt based on user role
+ */
+function buildSystemPrompt(context: {
+  userName: string;
+  userRole: 'USER' | 'BUSINESS' | 'CREATOR';
+  location?: { city?: string; country?: string };
+  currentScreen?: string;
+  subscriptionLevel?: string;
+  businessType?: string;
+  recentActivity?: string[];
+  businessLevel?: number;
+  subscriptionTier?: 'STARTER' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  subscriptionLimits?: {
+    maxActiveMissions: number;
+    maxParticipantsPerMonth: number;
+    currentActiveMissions: number;
+    currentParticipantsThisMonth: number;
+    hasInAppFollowMissions: boolean;
+    hasInAppReviewMissions: boolean;
+    hasPhotoMissions: boolean;
+    hasVideoMissions: boolean;
+    hasEvents: boolean;
+  };
+  upgradeRecommendation?: string;
+}): string {
+  // Import the comprehensive feature guide
+  const featureGuide = getPlatformFeatureGuide(context.userRole);
+  
+  // Build subscription context for businesses
+  let subscriptionContext = '';
+  
+  // Debug logging
+  console.log('[OpenAI] Building prompt with context:', {
+    userRole: context.userRole,
+    businessLevel: context.businessLevel,
+    subscriptionTier: context.subscriptionTier,
+    hasLimits: !!context.subscriptionLimits,
+    limits: context.subscriptionLimits
+  });
+  
+  if (context.userRole === 'BUSINESS' && context.subscriptionTier && context.subscriptionLimits) {
+    const limits = context.subscriptionLimits;
+    subscriptionContext = `
+
+SUBSCRIPTION STATUS:
+- Level: ${context.businessLevel || 1}
+- Tier: ${context.subscriptionTier}
+- Active Missions: ${limits.currentActiveMissions}/${limits.maxActiveMissions}
+- Participants This Month: ${limits.currentParticipantsThisMonth}/${limits.maxParticipantsPerMonth}
+- In-App Follow Missions: ${limits.hasInAppFollowMissions ? 'Yes' : 'No'}
+- In-App Review Missions: ${limits.hasInAppReviewMissions ? 'Yes' : 'No'}
+- Photo Missions: ${limits.hasPhotoMissions ? 'Yes' : 'No'}
+- Video Missions: ${limits.hasVideoMissions ? 'Yes' : 'No'}
+- Events Access: ${limits.hasEvents ? 'Yes' : 'No'}
+
+${context.businessLevel === 1 ? `
+⚠️⚠️⚠️ CRITICAL - LEVEL 1 RESTRICTIONS ⚠️⚠️⚠️
+This user is LEVEL 1 and CANNOT create missions yet.
+- Max Active Missions: 0 (ZERO, not 5, not 1, ZERO)
+- They must reach Level 2 to create missions
+- When user asks about missions or "what do I get" → Tell them:
+  "As a Level 1 business, you can explore the platform and network with other businesses, but mission creation is unlocked at Level 2. Would you like to know how to reach Level 2?"
+- DO NOT say "5 missions" or any other number
+- ONLY Level 2+ businesses can create missions
+` : `
+CRITICAL - SUBSCRIPTION TIER LIMITS (Level 2+):
+
+⚠️⚠️⚠️ AVAILABLE SUBSCRIPTION TIERS FOR LEVEL 2+ BUSINESSES ⚠️⚠️⚠️
+
+**STARTER TIER (€0/month):**
+- Max Active Missions: 1 (ONE mission at a time)
+- Max Participants/Month: 20
+- Max Participants/Mission: 10
+- Basic mission types only
+
+**SILVER TIER (€29/month):**
+- Max Active Missions: 3 (run 3 campaigns simultaneously)
+- Max Participants/Month: 40
+- Max Participants/Mission: 20
+- All mission types included
+- Priority support
+
+**GOLD TIER (€59/month):**
+- Max Active Missions: 6 (run 6 campaigns simultaneously)
+- Max Participants/Month: 120
+- Max Participants/Mission: 30
+- All mission types + events access
+- Advanced analytics
+- Priority support
+- Featured business placement
+
+**PLATINUM TIER (€99/month):**
+- Max Active Missions: Unlimited (fair use policy)
+- Max Participants/Month: 300
+- Max Participants/Mission: 50
+- All features unlocked
+- Premium events hosting
+- Advanced analytics + competitive insights
+- Dedicated account manager
+- Featured placement + marketing boost
+
+${context.subscriptionTier === 'STARTER' ? `
+🔹 CURRENT TIER: STARTER
+- Max Active Missions: 1 (ONE mission at a time, not 5, not 2, exactly ONE)
+- Max Participants/Month: 20
+- Max Participants/Mission: 10
+- When user asks "how many missions can I create" → Answer: "1 active mission at a time"
+- Once a mission ends, they can create another one
+` : context.subscriptionTier === 'SILVER' ? `
+🔹 CURRENT TIER: SILVER (€29/month)
+- Max Active Missions: 3 (can run 3 missions simultaneously)
+- Max Participants/Month: 40
+- Max Participants/Mission: 20
+` : context.subscriptionTier === 'GOLD' ? `
+🔹 CURRENT TIER: GOLD (€59/month)
+- Max Active Missions: 6 (can run 6 missions simultaneously)
+- Max Participants/Month: 120
+- Max Participants/Mission: 30
+- Events access included
+` : `
+🔹 CURRENT TIER: PLATINUM (€99/month)
+- Max Active Missions: Unlimited (fair use policy)
+- Max Participants/Month: 300
+- Max Participants/Mission: 50
+- All premium features included
+`}
+`}
+${context.upgradeRecommendation ? `UPGRADE OPPORTUNITY:\n${context.upgradeRecommendation}\n` : ''}
+
+IMPORTANT CONTEXT:
+- All missions are IN-APP ONLY (no external Instagram or Google connections)
+- Mission types: Follow Business (in-app), Write Review (in-app), Review with Photo (in-app), Share Photo (in-app), Check-in/Visit, Custom
+- DO NOT mention Instagram followers, Instagram stories, Google Reviews, or any external social media features
+- When explaining missions, always clarify they happen within the Beevvy app
+
+When users ask about features they don't have access to:
+1. Politely explain the feature is available in a higher tier/level
+2. Mention the specific tier/level that unlocks it (and cost if relevant)
+3. Highlight the value/ROI of upgrading
+4. Be helpful and encouraging, not pushy
+
+When users are approaching or hitting their limits:
+1. Alert them proactively ("You're using 85% of your participant limit this month")
+2. Suggest upgrading to avoid disruption
+3. Explain the benefits of the next tier`;
+  } else if (context.userRole === 'BUSINESS') {
+    // Business user but missing subscription data - add warning
+    subscriptionContext = `
+
+⚠️ SUBSCRIPTION DATA NOT AVAILABLE
+The user is a business but subscription information could not be loaded.
+DO NOT make up or guess subscription limits.
+Tell the user: "I'm having trouble loading your subscription details. Please refresh the page or contact support if this persists."
+`;
+    console.warn('[OpenAI] Business user but missing subscription data!', {
+      hasLevel: !!context.businessLevel,
+      hasTier: !!context.subscriptionTier,
+      hasLimits: !!context.subscriptionLimits
+    });
+  }
+  
+  const basePrompt = `You are Beevvy AI Assistant, a helpful and friendly support agent for the Beevvy platform. Your role is to help users get the most out of Beevvy.
+
+User Context:
+- Name: ${context.userName}
+- Role: ${context.userRole}
+${context.location?.city ? `- Location: ${context.location.city}${context.location.country ? `, ${context.location.country}` : ''}` : ''}
+${context.currentScreen ? `- Current Screen: ${context.currentScreen}` : ''}
+${context.subscriptionLevel ? `- Subscription: ${context.subscriptionLevel}` : ''}
+${context.businessType ? `- Business Type: ${context.businessType}` : ''}
+${context.recentActivity && context.recentActivity.length > 0 ? `\nRecent Activity:\n${context.recentActivity.map(a => `- ${a}`).join('\n')}` : ''}${subscriptionContext}
+
+🎯 INDUSTRY-SPECIFIC PERSONALIZATION (CRITICAL):
+${context.businessType ? `This user runs a ${context.businessType} business. ALWAYS tailor your advice to this industry:
+
+**For RETAIL**: 
+- Example missions: "Post a photo with your purchase", "Share your style transformation", "Tag us in your outfit"
+- ROI focus: Increase foot traffic, boost social proof, drive repeat purchases
+- Real benefits: "3 missions = run 'New Arrivals Spotlight', 'Customer of the Week', 'Style Challenge' simultaneously"
+
+**For RESTAURANT/CAFE**: 
+- Example missions: "Share your favorite dish", "Review your meal experience", "Post a food photo and tag us"
+- ROI focus: Fill tables during slow hours, increase takeout orders, build loyal regulars
+- Real benefits: "40 participants = 40 mouthwatering food photos spreading across social media"
+
+**For FITNESS/GYM**: 
+- Example missions: "Post your workout selfie", "Share your transformation story", "Check-in after class"
+- ROI focus: Member retention, class bookings, referral generation
+- Real benefits: "Events access = host fitness challenges, nutrition workshops, member appreciation nights"
+
+**For BEAUTY/SALON**: 
+- Example missions: "Share your new look before/after", "Review your experience", "Tag us in your selfie"
+- ROI focus: Fill appointment slots, showcase expertise, build portfolio
+- Real benefits: "Photo missions = visual proof of your work spreading organically"
+
+**For PROFESSIONAL SERVICES**: 
+- Example missions: "Leave a testimonial", "Share your success story", "Refer a colleague"
+- ROI focus: Build credibility, generate referrals, showcase results
+- Real benefits: "Review missions = authentic testimonials for your website and marketing"
+
+Provide SPECIFIC, ACTIONABLE examples relevant to their ${context.businessType} business.
+` : 'Provide general business advice with concrete examples.'}
+
+🗣️ COMMUNICATION STYLE (CRITICAL):
+
+**Talk Like a Human, Not a Corporate Bot:**
+- Avoid bullet points and formal lists unless absolutely necessary
+- Use natural, conversational language like you're talking to a friend over coffee
+- Tell mini-stories with concrete examples: "Imagine you're a café owner. Instead of posting flyers, you create a mission..."
+- Use "you" and "your business" frequently to make it personal
+- Skip emojis unless it feels natural (not forced corporate cheerfulness)
+
+**Show, Don't Just Tell:**
+❌ BAD: "My Squad helps you network with businesses"
+✅ GOOD: "My Squad automatically matches you with 2-4 local businesses each month. Think of it like having a regular coffee meetup with other business owners in your area - you share what's working, brainstorm solutions to challenges, maybe even plan joint promotions together."
+
+❌ BAD: "Projects feature allows collaboration"
+✅ GOOD: "Let's say you run a boutique and there's a salon nearby. With Projects, you could team up on a 'Summer Glow-Up' campaign - they do hair/makeup, you provide the outfits, you split the cost of a photographer, and both of you get amazing content. That's what Projects is for."
+
+❌ BAD: "Events access for premium tiers"
+✅ GOOD: "With Events access, you could host something like 'Small Business Owners Happy Hour' at your location. Other local businesses show up, everyone networks, and you position yourself as the connector in your community. Plus it brings foot traffic to your space."
+
+**For B2B Features Specifically:**
+Instead of listing features with generic descriptions, paint a picture:
+- My Squad: "Every month, you get matched with 2-4 DIFFERENT local businesses for a fun social activity - not the same group, new people each time. The app suggests ideas like bowling, escape rooms, or happy hours. It's like speed networking but actually fun. You might meet a bakery owner one month, a fitness studio the next. You do something enjoyable together, naturally start talking shop, share marketing ideas, and sometimes those connections turn into real partnerships or referrals. It's about building your local business network while actually having a good time, not sitting in boring meetups."
+- Match: "Say you're a wedding photographer. Match would help you find venues, florists, DJs - all the businesses that serve the same customers but aren't competing with you. Then you can cross-promote: they recommend you, you recommend them."
+- Projects: "Perfect for bigger campaigns you can't afford alone. Maybe 3-4 businesses chip in for a professional video shoot, each get content for their social media, and split the €2,000 cost."
+- Market: "Need a one-time thing? Like headshots for your team, or someone to redesign your menu? Market is where you browse freelancers' portfolios and hire them for specific projects."
+
+**Answer Structure:**
+1. Start with a relatable scenario from THEIR industry
+2. Explain how the feature helps with that scenario
+3. Give a specific example with numbers/outcomes when possible
+4. Optional: Gently suggest next step or related feature
+
+**Tone Checklist:**
+✅ Conversational and warm
+✅ Specific examples from their industry
+✅ Natural language, not corporate jargon
+✅ Story-driven explanations
+❌ No robotic bullet lists unless comparing tiers/numbers
+❌ No generic "boost engagement" fluff
+❌ No forced emoji enthusiasm
+
+CRITICAL: When answering questions about subscription limits, ONLY use the numbers provided in SUBSCRIPTION STATUS above. Never guess or estimate.
+
+${featureGuide}
+
+Remember: You're helping a real business owner grow their ${context.businessType || 'business'}. Make every answer feel personalized, actionable, and valuable to THEIR specific situation.`;
+
+  return basePrompt;
+}
+
+/**
+ * Get quick suggestions for common questions based on user role
+ */
+export const getQuickSuggestions = (userRole: 'USER' | 'BUSINESS' | 'CREATOR'): string[] => {
+  switch (userRole) {
+    case 'BUSINESS':
+      return [
+        "How do I create my first mission?",
+        "What are B2B partnerships and how do they work?",
+        "How can I find other businesses to collaborate with?",
+        "What's the difference between Projects and Market?",
+        "How do Squad meetups work?",
+        "What rewards attract customers?",
+        "How does the AI verification work?"
+      ];
+    case 'CREATOR':
+      return [
+        "How do I find collaboration opportunities?",
+        "What should I include in my portfolio?",
+        "How do I apply to projects?",
+        "How are project payments handled?",
+        "How can I increase my visibility?"
+      ];
+    case 'USER':
+      return [
+        "How do I earn points quickly?",
+        "Where can I find missions near me?",
+        "How do I redeem rewards?",
+        "What are meetups and how do I join?",
+        "How does the level system work?",
+        "What is My Squad?"
+      ];
+    default:
+      return [
+        "How does Beevvy work?",
+        "What can I do on this platform?",
+        "How do I get started?"
+      ];
+  }
+};
+
+/**
+ * AI Caption Generator
+ * Creates engaging social media captions with hashtags
+ * 
+ * @param params - Caption generation parameters
+ * @returns Generated caption with hashtags
+ */
+export const generateCaption = async (params: {
+  contentType: string;
+  topic?: string;
+  imageDescription?: string;
+  businessType?: string;
+  businessName?: string;
+  tone?: 'professional' | 'casual' | 'fun' | 'inspiring';
+  includeEmojis?: boolean;
+  includeHashtags?: boolean;
+  targetAudience?: string;
+}): Promise<{
+  caption: string;
+  hashtags: string[];
+}> => {
+  const client = getClient();
+  
+  const {
+    contentType,
+    topic,
+    imageDescription,
+    businessType,
+    businessName,
+    tone = 'casual',
+    includeEmojis = true,
+    includeHashtags = true,
+    targetAudience
+  } = params;
+
+  // Fallback captions
+  const fallbackCaptions = {
+    'EXPERIENCE_POST': {
+      caption: "Had an amazing experience today! Can't wait to share more. ✨",
+      hashtags: ['experience', 'lifestyle', 'goodvibes']
+    },
+    'MOMENT': {
+      caption: "Capturing this special moment 📸",
+      hashtags: ['moment', 'photooftheday', 'memories']
+    },
+    'BUSINESS_ANNOUNCEMENT': {
+      caption: `Exciting news from ${businessName || 'us'}! Stay tuned for updates.`,
+      hashtags: ['announcement', 'news', 'updates']
+    },
+    'CREATOR_CONTENT': {
+      caption: "Fresh content alert! Hope you enjoy this one 🎨",
+      hashtags: ['content', 'creative', 'newpost']
+    },
+    'EVENT_PREVIEW': {
+      caption: "Mark your calendars! Something special is coming. 🎉",
+      hashtags: ['event', 'comingsoon', 'exciting']
+    }
+  };
+
+  const fallback = fallbackCaptions[contentType as keyof typeof fallbackCaptions] || {
+    caption: "Sharing something special with you all! ✨",
+    hashtags: ['share', 'post', 'social']
+  };
+
+  if (!client) {
+    console.warn('OpenAI API not available, returning fallback caption');
+    return fallback;
+  }
+
+  try {
+    // Build context for AI
+    let contextInfo = `Content Type: ${contentType}\n`;
+    if (topic) contextInfo += `Topic: ${topic}\n`;
+    if (imageDescription) contextInfo += `Image Description: ${imageDescription}\n`;
+    if (businessType) contextInfo += `Business Type: ${businessType}\n`;
+    if (businessName) contextInfo += `Business Name: ${businessName}\n`;
+    if (targetAudience) contextInfo += `Target Audience: ${targetAudience}\n`;
+
+    const toneDescriptions = {
+      professional: 'professional, polished, and business-appropriate',
+      casual: 'casual, friendly, and conversational',
+      fun: 'fun, playful, and energetic',
+      inspiring: 'inspiring, motivational, and uplifting'
+    };
+
+    const prompt = `Generate an engaging social media caption for this post:
+
+${contextInfo}
+
+Tone: ${toneDescriptions[tone]}
+${includeEmojis ? 'Use 2-3 relevant emojis naturally integrated' : 'No emojis'}
+${includeHashtags ? 'Include 5-7 relevant hashtags' : 'No hashtags'}
+
+Guidelines:
+- Caption should be 1-2 sentences (max 150 characters)
+- Make it engaging and authentic
+- Match the tone specified
+- If it's a business post, subtly promote the business
+- Be conversational and relatable
+
+Return JSON:
+{
+  "caption": "The caption text${includeEmojis ? ' with emojis' : ''}",
+  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+}
+
+Caption only (hashtags separate). Keep it short and punchy!`;
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a social media expert who creates engaging, authentic captions. Always respond with valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.8, // Higher for creativity
+      max_tokens: 150,
+      response_format: { type: 'json_object' }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallback;
+
+    const result = JSON.parse(response);
+    
+    return {
+      caption: result.caption || fallback.caption,
+      hashtags: Array.isArray(result.hashtags) ? result.hashtags : fallback.hashtags
+    };
+
+  } catch (error) {
+    console.error('Error generating caption:', error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'generateCaption',
+      contentType
+    });
+    return fallback;
+  }
+};
+
+/**
+ * Fetch and analyze website content for business context
+ * Extracts key information from business website
+ */
+const analyzeWebsiteContent = async (websiteUrl: string): Promise<{
+  businessDescription?: string;
+  keyServices?: string[];
+  hours?: string;
+  location?: string;
+  uniqueSellingPoints?: string[];
+  websiteQuality?: 'excellent' | 'good' | 'needs-improvement';
+}> => {
+  try {
+    // Fetch website content
+    const response = await fetch(websiteUrl, {
+      headers: { 'User-Agent': 'Beevvy AI Analyzer/1.0' },
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch');
+    
+    const html = await response.text();
+    
+    // Extract text content (simple extraction)
+    const textContent = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 2000); // First 2000 chars
+    
+    const client = getClient();
+    if (!client) return {};
+    
+    // Use AI to extract structured info
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Extract key business information from website content. Return valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: `Analyze this business website content and extract:\n\n${textContent}\n\nReturn JSON:\n{\n  "businessDescription": "Brief description",\n  "keyServices": ["service1", "service2"],\n  "uniqueSellingPoints": ["USP1", "USP2"],\n  "websiteQuality": "excellent|good|needs-improvement"\n}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 400,
+      response_format: { type: 'json_object' }
+    });
+    
+    const result = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    return result;
+    
+  } catch (error) {
+    console.warn('[analyzeWebsiteContent] Error:', error);
+    return {};
+  }
+};
+
+/**
+ * AI Business Performance Insights
+ * Analyzes metrics and provides actionable recommendations
+ * Now includes website analysis for better context
+ * 
+ * @param metrics - Business performance data
+ * @returns AI-generated insights and recommendations
+ */
+export const analyzeBusinessPerformance = async (metrics: {
+  businessId: string;
+  businessName: string;
+  businessType: string;
+  websiteUrl?: string;
+  period: 'week' | 'month' | 'quarter';
+  data: {
+    totalMissions: number;
+    activeMissions: number;
+    completedMissions: number;
+    totalParticipations: number;
+    approvedParticipations: number;
+    rejectedParticipations: number;
+    totalPointsAwarded: number;
+    totalRewards: number;
+    redeemedRewards: number;
+    newCustomers: number;
+    returningCustomers: number;
+    averageEngagementRate?: number;
+    topPerformingMissions?: Array<{ title: string; completions: number }>;
+  };
+}): Promise<{
+  summary: string;
+  insights: Array<{ type: 'success' | 'warning' | 'info'; title: string; description: string }>;
+  recommendations: Array<{ priority: 'high' | 'medium' | 'low'; action: string; reason: string }>;
+  score: number; // 0-100
+}> => {
+  const client = getClient();
+  
+  const fallback = {
+    summary: `Your business has ${metrics.data.totalMissions} active campaigns with ${metrics.data.totalParticipations} total participations.`,
+    insights: [
+      {
+        type: 'info' as const,
+        title: 'Engagement Overview',
+        description: `${metrics.data.approvedParticipations} approved submissions out of ${metrics.data.totalParticipations} total.`
+      }
+    ],
+    recommendations: [
+      {
+        priority: 'medium' as const,
+        action: 'Review your mission requirements',
+        reason: 'Ensure your missions are clear and achievable to increase completion rates.'
+      }
+    ],
+    score: 65
+  };
+
+  if (!client) {
+    console.warn('OpenAI API not available, returning fallback insights');
+    return fallback;
+  }
+
+  try {
+    const { businessName, businessType, websiteUrl, period, data } = metrics;
+    
+    // Fetch website data if URL provided
+    let websiteContext = '';
+    if (websiteUrl) {
+      const websiteData = await analyzeWebsiteContent(websiteUrl);
+      if (websiteData.businessDescription || websiteData.keyServices) {
+        websiteContext = `\n\nWebsite Analysis:
+- Description: ${websiteData.businessDescription || 'N/A'}
+- Services: ${websiteData.keyServices?.join(', ') || 'N/A'}
+- USPs: ${websiteData.uniqueSellingPoints?.join(', ') || 'N/A'}
+- Website Quality: ${websiteData.websiteQuality || 'N/A'}
+- URL: ${websiteUrl}`;
+      }
+    }
+    
+    // Calculate key rates
+    const approvalRate = data.totalParticipations > 0 
+      ? (data.approvedParticipations / data.totalParticipations * 100).toFixed(1)
+      : '0';
+    const completionRate = data.totalMissions > 0
+      ? (data.completedMissions / data.totalMissions * 100).toFixed(1)
+      : '0';
+    const redemptionRate = data.totalRewards > 0
+      ? (data.redeemedRewards / data.totalRewards * 100).toFixed(1)
+      : '0';
+    const customerRetention = data.newCustomers > 0
+      ? (data.returningCustomers / (data.newCustomers + data.returningCustomers) * 100).toFixed(1)
+      : '0';
+
+    const prompt = `Analyze business performance and provide actionable insights.
+
+Business: ${businessName} (${businessType})
+Time Period: Last ${period}${websiteContext}
+
+Performance Metrics:
+- Total Missions: ${data.totalMissions} (${data.activeMissions} active, ${data.completedMissions} completed)
+- Participation: ${data.totalParticipations} total (${data.approvedParticipations} approved, ${data.rejectedParticipations} rejected)
+- Approval Rate: ${approvalRate}%
+- Completion Rate: ${completionRate}%
+- Points Awarded: ${data.totalPointsAwarded}
+- Rewards: ${data.totalRewards} total (${data.redeemedRewards} redeemed)
+- Redemption Rate: ${redemptionRate}%
+- Customers: ${data.newCustomers} new, ${data.returningCustomers} returning
+- Customer Retention: ${customerRetention}%
+${data.topPerformingMissions ? `\nTop Missions:\n${data.topPerformingMissions.map(m => `- ${m.title}: ${m.completions} completions`).join('\n')}` : ''}
+
+Provide:
+1. Brief summary (1 sentence)
+2. 3-5 key insights (success/warning/info)
+3. 3-5 prioritized recommendations (high/medium/low)
+4. Overall performance score (0-100)
+
+Return JSON:
+{
+  "summary": "One sentence overview",
+  "insights": [
+    {"type": "success|warning|info", "title": "Insight title", "description": "2 sentence explanation"}
+  ],
+  "recommendations": [
+    {"priority": "high|medium|low", "action": "What to do", "reason": "Why it matters"}
+  ],
+  "score": 75
+}
+
+Focus on actionable advice. Be specific to ${businessType} businesses.${websiteUrl ? ' Use website context to provide personalized recommendations aligned with their brand and offerings.' : ''}`;
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a business performance analyst with deep knowledge of ${businessType} businesses. Provide clear, actionable insights${websiteUrl ? ' leveraging the business website context for personalized advice' : ''}. Always respond with valid JSON only.`
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.6, // Balanced for analysis
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallback;
+
+    const result = JSON.parse(response);
+    
+    return {
+      summary: result.summary || fallback.summary,
+      insights: Array.isArray(result.insights) ? result.insights : fallback.insights,
+      recommendations: Array.isArray(result.recommendations) ? result.recommendations : fallback.recommendations,
+      score: typeof result.score === 'number' ? Math.max(0, Math.min(100, result.score)) : fallback.score
+    };
+
+  } catch (error) {
+    console.error('Error analyzing business performance:', error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'analyzeBusinessPerformance',
+      businessId: metrics.businessId
+    });
+    return fallback;
+  }
+};
+
+/**
+ * AI Fraud Detection
+ * Analyzes user behavior patterns to detect suspicious activity
+ * 
+ * @param suspicionData - User activity data to analyze
+ * @returns Fraud risk assessment with reasoning
+ */
+export const detectFraudRisk = async (suspicionData: {
+  userId: string;
+  userName: string;
+  accountAge: number; // days
+  activityData: {
+    totalSubmissions: number;
+    rejectedSubmissions: number;
+    approvedSubmissions: number;
+    submissionsLast24h: number;
+    uniqueBusinessesEngaged: number;
+    accountCreationDate: Date;
+    lastActivityDate: Date;
+    averageTimeBetweenSubmissions: number; // minutes
+    duplicateContentDetected: boolean;
+    unusualLocationChanges: number;
+    multipleAccountsFromIP?: boolean;
+    rapidPointsEarning?: boolean;
+    rewardRedemptionRate?: number;
+  };
+}): Promise<{
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  riskScore: number; // 0-100
+  suspiciousPatterns: Array<{ pattern: string; severity: 'low' | 'medium' | 'high'; description: string }>;
+  recommendations: string[];
+  shouldFlag: boolean;
+  shouldBlock: boolean;
+}> => {
+  const client = getClient();
+  
+  const fallback = {
+    riskLevel: 'low' as const,
+    riskScore: 15,
+    suspiciousPatterns: [],
+    recommendations: ['Continue monitoring user activity'],
+    shouldFlag: false,
+    shouldBlock: false
+  };
+
+  if (!client) {
+    console.warn('OpenAI API not available, returning fallback fraud assessment');
+    return fallback;
+  }
+
+  try {
+    const { userName, accountAge, activityData } = suspicionData;
+    
+    // Calculate rejection rate
+    const rejectionRate = activityData.totalSubmissions > 0
+      ? (activityData.rejectedSubmissions / activityData.totalSubmissions * 100).toFixed(1)
+      : '0';
+    
+    // Calculate activity intensity
+    const submissionsPerDay = accountAge > 0
+      ? (activityData.totalSubmissions / accountAge).toFixed(2)
+      : '0';
+
+    const prompt = `Analyze user behavior for fraud detection.
+
+User: ${userName}
+Account Age: ${accountAge} days
+Created: ${activityData.accountCreationDate.toISOString()}
+Last Activity: ${activityData.lastActivityDate.toISOString()}
+
+Activity Metrics:
+- Total Submissions: ${activityData.totalSubmissions}
+- Approved: ${activityData.approvedSubmissions}
+- Rejected: ${activityData.rejectedSubmissions}
+- Rejection Rate: ${rejectionRate}%
+- Submissions Last 24h: ${activityData.submissionsLast24h}
+- Submissions Per Day: ${submissionsPerDay}
+- Unique Businesses: ${activityData.uniqueBusinessesEngaged}
+- Avg Time Between Submissions: ${activityData.averageTimeBetweenSubmissions} minutes
+- Duplicate Content: ${activityData.duplicateContentDetected ? 'Yes' : 'No'}
+- Unusual Location Changes: ${activityData.unusualLocationChanges}
+${activityData.multipleAccountsFromIP ? '- Multiple accounts from same IP detected' : ''}
+${activityData.rapidPointsEarning ? '- Rapid points earning detected' : ''}
+${activityData.rewardRedemptionRate ? `- Reward redemption rate: ${activityData.rewardRedemptionRate}%` : ''}
+
+Assess fraud risk. Look for:
+- Bot-like behavior (rapid submissions, consistent timing)
+- Fake proof attempts (high rejection rate)
+- Gaming the system (multiple accounts, location manipulation)
+- Suspicious patterns (duplicate content, unusual activity spikes)
+
+Return JSON:
+{
+  "riskLevel": "low|medium|high|critical",
+  "riskScore": 0-100,
+  "suspiciousPatterns": [
+    {"pattern": "Pattern name", "severity": "low|medium|high", "description": "Why suspicious"}
+  ],
+  "recommendations": ["Action 1", "Action 2"],
+  "shouldFlag": boolean,
+  "shouldBlock": boolean
+}
+
+Be conservative but accurate. False positives harm real users.`;
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a fraud detection expert. Analyze patterns carefully. Balance security with user experience. Always respond with valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3, // Low temperature for consistent analysis
+      max_tokens: 600,
+      response_format: { type: 'json_object' }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallback;
+
+    const result = JSON.parse(response);
+    
+    return {
+      riskLevel: ['low', 'medium', 'high', 'critical'].includes(result.riskLevel) ? result.riskLevel : 'low',
+      riskScore: typeof result.riskScore === 'number' ? Math.max(0, Math.min(100, result.riskScore)) : 15,
+      suspiciousPatterns: Array.isArray(result.suspiciousPatterns) ? result.suspiciousPatterns : [],
+      recommendations: Array.isArray(result.recommendations) ? result.recommendations : fallback.recommendations,
+      shouldFlag: typeof result.shouldFlag === 'boolean' ? result.shouldFlag : false,
+      shouldBlock: typeof result.shouldBlock === 'boolean' ? result.shouldBlock : false
+    };
+
+  } catch (error) {
+    console.error('Error detecting fraud risk:', error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'detectFraudRisk',
+      userId: suspicionData.userId
+    });
+    return fallback;
+  }
+};
+
+/**
+ * AI Smart Mission Pricing
+ * Suggests optimal point values for missions based on complexity, market data, and ROI
+ * 
+ * @param missionData - Mission details for pricing analysis
+ * @returns Recommended pricing with reasoning
+ */
+export const suggestMissionPricing = async (missionData: {
+  missionType: string;
+  title: string;
+  description: string;
+  requirements: string[];
+  estimatedTimeMinutes: number;
+  businessType: string;
+  targetAudience: string;
+  competitorPricing?: { min: number; max: number; average: number };
+  previousMissionPerformance?: { averageCompletions: number; averageQuality: number };
+}): Promise<{
+  recommendedPoints: number;
+  minPoints: number;
+  maxPoints: number;
+  reasoning: string;
+  pricingStrategy: 'budget' | 'competitive' | 'premium';
+  expectedEngagement: 'low' | 'medium' | 'high';
+  roiProjection: string;
+}> => {
+  const client = getClient();
+  
+  const fallback = {
+    recommendedPoints: 50,
+    minPoints: 30,
+    maxPoints: 75,
+    reasoning: 'Standard pricing based on mission complexity',
+    pricingStrategy: 'competitive' as const,
+    expectedEngagement: 'medium' as const,
+    roiProjection: 'Estimated 5-10 quality submissions'
+  };
+
+  if (!client) {
+    console.warn('OpenAI API not available, returning fallback pricing');
+    return fallback;
+  }
+
+  try {
+    const { missionType, title, description, requirements, estimatedTimeMinutes, businessType, targetAudience } = missionData;
+
+    const prompt = `Suggest optimal point value for a mission reward.
+
+Mission Type: ${missionType}
+Title: ${title}
+Description: ${description}
+Requirements: ${requirements.join(', ')}
+Estimated Time: ${estimatedTimeMinutes} minutes
+Business Type: ${businessType}
+Target Audience: ${targetAudience}
+${missionData.competitorPricing ? `Market Data: ${missionData.competitorPricing.min}-${missionData.competitorPricing.max} points (avg: ${missionData.competitorPricing.average})` : ''}
+${missionData.previousMissionPerformance ? `Previous Performance: ${missionData.previousMissionPerformance.averageCompletions} completions, ${missionData.previousMissionPerformance.averageQuality}/5 quality` : ''}
+
+Consider:
+- Time and effort required
+- Mission complexity and requirements
+- Market competition
+- Business value and ROI
+- User motivation factors
+
+Return JSON:
+{
+  "recommendedPoints": number (optimal value),
+  "minPoints": number (lower bound),
+  "maxPoints": number (upper bound),
+  "reasoning": "2-3 sentence explanation",
+  "pricingStrategy": "budget|competitive|premium",
+  "expectedEngagement": "low|medium|high",
+  "roiProjection": "Expected outcome description"
+}
+
+Balance attractiveness to users with business value.`;
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a pricing strategist. Suggest fair, competitive point values that balance user motivation with business goals. Always respond with valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 400,
+      response_format: { type: 'json_object' }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallback;
+
+    const result = JSON.parse(response);
+    
+    return {
+      recommendedPoints: typeof result.recommendedPoints === 'number' ? Math.max(10, result.recommendedPoints) : 50,
+      minPoints: typeof result.minPoints === 'number' ? result.minPoints : 30,
+      maxPoints: typeof result.maxPoints === 'number' ? result.maxPoints : 75,
+      reasoning: result.reasoning || fallback.reasoning,
+      pricingStrategy: ['budget', 'competitive', 'premium'].includes(result.pricingStrategy) ? result.pricingStrategy : 'competitive',
+      expectedEngagement: ['low', 'medium', 'high'].includes(result.expectedEngagement) ? result.expectedEngagement : 'medium',
+      roiProjection: result.roiProjection || fallback.roiProjection
+    };
+
+  } catch (error) {
+    console.error('Error suggesting mission pricing:', error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'suggestMissionPricing'
+    });
+    return fallback;
+  }
+};
+
+/**
+ * AI Notification Timing Optimization
+ * Analyzes user behavior to recommend best times to send notifications
+ * 
+ * @param userData - User activity patterns
+ * @returns Optimal notification timing
+ */
+export const optimizeNotificationTiming = async (userData: {
+  userId: string;
+  timezone: string;
+  activityHistory: Array<{ timestamp: Date; action: string }>;
+  openedNotifications: Array<{ sentAt: Date; openedAt: Date }>;
+  ignoredNotifications: Array<{ sentAt: Date }>;
+  userRole: 'USER' | 'BUSINESS' | 'CREATOR';
+}): Promise<{
+  optimalTimes: Array<{ hour: number; minute: number; dayOfWeek?: number; confidence: number }>;
+  avoidTimes: Array<{ hour: number; reason: string }>;
+  bestDay: string;
+  recommendations: string[];
+  engagementScore: number; // 0-100
+}> => {
+  const client = getClient();
+  
+  const fallback = {
+    optimalTimes: [
+      { hour: 9, minute: 0, confidence: 0.7 },
+      { hour: 12, minute: 30, confidence: 0.6 },
+      { hour: 18, minute: 0, confidence: 0.8 }
+    ],
+    avoidTimes: [
+      { hour: 3, reason: 'Late night - low engagement' }
+    ],
+    bestDay: 'Tuesday',
+    recommendations: ['Send important notifications during peak hours', 'Avoid late night and early morning'],
+    engagementScore: 65
+  };
+
+  if (!client) {
+    console.warn('OpenAI API not available, returning fallback timing');
+    return fallback;
+  }
+
+  try {
+    const { timezone, activityHistory, openedNotifications, ignoredNotifications, userRole } = userData;
+
+    // Calculate engagement stats
+    const totalNotifications = openedNotifications.length + ignoredNotifications.length;
+    const openRate = totalNotifications > 0 
+      ? ((openedNotifications.length / totalNotifications) * 100).toFixed(1)
+      : '0';
+
+    // Get activity hour distribution
+    const activityByHour: Record<number, number> = {};
+    activityHistory.forEach(activity => {
+      const hour = new Date(activity.timestamp).getHours();
+      activityByHour[hour] = (activityByHour[hour] || 0) + 1;
+    });
+
+    const topActivityHours = Object.entries(activityByHour)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([hour]) => hour);
+
+    const prompt = `Optimize notification timing for user engagement.
+
+User Role: ${userRole}
+Timezone: ${timezone}
+Total Notifications: ${totalNotifications}
+Open Rate: ${openRate}%
+Activity History: ${activityHistory.length} actions tracked
+Top Active Hours: ${topActivityHours.join(', ')}
+
+Analyze patterns and recommend:
+1. Best times to send notifications (hour, minute, confidence 0-1)
+2. Times to avoid
+3. Best day of week
+4. Specific recommendations for ${userRole}
+
+Return JSON:
+{
+  "optimalTimes": [
+    {"hour": 0-23, "minute": 0-59, "dayOfWeek": 0-6 (optional), "confidence": 0-1}
+  ],
+  "avoidTimes": [
+    {"hour": 0-23, "reason": "Why to avoid"}
+  ],
+  "bestDay": "Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday",
+  "recommendations": ["Actionable tip 1", "Actionable tip 2"],
+  "engagementScore": 0-100
+}
+
+Consider ${userRole}-specific patterns. Be data-driven.`;
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a notification timing expert. Analyze user behavior to maximize engagement. Always respond with valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.4,
+      max_tokens: 500,
+      response_format: { type: 'json_object' }
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    if (!response) return fallback;
+
+    const result = JSON.parse(response);
+    
+    return {
+      optimalTimes: Array.isArray(result.optimalTimes) ? result.optimalTimes : fallback.optimalTimes,
+      avoidTimes: Array.isArray(result.avoidTimes) ? result.avoidTimes : fallback.avoidTimes,
+      bestDay: result.bestDay || fallback.bestDay,
+      recommendations: Array.isArray(result.recommendations) ? result.recommendations : fallback.recommendations,
+      engagementScore: typeof result.engagementScore === 'number' ? Math.max(0, Math.min(100, result.engagementScore)) : 65
+    };
+
+  } catch (error) {
+    console.error('Error optimizing notification timing:', error);
+    captureError(error as Error, {
+      service: 'openaiService',
+      function: 'optimizeNotificationTiming',
+      userId: userData.userId
+    });
+    return fallback;
   }
 };
 

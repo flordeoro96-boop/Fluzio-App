@@ -18,8 +18,8 @@ import {
   Timestamp,
   DocumentData,
   QueryConstraint
-} from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+} from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { Mission, UserProfile, Skill } from '../types/models';
 import { isMissionVisibleToUser } from './geoTargetingService';
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, PremiumEvent, UserRole } from '../types';
 import { Calendar, MapPin, Users, Sparkles, Clock, Star, TrendingUp, Loader2 } from 'lucide-react';
-import { db } from '../services/AuthContext';
-import { collection, query, where, getDocs, orderBy, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { collection, query, where, getDocs, orderBy, addDoc, doc, updateDoc, increment } from '../services/firestoreCompat';
 
 interface PremiumEventsProps {
   user: User;
@@ -218,7 +218,7 @@ export const PremiumEvents: React.FC<PremiumEventsProps> = ({ user }) => {
             registered: 0,
             registrants: [],
             images: event.imageUrl ? [event.imageUrl] : [],
-            includes: event.pricing?.pointsCost || event.pricing?.moneyCost ? ['Official Fluzio Event', 'Networking opportunity'] : ['Official Fluzio Event', 'Free to attend', 'Networking opportunity'],
+            includes: event.pricing?.pointsCost || event.pricing?.moneyCost ? ['Official Beevvy Event', 'Networking opportunity'] : ['Official Beevvy Event', 'Free to attend', 'Networking opportunity'],
             schedule: [
               {
                 day: 1,
@@ -228,7 +228,7 @@ export const PremiumEvents: React.FC<PremiumEventsProps> = ({ user }) => {
             ],
             createdBy: 'ADMIN',
             status: 'REGISTRATION_OPEN',
-            highlights: event.pricing?.pointsCost || event.pricing?.moneyCost ? ['Official Fluzio Event'] : ['Official Fluzio Event', 'Free to attend'],
+            highlights: event.pricing?.pointsCost || event.pricing?.moneyCost ? ['Official Beevvy Event'] : ['Official Beevvy Event', 'Free to attend'],
             whatToBring: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -1302,7 +1302,7 @@ const EventDetailsModal: React.FC<{ event: PremiumEvent; onClose: () => void; us
                     <div className="text-3xl font-bold text-purple-600">
                       {(event.pricing?.points || 0).toLocaleString()}
                     </div>
-                    <div className="text-sm text-purple-600 mt-1">Fluzio Points</div>
+                    <div className="text-sm text-purple-600 mt-1">Beevvy Points</div>
                   </div>
                 )}
                 {(event.pricing?.cash || 0) > 0 && (

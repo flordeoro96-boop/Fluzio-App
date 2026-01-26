@@ -3,8 +3,8 @@
  * Handles automated Google Review verification and seamless customer experience
  */
 
-import { db } from './AuthContext';
-import { collection, doc, getDoc, updateDoc, addDoc, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, doc, getDoc, updateDoc, addDoc, query, where, getDocs, orderBy, limit, Timestamp } from '../services/firestoreCompat';
 
 interface GoogleReviewVerification {
   reviewerId: string;

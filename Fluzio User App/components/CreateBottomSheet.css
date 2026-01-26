@@ -1,0 +1,144 @@
+/* Bottom Sheet Overlay */
+.bottom-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 9998;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Bottom Sheet Container */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 24px 24px 0 0;
+  padding: 8px 20px 32px;
+  z-index: 9999;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Handle */
+.bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #E8EAED;
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+
+/* Header */
+.bottom-sheet-header {
+  margin-bottom: 20px;
+}
+
+.bottom-sheet-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1F2937;
+  margin: 0;
+  text-align: center;
+}
+
+/* Content */
+.bottom-sheet-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Content Type Cards */
+.content-type-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border: 2px solid #F3F4F6;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+  width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.content-type-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: var(--card-color);
+}
+
+.content-type-card:active {
+  transform: translateY(0);
+}
+
+/* Icon */
+.content-type-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--card-color) 0%, var(--card-color) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white !important;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+/* Info */
+.content-type-info {
+  flex: 1;
+}
+
+.content-type-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1F2937;
+  margin-bottom: 4px;
+}
+
+.content-type-description {
+  font-size: 14px;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .bottom-sheet {
+    max-height: 75vh;
+  }
+  
+  .content-type-card {
+    padding: 16px;
+  }
+  
+  .content-type-icon {
+    width: 44px;
+    height: 44px;
+  }
+}

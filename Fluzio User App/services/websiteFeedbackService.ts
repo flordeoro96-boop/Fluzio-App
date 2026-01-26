@@ -1,5 +1,5 @@
-import { collection, addDoc, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, addDoc, query, where, getDocs, orderBy, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 import { WebsiteFeedback } from '../components/WebsiteVisitFeedback';
 
 export interface WebsiteFeedbackData extends WebsiteFeedback {

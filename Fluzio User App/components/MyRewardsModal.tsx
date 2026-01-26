@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Gift, Check, Clock, QrCode, Copy, ExternalLink, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from './Common';
-import { db } from '../services/AuthContext';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp } from '../services/firestoreCompat';
 import { useTranslation } from 'react-i18next';
 
 interface RedeemedReward {

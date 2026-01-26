@@ -53,7 +53,7 @@ export const Level1SubscriptionSelector: React.FC<Level1SubscriptionSelectorProp
         { icon: MapPin, text: 'Access to public city feed' }
       ],
       purpose: [
-        'Entry into Fluzio',
+        'Entry into Beevvy',
         'Community exposure',
         'Zero pressure',
         'Curiosity → trust'
@@ -135,7 +135,7 @@ export const Level1SubscriptionSelector: React.FC<Level1SubscriptionSelectorProp
             Choose Your Path
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Start building your business foundation with Fluzio's Level 1 community access
+            Start building your business foundation with Beevvy's Level 1 community access
           </p>
         </div>
 

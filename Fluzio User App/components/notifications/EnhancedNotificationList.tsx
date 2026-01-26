@@ -10,9 +10,9 @@ import {
   doc, 
   updateDoc, 
   deleteDoc,
-  writeBatch 
-} from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+  writeBatch
+} from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 import { formatDistanceToNow } from 'date-fns';
 
 interface EnhancedNotificationListProps {

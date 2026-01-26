@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, ServiceProvider } from '../types';
 import { Camera, Video, Palette, PenTool, Share2, TrendingUp, Star, MapPin, Clock, Search, Filter, Loader2 } from 'lucide-react';
-import { db } from '../services/AuthContext';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../services/apiService';
+import { collection, query, where, getDocs, orderBy } from '../services/firestoreCompat';
 
 interface ServiceMarketplaceProps {
   user: User;

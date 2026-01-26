@@ -1,39 +1,17 @@
-import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
-import { doc, setDoc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
-
-// Firebase Messaging instance
-let messaging: Messaging | null = null;
+// Push Notification Service - Stubbed for Supabase migration
+// TODO: Implement with Supabase or third-party push notification service
+import { doc, setDoc, getDoc, updateDoc, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 // Notification permission status
 export type NotificationPermission = 'default' | 'granted' | 'denied';
 
 /**
- * Initialize Firebase Cloud Messaging
+ * Initialize Messaging (stub)
  */
-export const initializeMessaging = async (): Promise<Messaging | null> => {
-  try {
-    // Check if browser supports notifications
-    if (!('Notification' in window)) {
-      console.warn('[Push Notifications] Browser does not support notifications');
-      return null;
-    }
-
-    // Check if Firebase Messaging is supported
-    if (!('serviceWorker' in navigator)) {
-      console.warn('[Push Notifications] Service workers not supported');
-      return null;
-    }
-
-    const { getApp } = await import('firebase/app');
-    const app = getApp();
-    messaging = getMessaging(app);
-    
-    return messaging;
-  } catch (error) {
-    console.error('[Push Notifications] Failed to initialize messaging:', error);
-    return null;
-  }
+export const initializeMessaging = async (): Promise<any | null> => {
+  console.log('[Push Notifications] Messaging stubbed - migrated from Firebase');
+  return null;
 };
 
 /**
@@ -285,4 +263,273 @@ export const getNotificationPermissionStatus = (): NotificationPermission => {
  */
 export const areNotificationsEnabled = (): boolean => {
   return getNotificationPermissionStatus() === 'granted';
+};
+
+// ==============================================
+// MISSION NOTIFICATION TRIGGERS
+// ==============================================
+
+/**
+ * Notify user when a new mission is available
+ */
+export const notifyMissionAvailable = async (
+  userId: string,
+  mission: {
+    id: string;
+    title: string;
+    description: string;
+    points: number;
+    businessName?: string;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions) return;
+
+    const title = '🎯 New Mission Available!';
+    const body = `${mission.title} - Earn ${mission.points} points${
+      mission.businessName ? ` at ${mission.businessName}` : ''
+    }`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `mission-${mission.id}`,
+      data: { type: 'mission', missionId: mission.id },
+      requireInteraction: false
+    });
+
+    console.log('[Push Notifications] Mission available notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify mission available:', error);
+  }
+};
+
+/**
+ * Notify user when mission is assigned to them
+ */
+export const notifyMissionAssigned = async (
+  userId: string,
+  mission: {
+    id: string;
+    title: string;
+    businessName: string;
+    deadline?: Date;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions) return;
+
+    const title = '✅ Mission Assigned!';
+    const deadlineText = mission.deadline
+      ? ` Complete by ${mission.deadline.toLocaleDateString()}`
+      : '';
+    const body = `You've been assigned: ${mission.title} at ${mission.businessName}${deadlineText}`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `mission-assigned-${mission.id}`,
+      data: { type: 'mission-assigned', missionId: mission.id },
+      requireInteraction: true
+    });
+
+    console.log('[Push Notifications] Mission assigned notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify mission assigned:', error);
+  }
+};
+
+/**
+ * Notify user when mission is completed
+ */
+export const notifyMissionCompleted = async (
+  userId: string,
+  mission: {
+    id: string;
+    title: string;
+    pointsEarned: number;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions) return;
+
+    const title = '🎉 Mission Completed!';
+    const body = `You earned ${mission.pointsEarned} points for completing: ${mission.title}`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `mission-completed-${mission.id}`,
+      data: { type: 'mission-completed', missionId: mission.id },
+      requireInteraction: false,
+      icon: '/celebration.png'
+    });
+
+    console.log('[Push Notifications] Mission completed notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify mission completed:', error);
+  }
+};
+
+/**
+ * Notify user when mission is expiring soon
+ */
+export const notifyMissionExpiring = async (
+  userId: string,
+  mission: {
+    id: string;
+    title: string;
+    businessName: string;
+    hoursRemaining: number;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions) return;
+
+    const title = '⏰ Mission Expiring Soon!';
+    const body = `Only ${mission.hoursRemaining} hours left to complete: ${mission.title} at ${mission.businessName}`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `mission-expiring-${mission.id}`,
+      data: { type: 'mission-expiring', missionId: mission.id },
+      requireInteraction: true
+    });
+
+    console.log('[Push Notifications] Mission expiring notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify mission expiring:', error);
+  }
+};
+
+/**
+ * Notify user when mission application is approved
+ */
+export const notifyMissionApproved = async (
+  userId: string,
+  mission: {
+    id: string;
+    title: string;
+    businessName: string;
+    pointsEarned: number;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions) return;
+
+    const title = '✨ Mission Approved!';
+    const body = `Your submission for "${mission.title}" at ${mission.businessName} has been approved! You earned ${mission.pointsEarned} points.`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `mission-approved-${mission.id}`,
+      data: { type: 'mission-approved', missionId: mission.id },
+      requireInteraction: false
+    });
+
+    console.log('[Push Notifications] Mission approved notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify mission approved:', error);
+  }
+};
+
+/**
+ * Notify user when mission application is rejected
+ */
+export const notifyMissionRejected = async (
+  userId: string,
+  mission: {
+    id: string;
+    title: string;
+    businessName: string;
+    reason?: string;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions) return;
+
+    const title = '❌ Mission Needs Revision';
+    const body = `Your submission for "${mission.title}" at ${mission.businessName} needs revision${
+      mission.reason ? `: ${mission.reason}` : ''
+    }`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `mission-rejected-${mission.id}`,
+      data: { type: 'mission-rejected', missionId: mission.id },
+      requireInteraction: true
+    });
+
+    console.log('[Push Notifications] Mission rejected notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify mission rejected:', error);
+  }
+};
+
+/**
+ * Notify user about new reward available
+ */
+export const notifyRewardAvailable = async (
+  userId: string,
+  reward: {
+    id: string;
+    name: string;
+    pointsCost: number;
+    businessName?: string;
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.rewards) return;
+
+    const title = '🎁 New Reward Available!';
+    const body = `${reward.name} - ${reward.pointsCost} points${
+      reward.businessName ? ` at ${reward.businessName}` : ''
+    }`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `reward-${reward.id}`,
+      data: { type: 'reward', rewardId: reward.id },
+      requireInteraction: false
+    });
+
+    console.log('[Push Notifications] Reward available notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify reward available:', error);
+  }
+};
+
+/**
+ * Notify user about AI recommendation
+ */
+export const notifyAIRecommendation = async (
+  userId: string,
+  recommendation: {
+    title: string;
+    description: string;
+    type: 'business' | 'mission' | 'event';
+  }
+): Promise<void> => {
+  try {
+    const prefs = await getNotificationPreferences(userId);
+    if (!prefs?.missions && recommendation.type === 'mission') return;
+
+    const title = '🤖 Recommended for You';
+    const body = `${recommendation.title} - ${recommendation.description}`;
+
+    showBrowserNotification(title, {
+      body,
+      tag: `ai-rec-${Date.now()}`,
+      data: { type: 'ai-recommendation', recommendationType: recommendation.type },
+      requireInteraction: false
+    });
+
+    console.log('[Push Notifications] AI recommendation notification sent');
+  } catch (error) {
+    console.error('[Push Notifications] Failed to notify AI recommendation:', error);
+  }
 };

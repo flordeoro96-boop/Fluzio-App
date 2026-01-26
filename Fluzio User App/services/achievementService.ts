@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, getDoc, updateDoc, arrayUnion, Timestamp } from '../services/firestoreCompat';
 
 export interface Achievement {
   id: string;

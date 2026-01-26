@@ -1,5 +1,5 @@
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db } from './AuthContext';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from '../services/storageCompat';
+import { db } from './apiService';
 
 /**
  * File Upload Service for Firebase Storage
@@ -146,4 +146,119 @@ export const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+// Upload project image to Firebase Storage
+export const uploadProjectImage = async (
+  file: File,
+  projectId: string,
+  userId: string
+): Promise<string> => {
+  try {
+    const storage = getStorage();
+    
+    // Validate image file
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+    
+    if (!file.type.startsWith('image/')) {
+      throw new Error('Only image files are allowed for projects');
+    }
+    
+    // Create a unique filename
+    const timestamp = Date.now();
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `projects/${projectId}/${timestamp}_${sanitizedFileName}`;
+    
+    // Create storage reference
+    const storageRef = ref(storage, filePath);
+    
+    // Upload file
+    console.log('[FileUploadService] Uploading project image:', filePath);
+    const snapshot = await uploadBytes(storageRef, file, {
+      contentType: file.type,
+      customMetadata: {
+        uploadedBy: userId,
+        projectId,
+        originalName: file.name
+      }
+    });
+    
+    // Get download URL
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    
+    console.log('[FileUploadService] ✅ Project image uploaded successfully:', downloadURL);
+    
+    return downloadURL;
+  } catch (error) {
+    console.error('[FileUploadService] Error uploading project image:', error);
+    throw new Error('Failed to upload project image');
+  }
+};
+
+// Delete project image from Firebase Storage
+export const deleteProjectImage = async (imageUrl: string): Promise<void> => {
+  try {
+    const storage = getStorage();
+    const fileRef = ref(storage, imageUrl);
+    await deleteObject(fileRef);
+    console.log('[FileUploadService] Project image deleted:', imageUrl);
+  } catch (error) {
+    console.error('[FileUploadService] Error deleting project image:', error);
+    throw error;
+  }
+};
+
+// Upload feed media (image or video) to Firebase Storage
+export const uploadFeedMedia = async (
+  file: File,
+  userId: string,
+  postId?: string
+): Promise<string> => {
+  try {
+    const storage = getStorage();
+    
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+    
+    // Check if it's image or video
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      throw new Error('Only image and video files are allowed for feed posts');
+    }
+    
+    // Create a unique filename
+    const timestamp = Date.now();
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const mediaType = file.type.startsWith('image/') ? 'images' : 'videos';
+    const filePath = `feed/${mediaType}/${userId}/${postId || timestamp}_${sanitizedFileName}`;
+    
+    // Create storage reference
+    const storageRef = ref(storage, filePath);
+    
+    // Upload file
+    console.log('[FileUploadService] Uploading feed media:', filePath);
+    const snapshot = await uploadBytes(storageRef, file, {
+      contentType: file.type,
+      customMetadata: {
+        uploadedBy: userId,
+        postId: postId || 'draft',
+        originalName: file.name
+      }
+    });
+    
+    // Get download URL
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    
+    console.log('[FileUploadService] ✅ Feed media uploaded successfully:', downloadURL);
+    
+    return downloadURL;
+  } catch (error) {
+    console.error('[FileUploadService] Error uploading feed media:', error);
+    throw new Error('Failed to upload feed media');
+  }
 };

@@ -17,6 +17,15 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
     
+    // Profile photos (camelCase path) - Users can upload their own profile photos
+    match /profilePhotos/{userId}/{allPaths=**} {
+      allow read: if true; // Anyone can read profile photos
+      allow write: if request.auth != null && 
+                     request.auth.uid == userId &&
+                     request.resource.size < 5 * 1024 * 1024; // 5MB limit
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
     // Message attachments (images, videos, files)
     match /messages/{conversationId}/{userId}/{fileName} {
       allow read: if request.auth != null; // Any authenticated user can read
@@ -32,6 +41,23 @@ service firebase.storage {
       allow write: if request.auth != null && 
                      request.resource.size < 10 * 1024 * 1024; // 10MB limit
       allow delete: if request.auth != null;
+    }
+    
+    // Project images - Allow authenticated users to upload
+    match /projects/{projectId}/{fileName} {
+      allow read: if true; // Anyone can read project images
+      allow write: if request.auth != null && 
+                     request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      allow delete: if request.auth != null;
+    }
+    
+    // Feed media (images and videos) - Allow authenticated users to upload their own content
+    match /feed/{mediaType}/{userId}/{fileName} {
+      allow read: if true; // Anyone can read feed media
+      allow write: if request.auth != null && 
+                     request.auth.uid == userId &&
+                     request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
     
     // Default: deny all access

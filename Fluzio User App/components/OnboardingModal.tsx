@@ -30,7 +30,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ user, onComplete }) =
       return [
         {
           icon: <Sparkles className="w-16 h-16 text-white" />,
-          title: "Welcome to Fluzio, Creator!",
+          title: "Welcome to Beevvy, Creator!",
           description: "Transform your creative talents into income by collaborating with businesses",
           gradient: "from-purple-500 to-pink-500",
         },
@@ -82,7 +82,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ user, onComplete }) =
       return [
         {
           icon: <Sparkles className="w-16 h-16 text-white" />,
-          title: "Welcome to Fluzio, Business!",
+          title: "Welcome to Beevvy, Business!",
           description: "Connect with talented creators and grow your business through authentic collaborations",
           gradient: "from-blue-500 to-indigo-500",
         },
@@ -136,13 +136,13 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ user, onComplete }) =
         {
           icon: <Sparkles className="w-16 h-16 text-white" />,
           title: "Welcome, Future Business Owner!",
-          description: "You're planning to open a business. Fluzio is here to help you prepare!",
+          description: "You're planning to open a business. Beevvy is here to help you prepare!",
           gradient: "from-amber-500 to-orange-500",
         },
         {
           icon: <Star className="w-16 h-16 text-white" />,
           title: "Plan & Prepare",
-          description: "Use Fluzio to research and plan your future business",
+          description: "Use Beevvy to research and plan your future business",
           features: [
             "Explore what other businesses are doing",
             "Learn about creator collaborations",
@@ -176,7 +176,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ user, onComplete }) =
     return [
       {
         icon: <Sparkles className="w-16 h-16 text-white" />,
-        title: "Welcome to Fluzio!",
+        title: "Welcome to Beevvy!",
         description: "Discover amazing local businesses and earn rewards while you explore",
         gradient: "from-blue-500 to-purple-500",
       },
@@ -257,7 +257,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ user, onComplete }) =
         <div className="absolute inset-0 flex items-center justify-center z-10 animate-fade-in">
           <div className="text-center">
             <div className="text-8xl mb-4 animate-bounce">🎉</div>
-            <h2 className="text-4xl font-bold text-white mb-2">Welcome to Fluzio!</h2>
+            <h2 className="text-4xl font-bold text-white mb-2">Welcome to Beevvy!</h2>
             <p className="text-xl text-white/90">+100 Points Bonus</p>
           </div>
         </div>

@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, serverTimestamp, Timestamp } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 export interface FriendRequest {
   id: string;

@@ -3,7 +3,7 @@
  * Handles creator applications to business missions
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import { 
   collection, 
   addDoc, 
@@ -15,7 +15,7 @@ import {
   getDoc,
   serverTimestamp,
   Timestamp
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 
 export interface Application {
   id: string;

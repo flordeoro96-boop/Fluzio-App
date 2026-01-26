@@ -14,7 +14,7 @@ export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'OPEN' | 'CLOSED' | 'CANCELLED
 export type EventType = 'NETWORKING' | 'WORKSHOP' | 'CONFERENCE' | 'SOCIAL' | 'TRAINING' | 'OTHER';
 export type EventScope = 'GLOBAL' | 'COUNTRY' | 'CITY' | 'CUSTOM';
 export type TicketStatus = 'RESERVED' | 'CONFIRMED' | 'CHECKED_IN' | 'NO_SHOW' | 'CANCELLED' | 'REFUNDED';
-export type PaymentType = 'FREE_CREDIT' | 'PAY_PER_USE' | 'COMPLIMENTARY' | 'ADMIN_GRANTED';
+export type PaymentType = 'FREE_CREDIT' | 'MONEY' | 'POINTS' | 'COMPLIMENTARY' | 'ADMIN_GRANTED';
 
 export interface Event {
   id: string;
@@ -92,6 +92,7 @@ export interface EventTicket {
   // Payment tracking
   amountPaid: number;
   currency: string;
+  pointsUsed?: number; // Points spent if paymentType is POINTS
   paymentIntentId?: string; // Stripe payment intent
   
   // Credits tracking (if used)

@@ -5,15 +5,24 @@ import { User, MissionStatus, Mission } from '../types';
 import { store } from '../services/mockStore';
 import { getParticipationsForBusiness, approveParticipation, rejectParticipation, Participation } from '../src/services/participationService';
 import { getMissionById } from '../services/missionService';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { useAuth } from '../services/AuthContext';
+import { analyzeProofSubmission } from '../services/openaiService';
 import { Button, Card } from './Common';
-import { X, Check, ArrowLeft, Sparkles, ExternalLink, User as UserIcon } from 'lucide-react';
+import { X, Check, ArrowLeft, Sparkles, ExternalLink, User as UserIcon, Bot, AlertCircle, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface VerifyScreenProps {
   user: User; // The business user
   onBack: () => void;
+}
+
+interface AIVerification {
+  isValid: boolean;
+  confidence: number;
+  reasoning: string;
+  flags: string[];
+  recommendation: 'AUTO_APPROVE' | 'MANUAL_REVIEW' | 'AUTO_REJECT';
 }
 
 export const VerifyScreen: React.FC<VerifyScreenProps> = ({ user, onBack }) => {
@@ -23,6 +32,8 @@ export const VerifyScreen: React.FC<VerifyScreenProps> = ({ user, onBack }) => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [userCache, setUserCache] = useState<Map<string, User>>(new Map());
   const [missionCache, setMissionCache] = useState<Map<string, Mission>>(new Map());
+  const [aiVerifications, setAiVerifications] = useState<Map<string, AIVerification>>(new Map());
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   
   // Use consistent businessId
   const businessId = userProfile?.uid || user.id;
@@ -74,6 +85,30 @@ export const VerifyScreen: React.FC<VerifyScreenProps> = ({ user, onBack }) => {
     };
     loadParticipations();
   }, [user.id, businessId]);
+
+  const handleAIVerify = async (participation: Participation) => {
+    const mission = missionCache.get(participation.missionId);
+    if (!mission) return;
+
+    setAnalyzingId(participation.id);
+    
+    try {
+      const result = await analyzeProofSubmission({
+        missionTitle: mission.title,
+        missionRequirements: mission.description || mission.requirements?.join(', ') || '',
+        proofType: mission.proofType || 'PHOTO',
+        proofDescription: participation.proofText,
+        imageUrl: participation.proofUrl
+      });
+
+      setAiVerifications(prev => new Map(prev).set(participation.id, result));
+      console.log('[VerifyScreen] AI Verification:', result);
+    } catch (error) {
+      console.error('[VerifyScreen] AI verification failed:', error);
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
 
   const handleDecision = async (participationId: string, approved: boolean) => {
       setProcessingId(participationId);
@@ -148,6 +183,8 @@ export const VerifyScreen: React.FC<VerifyScreenProps> = ({ user, onBack }) => {
                     const submitter = userCache.get(p.userId);
                     const mission = missionCache.get(p.missionId);
                     const isProcessing = processingId === p.id;
+                    const aiVerification = aiVerifications.get(p.id);
+                    const isAnalyzing = analyzingId === p.id;
 
                     if (!submitter || !mission) {
                         return (
@@ -180,6 +217,24 @@ export const VerifyScreen: React.FC<VerifyScreenProps> = ({ user, onBack }) => {
                                         Pending Review
                                     </div>
                                 </div>
+
+                                {/* AI Verification Badge */}
+                                {aiVerification && (
+                                  <div className="absolute top-3 left-3">
+                                    <div className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md flex items-center gap-1.5 shadow-sm ${
+                                      aiVerification.recommendation === 'AUTO_APPROVE' 
+                                        ? 'bg-green-500/90 text-white border-green-400' 
+                                        : aiVerification.recommendation === 'AUTO_REJECT'
+                                        ? 'bg-red-500/90 text-white border-red-400'
+                                        : 'bg-yellow-500/90 text-white border-yellow-400'
+                                    }`}>
+                                      <Bot className="w-3 h-3" />
+                                      {aiVerification.recommendation === 'AUTO_APPROVE' && 'AI: Valid'}
+                                      {aiVerification.recommendation === 'AUTO_REJECT' && 'AI: Invalid'}
+                                      {aiVerification.recommendation === 'MANUAL_REVIEW' && 'AI: Review'}
+                                    </div>
+                                  </div>
+                                )}
                             </div>
 
                             {/* Content */}
@@ -208,6 +263,61 @@ export const VerifyScreen: React.FC<VerifyScreenProps> = ({ user, onBack }) => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* AI Verification Result */}
+                                {aiVerification && (
+                                  <div className={`mb-4 p-3 rounded-lg border ${
+                                    aiVerification.recommendation === 'AUTO_APPROVE' 
+                                      ? 'bg-green-50 border-green-200' 
+                                      : aiVerification.recommendation === 'AUTO_REJECT'
+                                      ? 'bg-red-50 border-red-200'
+                                      : 'bg-yellow-50 border-yellow-200'
+                                  }`}>
+                                    <div className="flex items-start gap-2 mb-1">
+                                      <Bot className={`w-4 h-4 shrink-0 mt-0.5 ${
+                                        aiVerification.recommendation === 'AUTO_APPROVE' 
+                                          ? 'text-green-600' 
+                                          : aiVerification.recommendation === 'AUTO_REJECT'
+                                          ? 'text-red-600'
+                                          : 'text-yellow-600'
+                                      }`} />
+                                      <div className="flex-1">
+                                        <div className="text-xs font-bold text-gray-900 mb-1">
+                                          AI Analysis ({Math.round(aiVerification.confidence * 100)}% confident)
+                                        </div>
+                                        <div className="text-xs text-gray-700">
+                                          {aiVerification.reasoning}
+                                        </div>
+                                        {aiVerification.flags.length > 0 && (
+                                          <div className="mt-2 flex flex-wrap gap-1">
+                                            {aiVerification.flags.map((flag, i) => (
+                                              <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-white/60 text-gray-600">
+                                                {flag}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* AI Verify Button */}
+                                {!aiVerification && !isAnalyzing && (
+                                  <button
+                                    onClick={() => handleAIVerify(p)}
+                                    className="mb-3 py-2 rounded-lg border-2 border-dashed border-purple-200 text-purple-600 font-semibold text-sm hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <Bot className="w-4 h-4" /> Get AI Analysis
+                                  </button>
+                                )}
+
+                                {isAnalyzing && (
+                                  <div className="mb-3 py-2 rounded-lg border-2 border-dashed border-purple-200 bg-purple-50 text-purple-600 font-semibold text-sm flex items-center justify-center gap-2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                    Analyzing...
+                                  </div>
+                                )}
 
                                 {/* Actions */}
                                 <div className="flex gap-3 mt-auto pt-4 border-t border-gray-100">

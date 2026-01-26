@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { User, BusinessCategory } from '../types';
 import { Card, Button, Input, TextArea, Select } from './Common';
 import { X, Camera, Plus, Trash2, Loader2 } from 'lucide-react';
-import { storage, useAuth } from '../services/AuthContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { api } from '../services/apiService';
+import { storage, ref, uploadBytes, getDownloadURL } from '../services/storageCompat';
+import { useAuth } from '../services/AuthContext';
+import { api } from '../services/AuthContext';
 import { socialAuthService } from '../services/socialAuthService';
-import { InstagramConnector } from './InstagramConnector';
 import { GoogleBusinessSync } from './GoogleBusinessSync';
 import LocationManager from './business/LocationManager';
 import { COUNTRY_CODES } from '../utils/countryCodes';
@@ -606,19 +605,6 @@ export const EditBusinessProfile: React.FC<EditBusinessProfileProps> = ({
                 value={formData.website} 
                 onChange={e => setFormData({...formData, website: e.target.value})} 
                 placeholder={t('businessEdit.websitePlaceholder')}
-              />
-              
-              {/* Instagram OAuth Integration */}
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-3">{t('businessEdit.socialMediaLabel')}</label>
-                <InstagramConnector user={business} />
-              </div>
-
-              <Input 
-                label={t('businessEdit.tiktokLabel')} 
-                value={formData.tiktok} 
-                onChange={e => setFormData({...formData, tiktok: e.target.value})} 
-                placeholder={t('businessEdit.tiktokPlaceholder')}
               />
 
               {/* Phone with Country Code */}

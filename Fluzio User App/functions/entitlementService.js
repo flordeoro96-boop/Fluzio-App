@@ -32,9 +32,9 @@ function getEntitlementRules(businessLevel, subscriptionTier) {
   // Level 2+ tier-based rules
   if (businessLevel >= 2) {
     switch (subscriptionTier) {
-      case 'FREE':
+      case 'STARTER':
         return {
-          canAttendEvents: false, // FREE tier cannot attend events
+          canAttendEvents: false, // STARTER tier cannot attend events
           standardEventsPerPeriod: 0,
           premiumEventsPerPeriod: 0,
           periodType: null,

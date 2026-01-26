@@ -4,8 +4,8 @@ import {
   XCircle, Edit, RefreshCw, DollarSign, Calendar,
   Shield, AlertTriangle, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { db } from '../../services/AuthContext';
-import { collection, getDocs, doc, updateDoc, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../../services/apiService';
+import { collection, getDocs, doc, updateDoc, query, where, orderBy } from '../../services/firestoreCompat';
 import { Level2Tier } from '../../services/level2SubscriptionService';
 import { Level1Tier } from '../../services/level1SubscriptionService';
 import { AdminPermissions, canPerformAction } from '../../services/adminAuthService';

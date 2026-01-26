@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, Check } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
-import { deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
-import { doc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { ref, listAll, deleteObject } from 'firebase/storage';
-import { db, storage } from '../services/AuthContext';
+import { deleteUser, reauthenticateWithCredential, EmailAuthProvider } from '../services/authCompat';
+import { doc, deleteDoc, collection, query, where, getDocs } from '../services/firestoreCompat';
+import { ref, listAll, deleteObject, storage } from '../services/storageCompat';
+import { db } from '../services/apiService';
 
 interface DeleteAccountModalProps {
   isOpen: boolean;

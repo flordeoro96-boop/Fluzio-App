@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, Timestamp, getDocs, limit, getDoc, deleteDoc } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, Timestamp, getDocs, limit, getDoc, deleteDoc } from '../services/firestoreCompat';
 import { Conversation, Message, User } from '../types';
 
 /**
@@ -333,7 +333,11 @@ export const createConversation = async (
 
     // If it's a group chat (more than 2 participants OR has a groupName), add group-specific fields
     if (participants.length > 2 || groupName) {
-      conversationData.type = 'SQUAD_GROUP';
+      // Check if all participants are businesses
+      const allBusinesses = participantRoles && 
+        Object.values(participantRoles).every(role => role === 'BUSINESS');
+      
+      conversationData.type = allBusinesses ? 'BUSINESS_SQUAD_GROUP' : 'SQUAD_GROUP';
       conversationData.name = groupName || 'Group Chat';
     }
 

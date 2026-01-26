@@ -7,10 +7,12 @@ import {
   Image as ImageIcon, Video, Link2, Calendar, Eye,
   MapPin, Star, Clock, TrendingUp, Award, Briefcase,
   Instagram, Youtube, Facebook, Twitter, MessageCircle,
-  DollarSign, CheckCircle, Users
+  DollarSign, CheckCircle, Users, Upload, Camera
 } from 'lucide-react';
-import { api } from '../services/apiService';
+import { api } from '../services/AuthContext';
 import { useAuth } from '../services/AuthContext';
+import { storage, ref, uploadBytes, getDownloadURL } from '../services/storageCompat';
+import { ServicePackageBuilder } from './ServicePackageBuilder';
 
 interface CreatorPortfolioScreenProps {
   user: User;
@@ -47,6 +49,8 @@ export const CreatorPortfolioScreen: React.FC<CreatorPortfolioScreenProps> = ({ 
   const [editingItem, setEditingItem] = useState<PortfolioItem | null>(null);
   const [viewingItem, setViewingItem] = useState<PortfolioItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -146,6 +150,45 @@ export const CreatorPortfolioScreen: React.FC<CreatorPortfolioScreenProps> = ({ 
     }));
   };
 
+  const handleProfilePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size must be less than 5MB');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `profilePhotos/${user.id}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const photoUrl = await getDownloadURL(storageRef);
+
+      // Update user profile
+      await api.updateUser(user.id, { photoUrl });
+      await refreshUserProfile();
+
+      alert('Profile photo updated successfully!');
+    } catch (error) {
+      console.error('Failed to upload profile photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const getMediaIcon = (type: string) => {
     switch (type) {
       case 'VIDEO': return Video;
@@ -194,11 +237,31 @@ export const CreatorPortfolioScreen: React.FC<CreatorPortfolioScreenProps> = ({ 
           {/* Cover Banner */}
           <div className="h-32 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 relative">
             <div className="absolute -bottom-16 left-8">
-              <div className="w-32 h-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-xl">
+              <div className="w-32 h-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-xl relative group">
                 <img 
                   src={userProfile?.photoUrl || user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6C4BFF&color=fff&size=128`}
                   alt={user.name}
                   className="w-full h-full object-cover"
+                />
+                {/* Edit Photo Overlay */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+                >
+                  {isUploadingPhoto ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
+                  ) : (
+                    <Camera className="w-8 h-8 text-white" />
+                  )}
+                </button>
+                {/* Hidden File Input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePhotoUpload}
+                  className="hidden"
                 />
               </div>
             </div>
@@ -366,6 +429,14 @@ export const CreatorPortfolioScreen: React.FC<CreatorPortfolioScreenProps> = ({ 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-[#1E0E62]">Portfolio</h2>
           <span className="text-sm text-[#8F8FA3]">{portfolio.length} projects</span>
+        </div>
+
+        {/* Service Packages Section */}
+        <div className="mb-8">
+          <ServicePackageBuilder 
+            creatorId={user.id}
+            creatorName={user.name || 'Creator'}
+          />
         </div>
         
         {/* Empty State */}

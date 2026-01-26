@@ -1,5 +1,5 @@
-import { collection, doc, setDoc, query, where, getDocs, updateDoc, orderBy, limit, Timestamp, addDoc } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, doc, setDoc, query, where, getDocs, updateDoc, orderBy, limit, Timestamp, addDoc } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 export type NotificationType = 
   | 'MISSION_POSTED'      // New mission available nearby

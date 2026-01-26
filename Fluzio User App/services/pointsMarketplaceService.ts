@@ -3,7 +3,7 @@
  * Handle business points spending, purchases, and transactions
  */
 
-import { db } from './AuthContext';
+import { db } from './apiService';
 import {
   collection,
   doc,
@@ -17,7 +17,7 @@ import {
   Timestamp,
   increment,
   runTransaction
-} from 'firebase/firestore';
+} from '../services/firestoreCompat';
 import {
   PointsProduct,
   PointsPurchase,

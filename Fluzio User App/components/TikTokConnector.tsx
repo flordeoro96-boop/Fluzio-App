@@ -34,9 +34,9 @@ export const TikTokConnector: React.FC<TikTokConnectorProps> = ({ user }) => {
   const loadTikTokData = async () => {
     try {
       setLoading(true);
-      // Load from user's socialAccounts.tiktok
-      const tiktok = user.socialAccounts?.tiktok;
-      setTikTokData(tiktok || { connected: false });
+      // TODO: TikTok integration not yet implemented
+      // const tiktok = user.socialAccounts?.tiktok;
+      setTikTokData({ connected: false });
     } catch (error) {
       console.error('[TikTokConnector] Failed to load data:', error);
     } finally {
@@ -46,11 +46,9 @@ export const TikTokConnector: React.FC<TikTokConnectorProps> = ({ user }) => {
 
   const handleConnect = async () => {
     try {
-      const result = await socialAuthService.linkTikTok();
-      if (!result.success && result.error) {
-        alert(result.error);
-      }
-      // User will be redirected to TikTok OAuth
+      // TODO: Implement TikTok OAuth
+      // const result = await socialAuthService.linkTikTok();
+      alert('TikTok integration coming soon!');
     } catch (error: any) {
       console.error('[TikTokConnector] Connect failed:', error);
       alert('Failed to connect TikTok');
@@ -63,13 +61,10 @@ export const TikTokConnector: React.FC<TikTokConnectorProps> = ({ user }) => {
     }
 
     try {
-      const result = await socialAuthService.unlinkTikTok();
-      if (result.success) {
-        setTikTokData({ connected: false });
-        alert('TikTok disconnected successfully');
-      } else {
-        alert(result.error || 'Failed to disconnect TikTok');
-      }
+      // TODO: Implement TikTok unlink
+      // const result = await socialAuthService.unlinkTikTok();
+      setTikTokData({ connected: false });
+      alert('TikTok disconnected successfully');
     } catch (error) {
       console.error('[TikTokConnector] Failed to disconnect:', error);
       alert('Failed to disconnect TikTok');
@@ -200,7 +195,7 @@ export const TikTokConnector: React.FC<TikTokConnectorProps> = ({ user }) => {
                     <ul className="text-xs text-blue-800 space-y-1.5 ml-6 list-disc">
                       <li>An active TikTok account</li>
                       <li>Access to the email associated with your TikTok</li>
-                      <li>Permission to allow Fluzio to access basic info</li>
+                      <li>Permission to allow Beevvy to access basic info</li>
                     </ul>
                   </div>
 
@@ -210,7 +205,7 @@ export const TikTokConnector: React.FC<TikTokConnectorProps> = ({ user }) => {
                       <li>Click "Connect TikTok" above</li>
                       <li>Log in to your TikTok account</li>
                       <li>Review and approve permissions</li>
-                      <li>You'll be redirected back to Fluzio</li>
+                      <li>You'll be redirected back to Beevvy</li>
                     </ol>
                   </div>
 

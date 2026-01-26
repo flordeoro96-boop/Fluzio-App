@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { db } from './apiService';
+import { collection, query, where, getDocs, orderBy, limit, Timestamp } from '../services/firestoreCompat';
 
 export interface CustomerProfile {
   uid: string;

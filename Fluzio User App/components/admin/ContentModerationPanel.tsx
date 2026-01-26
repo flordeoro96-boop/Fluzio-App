@@ -3,8 +3,8 @@ import {
   AlertTriangle, Flag, Eye, EyeOff, Trash2, CheckCircle, 
   XCircle, MessageSquare, Image, FileText, Search, Filter
 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../../services/AuthContext';
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, Timestamp } from '../../services/firestoreCompat';
+import { db } from '../../services/apiService';
 
 interface FlaggedContent {
   id: string;

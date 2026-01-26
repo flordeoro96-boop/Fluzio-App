@@ -45,13 +45,13 @@ export const ReferralCodeCard: React.FC = () => {
   };
 
   const shareReferralCode = async () => {
-    const shareText = `Join Fluzio with my referral code ${referralCode} and we both get ${REFERRAL_CONFIG.POINTS_FOR_NEW_USER} points! 🎉`;
+    const shareText = `Join Beevvy with my referral code ${referralCode} and we both get ${REFERRAL_CONFIG.POINTS_FOR_NEW_USER} points! 🎉`;
     const shareUrl = `${window.location.origin}?ref=${referralCode}`;
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Join Fluzio',
+          title: 'Join Beevvy',
           text: shareText,
           url: shareUrl
         });

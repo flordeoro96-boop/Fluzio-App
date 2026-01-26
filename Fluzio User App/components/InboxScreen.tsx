@@ -16,7 +16,7 @@ interface InboxScreenProps {
   onClearConversation?: () => void;
 }
 
-type InboxTab = 'PARTNERS' | 'AMBASSADORS';
+type InboxTab = 'PARTNERS' | 'CREATORS' | 'INDIVIDUALS' | 'AMBASSADORS';
 
 export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user, initialConversationId, onClearConversation }) => {
   const { t } = useTranslation();
@@ -53,10 +53,10 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
             const otherUserId = c.participants.find(p => p !== user.id) || '';
             
             // Check if this is already a group chat (type field exists in Firestore)
-            if (c.type === 'SQUAD_GROUP') {
+            if (c.type === 'SQUAD_GROUP' || c.type === 'BUSINESS_SQUAD_GROUP') {
               return {
                 id: c.id,
-                type: 'SQUAD_GROUP' as const,
+                type: c.type,
                 participants: c.participants.map(pId => ({
                   id: pId,
                   name: c.participantNames[pId] || 'Unknown',
@@ -73,9 +73,8 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
             }
             
             // Determine conversation type based on participant roles
-            // Key insight: "Ambassadors" tab is from BUSINESS perspective
-            // Creators see businesses as "Partners", not ambassadors
-            let conversationType: 'B2B_DM' | 'AMBASSADOR_DM' | 'SQUAD_GROUP' = 'B2B_DM';
+            // Four types: B2B_DM (businesses), CREATOR_DM (creators), INDIVIDUAL_DM (members), SQUAD_GROUP (groups), BUSINESS_SQUAD_GROUP (business groups)
+            let conversationType: 'B2B_DM' | 'CREATOR_DM' | 'INDIVIDUAL_DM' | 'SQUAD_GROUP' | 'BUSINESS_SQUAD_GROUP' = 'INDIVIDUAL_DM';
             
             // Check if we have participant roles stored
             const hasRoles = c.participantRoles && Object.keys(c.participantRoles).length > 0;
@@ -84,16 +83,20 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
               const currentUserRole = c.participantRoles[user.id];
               const otherUserRole = c.participantRoles[otherUserId];
               
-              // If current user is BUSINESS and other is CREATOR → Ambassadors tab
-              if (currentUserRole === 'BUSINESS' && (otherUserRole === 'CREATOR' || otherUserRole === 'MEMBER')) {
-                conversationType = 'AMBASSADOR_DM';
-              }
-              // If current user is CREATOR and other is BUSINESS → Partners tab (B2B_DM)
-              else if ((currentUserRole === 'CREATOR' || currentUserRole === 'MEMBER') && otherUserRole === 'BUSINESS') {
+              // Both are BUSINESS → Businesses tab
+              if (currentUserRole === 'BUSINESS' && otherUserRole === 'BUSINESS') {
                 conversationType = 'B2B_DM';
               }
-              // Both are BUSINESS → Partners tab
-              else if (currentUserRole === 'BUSINESS' && otherUserRole === 'BUSINESS') {
+              // Other is CREATOR → Creators tab
+              else if (otherUserRole === 'CREATOR') {
+                conversationType = 'CREATOR_DM';
+              }
+              // Other is MEMBER → Individuals tab
+              else if (otherUserRole === 'MEMBER') {
+                conversationType = 'INDIVIDUAL_DM';
+              }
+              // If current user is CREATOR and other is BUSINESS → Businesses tab
+              else if ((currentUserRole === 'CREATOR' || currentUserRole === 'MEMBER') && otherUserRole === 'BUSINESS') {
                 conversationType = 'B2B_DM';
               }
             } else if (otherUserId) {
@@ -102,11 +105,14 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
                 const { getUserById } = await import('../services/userService');
                 const otherUser = await getUserById(otherUserId);
                 
-                // Only show as AMBASSADOR_DM if current user is BUSINESS and other is CREATOR or MEMBER
-                if (user.role === 'BUSINESS' && otherUser && otherUser.role === 'CREATOR') {
-                  conversationType = 'AMBASSADOR_DM';
-                } else {
-                  conversationType = 'B2B_DM';
+                if (otherUser) {
+                  if (otherUser.role === 'BUSINESS') {
+                    conversationType = 'B2B_DM';
+                  } else if (otherUser.role === 'CREATOR') {
+                    conversationType = 'CREATOR_DM';
+                  } else {
+                    conversationType = 'INDIVIDUAL_DM';
+                  }
                 }
               } catch (error) {
                 if (process.env.NODE_ENV !== 'production') {
@@ -217,9 +223,11 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
       // Filter by tab
       let matchesTab = false;
       if (activeTab === 'PARTNERS') {
-          matchesTab = c.type === 'B2B_DM'; // Only business 1-on-1 chats
-      } else {
-          matchesTab = c.type === 'AMBASSADOR_DM' || c.type === 'SQUAD_GROUP'; // Individual chats + group chats
+          matchesTab = c.type === 'B2B_DM' || c.type === 'BUSINESS_SQUAD_GROUP'; // Business 1-on-1 chats + business squad groups
+      } else if (activeTab === 'CREATORS') {
+          matchesTab = c.type === 'CREATOR_DM'; // Only creator chats
+      } else if (activeTab === 'INDIVIDUALS') {
+          matchesTab = c.type === 'INDIVIDUAL_DM' || c.type === 'SQUAD_GROUP'; // Individual chats + customer squad groups
       }
       
       if (!matchesTab) return false;
@@ -239,12 +247,16 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
   });
 
   // Calculate unread counts per tab
-  const individualsUnreadCount = conversations
-    .filter(c => c.type === 'AMBASSADOR_DM' || c.type === 'SQUAD_GROUP')
+  const businessesUnreadCount = conversations
+    .filter(c => c.type === 'B2B_DM' || c.type === 'BUSINESS_SQUAD_GROUP')
     .reduce((total, c) => total + (c.unreadCount || 0), 0);
   
-  const businessesUnreadCount = conversations
-    .filter(c => c.type === 'B2B_DM')
+  const creatorsUnreadCount = conversations
+    .filter(c => c.type === 'CREATOR_DM')
+    .reduce((total, c) => total + (c.unreadCount || 0), 0);
+  
+  const individualsUnreadCount = conversations
+    .filter(c => c.type === 'INDIVIDUAL_DM' || c.type === 'SQUAD_GROUP')
     .reduce((total, c) => total + (c.unreadCount || 0), 0);
 
   // Sort: If initialConversationId exists, put it at the top, otherwise sort by time
@@ -324,21 +336,18 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
             </div>
         </div>
 
-        {/* Segmented Control */}
+        {/* Segmented Control - 3 Tabs */}
         <div className="p-4 bg-white/50 shrink-0">
             <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-white">
                  <button 
-                   className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 relative ${activeTab === 'PARTNERS' ? 'bg-[#1E0E62] text-white shadow-md' : 'text-[#8F8FA3] hover:text-[#1E0E62]'}`}
+                   className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 relative ${activeTab === 'PARTNERS' ? 'bg-[#1E0E62] text-white shadow-md' : 'text-[#8F8FA3] hover:text-[#1E0E62]'}`}
                    onClick={() => setActiveTab('PARTNERS')}
                  >
                     <Briefcase className="w-4 h-4" />
-                    {/* Creators see "Businesses", Businesses see "Businesses" */}
-                    {user.accountType === 'creator' 
-                      ? t('inbox.tabs.businesses', { defaultValue: 'Businesses' })
-                      : t('inbox.tabs.businesses', { defaultValue: 'Businesses' })
-                    }
+                    <span className="hidden sm:inline">Businesses</span>
+                    <span className="sm:hidden">B2B</span>
                     {businessesUnreadCount > 0 && (
-                      <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                      <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
                         activeTab === 'PARTNERS' 
                           ? 'bg-[#00E5FF] text-white' 
                           : 'bg-[#00E5FF] text-white'
@@ -348,18 +357,31 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
                     )}
                  </button>
                  <button 
-                   className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 relative ${activeTab === 'AMBASSADORS' ? 'bg-[#1E0E62] text-white shadow-md' : 'text-[#8F8FA3] hover:text-[#1E0E62]'}`}
-                   onClick={() => setActiveTab('AMBASSADORS')}
+                   className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 relative ${activeTab === 'CREATORS' ? 'bg-[#1E0E62] text-white shadow-md' : 'text-[#8F8FA3] hover:text-[#1E0E62]'}`}
+                   onClick={() => setActiveTab('CREATORS')}
                  >
                     <UserIcon className="w-4 h-4" />
-                    {/* Creators see "Collaborators", Businesses see "Creators" */}
-                    {user.accountType === 'creator'
-                      ? t('inbox.tabs.collaborators', { defaultValue: 'Collaborators' })
-                      : t('inbox.tabs.creators', { defaultValue: 'Creators' })
-                    }
+                    Creators
+                    {creatorsUnreadCount > 0 && (
+                      <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                        activeTab === 'CREATORS' 
+                          ? 'bg-[#00E5FF] text-white' 
+                          : 'bg-[#00E5FF] text-white'
+                      }`}>
+                        {creatorsUnreadCount}
+                      </span>
+                    )}
+                 </button>
+                 <button 
+                   className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 relative ${activeTab === 'INDIVIDUALS' ? 'bg-[#1E0E62] text-white shadow-md' : 'text-[#8F8FA3] hover:text-[#1E0E62]'}`}
+                   onClick={() => setActiveTab('INDIVIDUALS')}
+                 >
+                    <Users className="w-4 h-4" />
+                    <span className="hidden sm:inline">Individuals</span>
+                    <span className="sm:hidden">Users</span>
                     {individualsUnreadCount > 0 && (
-                      <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                        activeTab === 'AMBASSADORS' 
+                      <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                        activeTab === 'INDIVIDUALS' 
                           ? 'bg-[#00E5FF] text-white' 
                           : 'bg-[#00E5FF] text-white'
                       }`}>
@@ -387,7 +409,7 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({ isOpen, onClose, user,
             {sortedConversations.length > 0 ? (
                 <>
                     {/* Group Chats Section (only on Individuals tab) */}
-                    {activeTab === 'AMBASSADORS' && sortedConversations.some(c => c.type === 'SQUAD_GROUP') && (
+                    {activeTab === 'INDIVIDUALS' && sortedConversations.some(c => c.type === 'SQUAD_GROUP') && (
                         <div className="mb-4">
                             <div className="flex items-center gap-2 px-2 mb-2">
                                 <Users className="w-4 h-4 text-purple-600" />

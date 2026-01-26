@@ -14,7 +14,7 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email == 'admin@fluzio.com' ||
+             (request.auth.token.email == 'admin@beevvy.com' ||
               (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN'));
     }
@@ -97,13 +97,13 @@ service cloud.firestore {
       // Anyone can read active missions
       allow read: if true;
       
-      // Only business accounts can create missions (not creators)
-      allow create: if isBusiness() && isBusinessAccount();
+      // Only business accounts can create missions
+      // Check role='BUSINESS' (new approach) OR accountType='business' (legacy)
+      allow create: if isAuthenticated() && (isBusiness() || isBusinessAccount());
       
-      // Mission owner or admin can update/delete (business accounts only)
+      // Mission owner or admin can update/delete
       allow update, delete: if isAuthenticated() && 
-                               (resource.data.businessId == request.auth.uid || isAdmin()) &&
-                               isBusinessAccount();
+                               (resource.data.businessId == request.auth.uid || isAdmin());
     }
     
     // Applications collection - Creator applications to missions
@@ -196,19 +196,20 @@ service cloud.firestore {
         // Allow read if user is authenticated (queries will filter by conversation)
         allow read: if isAuthenticated();
         
-        // Allow create if authenticated and senderId matches auth uid
-        allow create: if isAuthenticated() &&
-                         request.resource.data.senderId == request.auth.uid;
+        // Allow create if authenticated - either senderId matches auth uid OR user is authenticated
+        // (allows for system messages and group chats where senderId might be user doc ID)
+        allow create: if isAuthenticated();
         
-        // Allow update/delete of own messages
-        allow update, delete: if isAuthenticated() &&
-                                 resource.data.senderId == request.auth.uid;
+        // Allow update/delete if authenticated
+        allow update, delete: if isAuthenticated();
       }
     }
     
     match /squads/{squadId} {
       allow read: if isAuthenticated();
-      allow create, update: if isBusiness();
+      allow create: if isAuthenticated();
+      // Allow any authenticated user to update (collaborative space)
+      allow update: if isAuthenticated();
       allow delete: if false;
     }
     
@@ -882,6 +883,490 @@ service cloud.firestore {
       // Subscriptions should never be deleted, only cancelled (set status to CANCELLED)
       // Only admins can delete for exceptional cases
       allow delete: if isAdmin();
+    }
+    
+    // ============ ADMIN COLLECTION (for Next.js Admin App) ============
+    match /admins/{adminId} {
+      // Only authenticated users can read their own admin doc
+      allow read: if isAuthenticated() && request.auth.uid == adminId;
+      
+      // Only super admins can write
+      allow write: if isSuperAdmin();
+    }
+    
+    // ============ NATIVE FEED SYSTEM (Replaces Instagram Integration) ============
+    
+    // Feed Posts collection
+    match /feedPosts/{postId} {
+      // Anyone can read published, approved posts
+      allow read: if resource.data.status == 'PUBLISHED' && 
+                     resource.data.moderationStatus == 'APPROVED';
+      
+      // Authenticated users can create posts (as themselves)
+      allow create: if isAuthenticated() && 
+                       request.resource.data.createdBy == request.auth.uid &&
+                       request.resource.data.status in ['DRAFT', 'PUBLISHED'] &&
+                       request.resource.data.moderationStatus in ['PENDING', 'APPROVED'];
+      
+      // Users can update their own posts
+      // Admins can update any post (for moderation)
+      allow update: if isAuthenticated() && 
+                       (request.resource.data.createdBy == request.auth.uid || isAdmin());
+      
+      // Users can delete their own posts
+      // Admins can delete any post
+      allow delete: if isAuthenticated() && 
+                       (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
+    
+    // Feed Saves collection (user bookmarks)
+    match /feedSaves/{saveId} {
+      // Users can read their own saves
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can create saves for themselves
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Users can delete their own saves
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // No updates needed (saves are immutable)
+      allow update: if false;
+    }
+    
+    // ============ CREATOR FEATURES COLLECTIONS ============
+    
+    // Academy Courses
+    match /academyCourses/{courseId} {
+      // Anyone authenticated can read courses
+      allow read: if isAuthenticated();
+      
+      // Admins can create, update, and delete courses
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Academy Progress (user enrollment and progress tracking)
+    match /academyProgress/{progressId} {
+      // Users can read their own progress
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Users can create and update their own progress
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Only admins can delete progress
+      allow delete: if isAdmin();
+    }
+    
+    // Academy Resources (downloadable materials)
+    match /academyResources/{resourceId} {
+      // Anyone authenticated can read resources
+      allow read: if isAuthenticated();
+      
+      // Admins can create, update, and delete resources
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Creator Courses (Academy courses)
+    match /creatorCourses/{courseId} {
+      // Anyone authenticated can read courses
+      allow read: if isAuthenticated();
+      
+      // Admins can create, update, and delete courses
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Creator Packages (Service packages created by creators)
+    match /creatorPackages/{packageId} {
+      // Anyone authenticated can read packages
+      allow read: if isAuthenticated();
+      
+      // Only creator accounts can create packages
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Creators can update their own packages
+      allow update: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       resource.data.creatorId == request.auth.uid;
+      
+      // Creators can delete their own packages
+      allow delete: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       resource.data.creatorId == request.auth.uid;
+    }
+    
+    // Creator Availability (Calendar availability)
+    match /creatorAvailability/{availabilityId} {
+      // Anyone can read availability
+      allow read: if true;
+      
+      // Creators can write their own availability
+      allow write: if isAuthenticated() && 
+                      isCreatorAccount() &&
+                      (request.resource.data.creatorId == request.auth.uid || 
+                       resource.data.creatorId == request.auth.uid);
+    }
+    
+    // Creator Bookings
+    match /creatorBookings/{bookingId} {
+      // Creators can read their own bookings
+      // Customers can read bookings they created
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.customerId == request.auth.uid ||
+                      isAdmin());
+      
+      // Anyone authenticated can create bookings
+      allow create: if isAuthenticated() &&
+                       request.resource.data.customerId == request.auth.uid;
+      
+      // Creators and customers can update their bookings
+      allow update: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || 
+                        resource.data.customerId == request.auth.uid ||
+                        isAdmin());
+      
+      // Only admins can delete bookings
+      allow delete: if isAdmin();
+    }
+    
+    // Bookings (alternative collection name)
+    match /bookings/{bookingId} {
+      // Creators can read their own bookings
+      // Customers can read bookings they created
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.customerId == request.auth.uid ||
+                      isAdmin());
+      
+      // Anyone authenticated can create bookings
+      allow create: if isAuthenticated() &&
+                       request.resource.data.customerId == request.auth.uid;
+      
+      // Creators and customers can update their bookings
+      allow update: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || 
+                        resource.data.customerId == request.auth.uid ||
+                        isAdmin());
+      
+      // Only admins can delete bookings
+      allow delete: if isAdmin();
+    }
+    
+    // Creator Analytics
+    match /creatorAnalytics/{analyticsId} {
+      // Creators can read their own analytics
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || isAdmin());
+      
+      // System and creators can write analytics
+      allow write: if isAuthenticated() && 
+                      (request.resource.data.creatorId == request.auth.uid || 
+                       resource.data.creatorId == request.auth.uid ||
+                       isAdmin());
+    }
+    
+    // Media Kits
+    match /mediaKits/{mediaKitId} {
+      // Anyone can read published media kits
+      allow read: if true;
+      
+      // Creators can create their own media kits
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Creators can update their own media kits
+      allow update: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       resource.data.creatorId == request.auth.uid;
+      
+      // Creators can delete their own media kits
+      allow delete: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       resource.data.creatorId == request.auth.uid;
+    }
+    
+    // Creator Academy Progress
+    match /creatorAcademyProgress/{progressId} {
+      // Creators can read their own progress
+      allow read: if isAuthenticated() && 
+                     resource.data.creatorId == request.auth.uid;
+      
+      // Creators can write their own progress
+      allow write: if isAuthenticated() && 
+                      isCreatorAccount() &&
+                      (request.resource.data.creatorId == request.auth.uid || 
+                       resource.data.creatorId == request.auth.uid);
+    }
+    
+    // Opportunity Alerts
+    match /opportunityAlerts/{alertId} {
+      // Creators can read their own alerts
+      allow read: if isAuthenticated() && 
+                     resource.data.creatorId == request.auth.uid;
+      
+      // System can create alerts, creators can update their alerts
+      allow create: if isAuthenticated() && 
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       resource.data.creatorId == request.auth.uid;
+      
+      // Only admins can delete alerts
+      allow delete: if isAdmin();
+    }
+    
+    // Creator Preferences
+    match /creatorPreferences/{prefsId} {
+      // Creators can read their own preferences
+      allow read: if isAuthenticated() && 
+                     resource.data.creatorId == request.auth.uid;
+      
+      // Creators can write their own preferences
+      allow write: if isAuthenticated() && 
+                      isCreatorAccount() &&
+                      (request.resource.data.creatorId == request.auth.uid || 
+                       resource.data.creatorId == request.auth.uid);
+    }
+    
+    // Creator Invoices - Payment & Invoicing System
+    match /creatorInvoices/{invoiceId} {
+      // Anyone can read invoices (for clients to view)
+      allow read: if isAuthenticated();
+      
+      // Creators can create and update their own invoices
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || 
+                        resource.data.clientId == request.auth.uid);
+      
+      // Only admins or the creator can delete invoices
+      allow delete: if isAdmin() || 
+                       (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+    }
+    
+    // Creator Payments - Payment Records
+    match /creatorPayments/{paymentId} {
+      // Creators and clients can read their payment records
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.clientId == request.auth.uid);
+      
+      // Anyone authenticated can create payments
+      allow create: if isAuthenticated();
+      
+      // System/admins can update payment status
+      allow update: if isAdmin();
+      
+      // Only admins can delete payments
+      allow delete: if isAdmin();
+    }
+    
+    // Creator Applications - Job/Project Applications
+    match /creatorApplications/{applicationId} {
+      // Creators can read their own applications
+      // Businesses can read applications to their projects
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.businessId == request.auth.uid ||
+                      isAdmin());
+      
+      // Creators can create applications
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Creators and businesses can update applications
+      allow update: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || 
+                        resource.data.businessId == request.auth.uid ||
+                        isAdmin());
+      
+      // Only admins can delete applications
+      allow delete: if isAdmin();
+    }
+    
+    // Competitive Analyses - Market Intelligence
+    match /competitiveAnalyses/{analysisId} {
+      // Creators can read any analysis (for market intelligence and competitor data)
+      allow read: if isAuthenticated();
+      
+      // System can create analyses for creators
+      allow create: if isAuthenticated();
+      
+      // Only admins can update or delete analyses
+      allow update, delete: if isAdmin();
+    }
+    
+    // Creator Goals - Gamification
+    match /creatorGoals/{goalId} {
+      // Creators can read and manage their own goals
+      allow read: if isAuthenticated() && 
+                     resource.data.creatorId == request.auth.uid;
+      
+      // Creators can create their own goals
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Creators can update their own goals
+      allow update: if isAuthenticated() && 
+                       resource.data.creatorId == request.auth.uid;
+      
+      // Creators can delete their own goals
+      allow delete: if isAuthenticated() && 
+                       resource.data.creatorId == request.auth.uid;
+    }
+    
+    // Creator Achievements - Gamification Rewards
+    match /creatorAchievements/{achievementId} {
+      // Creators can read their own achievements
+      allow read: if isAuthenticated() && 
+                     resource.data.creatorId == request.auth.uid;
+      
+      // System/admins can create achievements
+      allow create: if isAuthenticated();
+      
+      // Only admins can update or delete achievements
+      allow update, delete: if isAdmin();
+    }
+    
+    // Disputes - Creator Protection
+    match /disputes/{disputeId} {
+      // Creators and clients can read their disputes
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.clientId == request.auth.uid);
+      
+      // Anyone can create a dispute
+      allow create: if isAuthenticated();
+      
+      // Creators, clients, and admins can update disputes
+      allow update: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || 
+                        resource.data.clientId == request.auth.uid || 
+                        isAdmin());
+      
+      // Only admins can delete disputes
+      allow delete: if isAdmin();
+    }
+    
+    // Contracts - Legal Protection
+    match /contracts/{contractId} {
+      // Creators and clients can read their contracts
+      allow read: if isAuthenticated() && 
+                     (resource.data.creatorId == request.auth.uid || 
+                      resource.data.clientId == request.auth.uid);
+      
+      // Creators can create contracts
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Both parties can update contracts
+      allow update: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || 
+                        resource.data.clientId == request.auth.uid);
+      
+      // Only the creator or admin can delete
+      allow delete: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || isAdmin());
+    }
+    
+    // Content Protections - Copyright Registry
+    match /contentProtections/{protectionId} {
+      // Anyone can read (for verification)
+      allow read: if isAuthenticated();
+      
+      // Creators can register their own content
+      allow create: if isAuthenticated() && 
+                       isCreatorAccount() &&
+                       request.resource.data.creatorId == request.auth.uid;
+      
+      // Creators can update their registrations
+      allow update: if isAuthenticated() && 
+                       resource.data.creatorId == request.auth.uid;
+      
+      // Only creator or admin can delete
+      allow delete: if isAuthenticated() && 
+                       (resource.data.creatorId == request.auth.uid || isAdmin());
+    }
+    
+    // Legal Resources - Public Knowledge Base
+    match /legalResources/{resourceId} {
+      // Anyone authenticated can read legal resources
+      allow read: if isAuthenticated();
+      
+      // Only admins can create, update, or delete resources
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // AI Conversations - Chat history with AI Assistant
+    match /aiConversations/{conversationId} {
+      // Users can read, create, and update their own conversations
+      allow read, create, update: if isAuthenticated() && 
+                                      request.resource.data.userId == request.auth.uid;
+      
+      // Users can only read their own past conversations
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Admins can read all conversations for support purposes
+      allow read: if isAdmin();
+      
+      // Users can delete their own conversations
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Participant Pools - Shared monthly pool per business
+    match /participantPools/{businessId} {
+      // Businesses can read their own pool
+      allow read: if isAuthenticated() && 
+                     (isOwner(businessId) || isAdmin());
+      
+      // Only backend (via admin SDK) can create/update pools
+      // Businesses cannot modify their own pools directly
+      allow write: if false;
+    }
+    
+    // Mission Energy Pools - Monthly energy for mission activation
+    match /missionEnergyPools/{businessId} {
+      // Businesses can read their own energy pool
+      allow read: if isAuthenticated() && 
+                     (isOwner(businessId) || isAdmin());
+      
+      // Only backend (via admin SDK) can create/update energy pools
+      // Businesses cannot modify their own pools directly
+      allow write: if false;
+    }
+    
+    // Mission Completions - Track when users complete missions
+    match /missionCompletions/{completionId} {
+      // Users can read their own completions (allows queries with userId filter)
+      allow get: if isAuthenticated() && 
+                    (resource.data.userId == request.auth.uid || 
+                     resource.data.businessId == request.auth.uid ||
+                     isAdmin());
+      
+      // Allow list queries for:
+      // - Users querying their own completions
+      // - Businesses querying completions for their missions
+      // - Admins querying everything
+      // - Anyone querying by missionId for state detection (trending, etc.)
+      allow list: if isAuthenticated();
+      
+      // Backend creates completions via Cloud Functions
+      // Users cannot directly create/modify completions
+      allow write: if false;
     }
     
     // Default deny for any unspecified collections

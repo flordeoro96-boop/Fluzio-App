@@ -1,5 +1,5 @@
-import { collection, query, where, getDocs, orderBy, limit, Query, DocumentData } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, query, where, getDocs, orderBy, limit, Query, DocumentData } from '../services/firestoreCompat';
+import { db } from './apiService';
 import { GeoPoint, User } from '../types';
 
 export interface SearchableUser {
@@ -216,21 +216,38 @@ export const getCreatorsByCity = async (
     console.log('[userService] Fetching creators in city:', city);
 
     const usersRef = collection(db, 'users');
+    
+    // Query for creators by role (more reliable than accountType)
     const creatorsQuery = query(
       usersRef,
-      where('accountType', '==', 'creator'),
+      where('role', '==', 'CREATOR'),
       limit(maxResults)
     );
 
     const snapshot = await getDocs(creatorsQuery);
+    console.log('[userService] Total users with role CREATOR:', snapshot.size);
+    
     const creators: SearchableUser[] = [];
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      const userCity = data.currentCity || data.city || data.homeCity;
+      const userCity = data.currentCity || data.city || data.homeCity || data.address?.city;
       
-      // Filter by city
-      if (userCity && userCity.toLowerCase() === city.toLowerCase()) {
+      console.log('[userService] Checking creator:', {
+        id: doc.id,
+        name: data.name,
+        role: data.role,
+        accountType: data.accountType,
+        currentCity: data.currentCity,
+        city: data.city,
+        homeCity: data.homeCity,
+        addressCity: data.address?.city,
+        hasCreatorField: !!data.creator,
+        category: data.category
+      });
+      
+      // Filter by city (if city is provided, otherwise include all)
+      if (!city || !userCity || userCity.toLowerCase() === city.toLowerCase()) {
         creators.push({
           id: doc.id,
           name: data.name || 'Unknown Creator',
@@ -248,13 +265,14 @@ export const getCreatorsByCity = async (
           subscriptionLevel: data.subscriptionLevel,
           location: data.location,
           address: data.address,
-          accountType: data.accountType,
+          accountType: data.accountType || 'creator',
           creator: data.creator
         });
       }
     });
 
     console.log('[userService] Found creators:', creators.length);
+    console.log('[userService] Creator details:', creators.map(c => ({ name: c.name, city: c.city, category: c.category })));
     return creators.sort((a, b) => a.name.localeCompare(b.name));
 
   } catch (error) {

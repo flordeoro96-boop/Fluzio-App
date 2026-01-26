@@ -1,5 +1,5 @@
-import { db } from './AuthContext';
-import { doc, updateDoc, getDoc, collection, query, where, getDocs, Timestamp, setDoc } from 'firebase/firestore';
+import { db } from './apiService';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, Timestamp, setDoc } from '../services/firestoreCompat';
 
 export type Level1Tier = 'FREE' | 'SILVER' | 'GOLD';
 

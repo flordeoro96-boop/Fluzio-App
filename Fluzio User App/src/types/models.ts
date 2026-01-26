@@ -132,16 +132,7 @@ interface SocialLinks {
     connected: boolean;
     url?: string;
   };
-  tiktok?: {
-    handle: string;
-    connected: boolean;
-    url?: string;
-  };
   facebook?: {
-    handle: string;
-    url?: string;
-  };
-  linkedin?: {
     handle: string;
     url?: string;
   };
@@ -779,10 +770,22 @@ interface Event {
   minBusinessLevel?: number;
   
   /** Minimum subscription tier required to join. Lower tiers can see but not join. */
-  minSubscriptionTier?: 'FREE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  minSubscriptionTier?: 'STARTER' | 'SILVER' | 'GOLD' | 'PLATINUM';
   
   /** Is this a free event (doesn't count against quota) */
   isFreeEvent?: boolean;
+  
+  /** Ticketing information */
+  ticketing?: {
+    mode: 'FREE' | 'PAID';
+    price?: number;
+    currency?: string;
+    paymentOptions?: {
+      acceptMoney?: boolean;
+      acceptPoints?: boolean;
+      pointsPrice?: number;
+    };
+  };
   
   /** Creation date */
   createdAt: string; // ISO date

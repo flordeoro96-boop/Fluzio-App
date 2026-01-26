@@ -3,8 +3,8 @@
  * Handles leaderboard rankings for businesses based on various metrics
  */
 
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 export interface BusinessLeaderboardEntry {
   businessId: string;
@@ -214,20 +214,54 @@ export const getBusinessStats = async (businessId: string): Promise<{
     const { rank, total, score } = await getBusinessRank(businessId, 'engagement', city);
     const percentile = total > 0 ? Math.round(((total - rank) / total) * 100) : 0;
 
-    // Get missions
-    const missionsRef = collection(db, 'missions');
-    const missionsQuery = query(missionsRef, where('businessId', '==', businessId));
-    const missionsSnapshot = await getDocs(missionsQuery);
-    const activeMissions = missionsSnapshot.docs.filter(doc => {
-      const data = doc.data();
-      return data.lifecycleStatus === 'ACTIVE' && data.isActive;
-    }).length;
+    // Get missions - Try Supabase first (using snake_case)
+    let activeMissions = 0;
+    try {
+      const { supabase } = await import('./supabaseClient');
+      const { data, error } = await supabase
+        .from('missions')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('lifecycle_status', 'ACTIVE')
+        .eq('is_active', true);
+      
+      if (!error && data) {
+        activeMissions = data.length;
+      } else {
+        throw new Error('Supabase query failed');
+      }
+    } catch (supabaseError) {
+      // Fallback to Firebase
+      const missionsRef = collection(db, 'missions');
+      const missionsQuery = query(missionsRef, where('businessId', '==', businessId));
+      const missionsSnapshot = await getDocs(missionsQuery);
+      activeMissions = missionsSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.lifecycleStatus === 'ACTIVE' && data.isActive;
+      }).length;
+    }
 
-    // Get customers
-    const participationsRef = collection(db, 'participations');
-    const participationsQuery = query(participationsRef, where('businessId', '==', businessId));
-    const participationsSnapshot = await getDocs(participationsQuery);
-    const totalCustomers = new Set(participationsSnapshot.docs.map(doc => doc.data().userId)).size;
+    // Get customers - Try Supabase first (using snake_case)
+    let totalCustomers = 0;
+    try {
+      const { supabase } = await import('./supabaseClient');
+      const { data, error } = await supabase
+        .from('participations')
+        .select('user_id')
+        .eq('business_id', businessId);
+      
+      if (!error && data) {
+        totalCustomers = new Set(data.map(row => row.user_id)).size;
+      } else {
+        throw new Error('Supabase query failed');
+      }
+    } catch (supabaseError) {
+      // Fallback to Firebase
+      const participationsRef = collection(db, 'participations');
+      const participationsQuery = query(participationsRef, where('businessId', '==', businessId));
+      const participationsSnapshot = await getDocs(participationsQuery);
+      totalCustomers = new Set(participationsSnapshot.docs.map(doc => doc.data().userId)).size;
+    }
 
     return {
       rank,

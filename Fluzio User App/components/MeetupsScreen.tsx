@@ -18,8 +18,8 @@ import { UserRole } from '../types';
 import { findBusinessMatchesForMeetup } from '../services/openaiService';
 import { SkeletonLoader, PullToRefresh } from './SkeletonLoader';
 import { useTranslation } from 'react-i18next';
-import { collection, getDocs, query, where, orderBy, limit, doc, updateDoc, setDoc } from 'firebase/firestore';
-import { db } from '../services/AuthContext';
+import { collection, getDocs, query, where, orderBy, limit, doc, updateDoc, setDoc } from '../services/firestoreCompat';
+import { db } from '../services/apiService';
 import { createConversation, getConversationData } from '../services/conversationService';
 import { 
   findOrCreateCustomerSquad, 
@@ -468,7 +468,7 @@ export function MeetupsScreen({ initialTab, onOpenChat }: MeetupsScreenProps = {
               location: event.location,
               address: event.address || event.city,
               businessId: 'admin',
-              businessName: 'Fluzio Events',
+              businessName: 'Beevvy Events',
               businessLogo: '🎉',
               capacity: event.maxAttendees || 100,
               participants: [],
@@ -718,7 +718,7 @@ export function MeetupsScreen({ initialTab, onOpenChat }: MeetupsScreenProps = {
           {/* Host */}
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
             <span className="text-gray-800 font-medium">
-              Hosted by {meetup.businessIsPartner ? meetup.businessName : 'Fluzio'}
+              Hosted by {meetup.businessIsPartner ? meetup.businessName : 'Beevvy'}
             </span>
           </div>
 

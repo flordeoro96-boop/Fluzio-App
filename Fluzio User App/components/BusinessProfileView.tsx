@@ -224,7 +224,7 @@ export const BusinessProfileView: React.FC<BusinessProfileViewProps> = ({
                   if (navigator.share) {
                     navigator.share({
                       title: business.name,
-                      text: `Check out ${business.name} on Fluzio!`,
+                      text: `Check out ${business.name} on Beevvy!`,
                       url: window.location.href
                     });
                   } else {

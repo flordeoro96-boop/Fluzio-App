@@ -26,7 +26,7 @@ const Level2SubscriptionSelector: React.FC<Level2SubscriptionSelectorProps> = ({
       price: 0,
       badge: null,
       gradient: 'from-gray-500 to-gray-600',
-      purpose: 'Test Fluzio seriously',
+      purpose: 'Test Beevvy seriously',
       features: [
         { text: '1 active mission at a time', icon: FileText, included: true },
         { text: 'Visit & check-in missions', icon: MapPin, included: true },
@@ -282,7 +282,7 @@ const Level2SubscriptionSelector: React.FC<Level2SubscriptionSelectorProps> = ({
                   </p>
                 </div>
                 <p className="text-xs mt-3 text-orange-700">
-                  These rules keep Fluzio safe, scalable, and compliant with platform policies.
+                  These rules keep Beevvy safe, scalable, and compliant with platform policies.
                 </p>
               </div>
             </div>
@@ -309,7 +309,7 @@ const Level2SubscriptionSelector: React.FC<Level2SubscriptionSelectorProps> = ({
                 Why are Google reviews and referrals capped?
               </h4>
               <p className="text-gray-600">
-                To protect Fluzio and comply with platform policies. These safety limits ensure sustainable growth 
+                To protect Beevvy and comply with platform policies. These safety limits ensure sustainable growth 
                 and prevent abuse while still giving you powerful tools to grow your business.
               </p>
             </div>

@@ -288,6 +288,32 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             <>
               {/* PROJECT DETAILS TAB CONTENT */}
           
+          {/* PROJECT IMAGES */}
+          {project.images && project.images.length > 0 && (
+            <div className="rounded-2xl overflow-hidden">
+              {project.images.length === 1 ? (
+                <img 
+                  src={project.coverImage || project.images[0]} 
+                  alt={project.title}
+                  className="w-full h-64 object-cover"
+                />
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {project.images.map((img, idx) => (
+                    <img
+                      key={idx}
+                      src={img}
+                      alt={`${project.title} ${idx + 1}`}
+                      className={`object-cover ${idx === 0 ? 'col-span-2 row-span-2 h-full' : 'h-32'} ${
+                        img === project.coverImage ? 'ring-2 ring-purple-500' : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* SECTION 1 — PROJECT HEADER (CONTEXT) */}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6">
             <h1 className="text-2xl font-bold text-[#1E0E62] mb-3">{project.title}</h1>
@@ -695,23 +721,43 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
                         {/* Action Buttons (only for pending applications) */}
                         {application.status === 'PENDING' && (
-                          <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
-                            <button
-                              onClick={() => handleRejectApplication(application.id)}
-                              disabled={processingAppId === application.id}
-                              className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-700 font-semibold py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
-                            >
-                              <UserX className="w-4 h-4" />
-                              Reject
-                            </button>
-                            <button
-                              onClick={() => handleAcceptApplication(application.id)}
-                              disabled={processingAppId === application.id}
-                              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold py-3 px-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
-                            >
-                              <UserCheck className="w-4 h-4" />
-                              {processingAppId === application.id ? 'Processing...' : 'Accept'}
-                            </button>
+                          <div className="space-y-2 mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const { createOrGetConversation } = await import('../services/conversationService');
+                                    const conversationId = await createOrGetConversation(currentUser.id, application.creatorId);
+                                    onOpenChat?.(conversationId);
+                                  } catch (error) {
+                                    console.error('[ProjectDetailView] Error starting conversation:', error);
+                                    alert('Failed to start conversation. Please try again.');
+                                  }
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 bg-purple-50 text-purple-700 font-semibold py-3 px-4 rounded-xl hover:bg-purple-100 transition-colors border-2 border-purple-200"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                                Message
+                              </button>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleRejectApplication(application.id)}
+                                disabled={processingAppId === application.id}
+                                className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-700 font-semibold py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                              >
+                                <UserX className="w-4 h-4" />
+                                Reject
+                              </button>
+                              <button
+                                onClick={() => handleAcceptApplication(application.id)}
+                                disabled={processingAppId === application.id}
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold py-3 px-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
+                              >
+                                <UserCheck className="w-4 h-4" />
+                                {processingAppId === application.id ? 'Processing...' : 'Accept'}
+                              </button>
+                            </div>
                           </div>
                         )}
 

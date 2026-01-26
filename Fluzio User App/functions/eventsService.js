@@ -499,7 +499,7 @@ exports.registerForEvent = onRequest({
       return;
     }
     
-    if (subscriptionTier === 'FREE' && businessLevel >= 2) {
+    if (subscriptionTier === 'STARTER' && businessLevel >= 2) {
       res.status(403).json({ success: false, error: 'Upgrade to SILVER or higher to attend events' });
       return;
     }
@@ -648,7 +648,7 @@ exports.getAvailableEvents = onRequest({
         }
         
         // Check tier eligibility for Level 2+
-        if (businessLevel >= 2 && subscriptionTier === 'FREE') {
+        if (businessLevel >= 2 && subscriptionTier === 'STARTER') {
           return false;
         }
         

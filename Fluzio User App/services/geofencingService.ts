@@ -1,7 +1,7 @@
 import { getCurrentLocation } from './locationService';
 import { getUsersByRole, SearchableUser } from './userService';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from './AuthContext';
+import { doc, getDoc } from '../services/firestoreCompat';
+import { db } from './apiService';
 
 /**
  * Geofencing Service - Background Location Tracking
