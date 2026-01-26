@@ -123,7 +123,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoadingProfile(true);
     try {
       console.log("🔍 [AuthContext] Loading user profile for UID:", uid);
-      const result = await api.getUser(uid);
+      
+      // Add timeout to prevent infinite hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('User profile fetch timeout')), 10000)
+      );
+      
+      const result = await Promise.race([
+        api.getUser(uid),
+        timeoutPromise
+      ]) as { success: boolean; user?: any; error?: string };
 
       if (result.success && result.user) {
         console.log("📦 [AuthContext] Backend returned profile:");
@@ -161,11 +170,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           "error:",
           result.error
         );
-        setUserProfile(null);
+        
+        // CRITICAL: Create minimal profile from Supabase auth data to unblock app
+        const session = await supabase.auth.getSession();
+        const authUser = session.data.session?.user;
+        
+        if (authUser) {
+          console.log("🆕 [AuthContext] Creating minimal profile from auth data");
+          const minimalProfile: UserProfile = {
+            uid: authUser.id,
+            email: authUser.email || '',
+            emailVerified: !!authUser.email_confirmed_at,
+            role: 'MEMBER', // Default role
+            name: authUser.user_metadata?.name,
+            profileComplete: false,
+          };
+          setUserProfile(minimalProfile);
+          
+          // Try to create user in database (don't wait for it)
+          api.createUser({
+            uid: authUser.id,
+            email: authUser.email || '',
+            role: 'MEMBER',
+            displayName: authUser.user_metadata?.name,
+          }).catch(err => console.warn('Failed to create user in DB:', err));
+        } else {
+          setUserProfile(null);
+        }
       }
     } catch (err) {
       console.error("[AuthContext] Failed to load user profile:", err);
-      setUserProfile(null);
+      
+      // CRITICAL: Create fallback profile from auth session to prevent white screen
+      try {
+        const session = await supabase.auth.getSession();
+        const authUser = session.data.session?.user;
+        
+        if (authUser) {
+          console.log("⚠️ [AuthContext] Using fallback profile from auth session");
+          const fallbackProfile: UserProfile = {
+            uid: authUser.id,
+            email: authUser.email || '',
+            emailVerified: !!authUser.email_confirmed_at,
+            role: 'MEMBER',
+            name: authUser.user_metadata?.name,
+            profileComplete: false,
+          };
+          setUserProfile(fallbackProfile);
+        } else {
+          setUserProfile(null);
+        }
+      } catch (fallbackErr) {
+        console.error("[AuthContext] Fallback profile creation failed:", fallbackErr);
+        setUserProfile(null);
+      }
     } finally {
       setLoadingProfile(false);
     }
