@@ -111,64 +111,78 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 lg:translate-x-0 lg:static ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-slate-700 shadow-2xl transform transition-transform duration-300 lg:translate-x-0 lg:static ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between px-4 py-4 border-b">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-6 h-6 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">Fluzio Admin</span>
+          <div className="flex items-center justify-between px-6 py-6 border-b border-slate-700">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <span className="text-xl font-bold text-white block">Fluzio</span>
+                <span className="text-xs text-slate-400">Admin Portal</span>
+              </div>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden"
+              className="lg:hidden text-slate-400 hover:text-white hover:bg-slate-700"
             >
               <X className="w-5 h-5" />
             </Button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800">
             {navigation.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  className={`group flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 relative overflow-hidden ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/50 font-semibold'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white hover:translate-x-1'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.name}</span>
+                  <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${
+                    isActive ? 'animate-pulse' : ''
+                  }`} />
+                  <span className="font-medium">{item.name}</span>
+                  {isActive && (
+                    <div className="absolute right-0 top-0 bottom-0 w-1 bg-white rounded-l-full" />
+                  )}
                 </Link>
               );
             })}
           </nav>
 
           {/* Admin Info */}
-          <div className="p-4 border-t">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="text-blue-700 font-semibold">
-                  {admin.email.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{admin.email}</p>
-                <Badge className={`text-xs ${getRoleBadgeColor(admin.role)}`}>
-                  {admin.role.replace('_', ' ')}
-                </Badge>
+          <div className="p-4 border-t border-slate-700">
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-colors">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg ring-2 ring-slate-700">
+                  <span className="text-white font-bold text-lg">
+                    {admin.email.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{admin.email}</p>
+                  <div className="mt-1">
+                    <Badge className="text-xs bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-0">
+                      {admin.role.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -178,8 +192,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
-          <div className="flex items-center justify-between px-4 py-3">
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-4 flex-1">
               <Button
                 variant="ghost"
@@ -190,15 +204,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Button>
 
               {/* Search */}
-              <div className="hidden md:flex items-center max-w-md w-full">
+              <div className="hidden md:flex items-center max-w-lg w-full">
                 <div className="relative w-full">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <Input
                     type="search"
-                    placeholder="Search entities..."
+                    placeholder="Search users, businesses, events..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-12 pr-4 py-2.5 bg-gray-50 border-gray-300 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent rounded-xl transition-all"
                   />
                 </div>
               </div>
@@ -206,14 +220,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <div className="flex items-center space-x-4">
               {/* Role & Scope Badge */}
-              <Badge variant="outline" className="hidden sm:flex">
+              <Badge variant="outline" className="hidden sm:flex bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 text-blue-700 font-semibold px-3 py-1.5">
                 {getRoleDisplay()}
               </Badge>
 
               {/* Notifications */}
               <NotificationBell />
 
-              <Separator orientation="vertical" className="h-6" />
+              <Separator orientation="vertical" className="h-8 bg-gray-300" />
 
               {/* User Menu */}
               <DropdownMenu>
@@ -238,7 +252,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto p-6 lg:p-8">
+            {children}
+          </div>
+        </main>
       </div>
 
       {/* Mobile sidebar overlay */}

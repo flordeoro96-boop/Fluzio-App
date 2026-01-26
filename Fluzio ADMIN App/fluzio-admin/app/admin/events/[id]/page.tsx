@@ -39,6 +39,9 @@ export default function EditEventPage() {
     imageUrl: '',
     ticketingMode: 'FREE' as 'FREE' | 'PAID',
     ticketingPrice: '',
+    acceptMoney: true,
+    acceptPoints: false,
+    pointsPrice: '',
   });
 
   useEffect(() => {
@@ -70,6 +73,9 @@ export default function EditEventPage() {
             imageUrl: foundEvent.imageUrl || '',
             ticketingMode: foundEvent.ticketing?.mode || 'FREE',
             ticketingPrice: foundEvent.ticketing?.price?.toString() || '',
+            acceptMoney: foundEvent.ticketing?.paymentOptions?.acceptMoney !== false,
+            acceptPoints: foundEvent.ticketing?.paymentOptions?.acceptPoints || false,
+            pointsPrice: foundEvent.ticketing?.paymentOptions?.pointsPrice?.toString() || '',
           });
         } else {
           setError('Event not found');
@@ -104,6 +110,11 @@ export default function EditEventPage() {
         ticketing: {
           mode: formData.ticketingMode,
           price: formData.ticketingMode === 'PAID' ? parseFloat(formData.ticketingPrice) || 0 : 0,
+          paymentOptions: formData.ticketingMode === 'PAID' ? {
+            acceptMoney: formData.acceptMoney,
+            acceptPoints: formData.acceptPoints,
+            pointsPrice: formData.acceptPoints ? parseInt(formData.pointsPrice) || 0 : 0
+          } : undefined
         },
       });
 
@@ -433,9 +444,12 @@ export default function EditEventPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Payment Section */}
+            <div className="space-y-4 bg-blue-50 p-4 rounded-lg">
+              <h3 className="font-semibold text-lg">Payment Options</h3>
+              
               <div>
-                <Label htmlFor="ticketingMode">Ticketing *</Label>
+                <Label htmlFor="ticketingMode">Ticketing Mode *</Label>
                 <select
                   id="ticketingMode"
                   required
@@ -443,25 +457,79 @@ export default function EditEventPage() {
                   onChange={(e) => setFormData({ ...formData, ticketingMode: e.target.value as 'FREE' | 'PAID' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
-                  <option value="FREE">Free</option>
-                  <option value="PAID">Paid</option>
+                  <option value="FREE">Free Event</option>
+                  <option value="PAID">Paid Event</option>
                 </select>
               </div>
 
               {formData.ticketingMode === 'PAID' && (
-                <div>
-                  <Label htmlFor="ticketingPrice">Price (€) *</Label>
-                  <Input
-                    id="ticketingPrice"
-                    type="number"
-                    required
-                    min="0"
-                    step="0.01"
-                    value={formData.ticketingPrice}
-                    onChange={(e) => setFormData({ ...formData, ticketingPrice: e.target.value })}
-                    placeholder="10.00"
-                  />
-                </div>
+                <>
+                  <div className="space-y-3 border-l-4 border-purple-500 pl-4">
+                    <p className="text-sm text-gray-600">Select payment methods attendees can use:</p>
+                    
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.acceptMoney}
+                          onChange={(e) => setFormData({ ...formData, acceptMoney: e.target.checked })}
+                          className="w-4 h-4"
+                        />
+                        <span className="font-medium">💳 Accept Money</span>
+                      </label>
+                      
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.acceptPoints}
+                          onChange={(e) => setFormData({ ...formData, acceptPoints: e.target.checked })}
+                          className="w-4 h-4"
+                        />
+                        <span className="font-medium">⭐ Accept Points</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {formData.acceptMoney && (
+                      <div>
+                        <Label htmlFor="ticketingPrice">Price (€) *</Label>
+                        <Input
+                          id="ticketingPrice"
+                          type="number"
+                          required={formData.acceptMoney}
+                          min="0"
+                          step="0.01"
+                          value={formData.ticketingPrice}
+                          onChange={(e) => setFormData({ ...formData, ticketingPrice: e.target.value })}
+                          placeholder="10.00"
+                        />
+                      </div>
+                    )}
+                    
+                    {formData.acceptPoints && (
+                      <div>
+                        <Label htmlFor="pointsPrice">Price in Points *</Label>
+                        <Input
+                          id="pointsPrice"
+                          type="number"
+                          required={formData.acceptPoints}
+                          min="0"
+                          step="1"
+                          value={formData.pointsPrice}
+                          onChange={(e) => setFormData({ ...formData, pointsPrice: e.target.value })}
+                          placeholder="100"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {formData.acceptMoney && formData.acceptPoints && (
+                    <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800">
+                      ✨ <strong>Flexible Payment:</strong> Attendees can choose to pay with either money or points!
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

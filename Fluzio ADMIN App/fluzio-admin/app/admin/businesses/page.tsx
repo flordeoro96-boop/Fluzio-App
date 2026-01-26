@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getBusinessesAction } from './actions';
+import { bulkApproveBusinessesAction, bulkSuspendBusinessesAction, bulkDeleteBusinessesAction } from './bulk-actions';
 import { Business, BusinessTier, VerificationStatus, UserRole } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,8 +24,14 @@ import {
   Award,
   Clock,
   XCircle,
+  Download,
+  Trash2,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
+import { exportToCSV } from '@/lib/utils/csvExport';
 
 export default function BusinessesPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -36,6 +43,10 @@ export default function BusinessesPage() {
   const [tierFilter, setTierFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [verificationFilter, setVerificationFilter] = useState<string>('ALL');
+  
+  // Bulk selection
+  const [selectedBusinesses, setSelectedBusinesses] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   useEffect(() => {
     loadBusinesses();
@@ -140,6 +151,136 @@ export default function BusinessesPage() {
     loadBusinesses();
   }
 
+  function handleExportCSV() {
+    const exportData = businesses.map(business => ({
+      id: business.id,
+      name: business.name,
+      email: business.email,
+      phoneNumber: business.phoneNumber || '',
+      tier: business.tier,
+      status: business.status,
+      verificationStatus: business.verificationStatus,
+      verified: business.verified ? 'Yes' : 'No',
+      industry: business.industry || '',
+      countryCode: business.countryCode || '',
+      address: business.address || '',
+      website: business.website || '',
+      ownerName: business.ownerName || '',
+      createdAt: business.createdAt ? new Date(business.createdAt).toLocaleDateString() : '',
+    }));
+
+    exportToCSV(exportData, 'fluzio_businesses', [
+      { key: 'id', label: 'Business ID' },
+      { key: 'name', label: 'Business Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'phoneNumber', label: 'Phone' },
+      { key: 'tier', label: 'Tier' },
+      { key: 'status', label: 'Status' },
+      { key: 'verificationStatus', label: 'Verification' },
+      { key: 'verified', label: 'Verified' },
+      { key: 'industry', label: 'Industry' },
+      { key: 'countryCode', label: 'Country' },
+      { key: 'address', label: 'Address' },
+      { key: 'website', label: 'Website' },
+      { key: 'ownerName', label: 'Owner' },
+      { key: 'createdAt', label: 'Joined Date' },
+    ]);
+  }
+
+  // Bulk selection handlers
+  function toggleSelectAll() {
+    if (selectedBusinesses.size === businesses.length) {
+      setSelectedBusinesses(new Set());
+    } else {
+      setSelectedBusinesses(new Set(businesses.map(b => b.id)));
+    }
+  }
+
+  function toggleSelectBusiness(businessId: string) {
+    const newSelected = new Set(selectedBusinesses);
+    if (newSelected.has(businessId)) {
+      newSelected.delete(businessId);
+    } else {
+      newSelected.add(businessId);
+    }
+    setSelectedBusinesses(newSelected);
+  }
+
+  async function handleBulkApprove() {
+    if (selectedBusinesses.size === 0) return;
+    
+    if (!confirm(`Approve ${selectedBusinesses.size} selected businesses?`)) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const businessIds = Array.from(selectedBusinesses);
+      const result = await bulkApproveBusinessesAction(businessIds);
+      
+      if (result.success) {
+        alert(`Successfully approved ${result.successCount} businesses.${result.failedCount > 0 ? ` Failed: ${result.failedCount}` : ''}`);
+        setSelectedBusinesses(new Set());
+        loadBusinesses();
+      } else {
+        alert('Failed to approve businesses: ' + result.errors.join(', '));
+      }
+    } catch (err: any) {
+      console.error('Bulk approve error:', err);
+      alert('Failed to approve businesses: ' + err.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function handleBulkSuspend() {
+    if (selectedBusinesses.size === 0) return;
+    
+    if (!confirm(`Suspend ${selectedBusinesses.size} selected businesses?`)) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const businessIds = Array.from(selectedBusinesses);
+      const result = await bulkSuspendBusinessesAction(businessIds);
+      
+      if (result.success) {
+        alert(`Successfully suspended ${result.successCount} businesses.${result.failedCount > 0 ? ` Failed: ${result.failedCount}` : ''}`);
+        setSelectedBusinesses(new Set());
+        loadBusinesses();
+      } else {
+        alert('Failed to suspend businesses: ' + result.errors.join(', '));
+      }
+    } catch (err: any) {
+      console.error('Bulk suspend error:', err);
+      alert('Failed to suspend businesses: ' + err.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedBusinesses.size === 0) return;
+    
+    if (!confirm(`⚠️ DELETE ${selectedBusinesses.size} selected businesses? This action cannot be undone!`)) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const businessIds = Array.from(selectedBusinesses);
+      const result = await bulkDeleteBusinessesAction(businessIds);
+      
+      if (result.success) {
+        alert(`Successfully deleted ${result.successCount} businesses.${result.failedCount > 0 ? ` Failed: ${result.failedCount}` : ''}`);
+        setSelectedBusinesses(new Set());
+        loadBusinesses();
+      } else {
+        alert('Failed to delete businesses: ' + result.errors.join(', '));
+      }
+    } catch (err: any) {
+      console.error('Bulk delete error:', err);
+      alert('Failed to delete businesses: ' + err.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ACTIVE':
@@ -228,11 +369,21 @@ export default function BusinessesPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Businesses</h1>
-        <p className="text-gray-600 mt-2">
-          Manage business accounts, tiers, and verifications
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Businesses</h1>
+          <p className="text-gray-600 mt-2">
+            Manage business accounts, tiers, and verifications
+          </p>
+        </div>
+        <Button
+          onClick={handleExportCSV}
+          disabled={businesses.length === 0}
+          className="bg-green-600 hover:bg-green-700 text-white"
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV ({businesses.length})
+        </Button>
       </div>
 
       {/* Filters */}
@@ -305,8 +456,60 @@ export default function BusinessesPage() {
         {/* Results count */}
         <div className="text-sm text-gray-600">
           Showing {businesses.length} business{businesses.length !== 1 ? 'es' : ''}
+          {selectedBusinesses.size > 0 && (
+            <span className="ml-2 text-blue-600 font-medium">
+              ({selectedBusinesses.size} selected)
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedBusinesses.size > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-blue-900">
+              {selectedBusinesses.size} business{selectedBusinesses.size !== 1 ? 'es' : ''} selected
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedBusinesses(new Set())}
+            >
+              Clear Selection
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={handleBulkApprove}
+              disabled={bulkActionLoading}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <UserCheck className="w-4 h-4 mr-1" />
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleBulkSuspend}
+              disabled={bulkActionLoading}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              <UserX className="w-4 h-4 mr-1" />
+              Suspend
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={bulkActionLoading}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -320,6 +523,12 @@ export default function BusinessesPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <Checkbox
+                    checked={selectedBusinesses.size === businesses.length && businesses.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Business
                 </th>
@@ -346,13 +555,19 @@ export default function BusinessesPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {businesses.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     No businesses found
                   </td>
                 </tr>
               ) : (
                 businesses.map((business) => (
                   <tr key={business.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Checkbox
+                        checked={selectedBusinesses.has(business.id)}
+                        onCheckedChange={() => toggleSelectBusiness(business.id)}
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">

@@ -5,7 +5,7 @@ import { resolve } from 'path';
 config({ path: resolve(process.cwd(), '.env.local') });
 
 import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from '@/lib/firebase/firestoreCompat';
 import { AdminRole } from '@/lib/types';
 
 const db = getAdminDb();

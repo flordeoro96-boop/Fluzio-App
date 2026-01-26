@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase/admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from '@/lib/firebase/firestoreCompat';
 
 export interface AuditLog {
   adminId: string;

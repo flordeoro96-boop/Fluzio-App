@@ -1,4 +1,4 @@
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, Timestamp, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, Timestamp, limit } from '../firebase/firestoreCompat';
 import { db } from '@/lib/firebase/client';
 import { Notification } from '@/lib/types';
 

@@ -1,6 +1,6 @@
 'use server';
 
-import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { getAdminAuth, db, collection, doc, getDoc, getDocs, updateDoc, query, where, limit as limitFn } from '@/lib/firebase/admin';
 import { getAdminById } from '@/lib/repositories/admins';
 import { canAccess, Resource, Action } from '@/lib/permissions/rbac';
 import { writeAuditLog } from '@/lib/repositories/audit';
@@ -30,14 +30,14 @@ import { standardizeCityName } from '@/lib/utils/cityStandardization';
 async function getAuthenticatedAdmin() {
   try {
     const cookieStore = await cookies();
-    const idToken = cookieStore.get('idToken')?.value;
+    const sessionCookie = cookieStore.get('session')?.value;
 
-    if (!idToken) {
-      throw new Error('Not authenticated - no token');
+    if (!sessionCookie) {
+      throw new Error('Not authenticated - no session cookie');
     }
 
     const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
     const admin = await getAdminById(decodedToken.uid);
 
     if (!admin || admin.status !== 'ACTIVE') {
@@ -136,16 +136,27 @@ export async function createCountryAction(input: CreateCountryInput): Promise<Co
 }
 
 export async function getCountriesAction(): Promise<Country[]> {
-  const admin = await getAuthenticatedAdmin();
+  try {
+    console.log('[getCountriesAction] Starting...');
+    const admin = await getAuthenticatedAdmin();
+    console.log('[getCountriesAction] Admin authenticated:', admin.uid);
 
-  if (!canAccess(admin, Resource.COUNTRIES, Action.READ)) {
-    throw new Error('Permission denied');
+    if (!canAccess(admin, Resource.COUNTRIES, Action.READ)) {
+      throw new Error('Permission denied');
+    }
+
+    console.log('[getCountriesAction] Fetching countries...');
+    const countries = await getCountries(admin.countryScopes);
+    console.log('[getCountriesAction] Found countries:', countries.length);
+    
+    // Force JSON serialization to remove all Firestore Timestamps
+    const serialized = JSON.parse(JSON.stringify(countries));
+    console.log('[getCountriesAction] Successfully serialized');
+    return serialized;
+  } catch (error: any) {
+    console.error('[getCountriesAction] Error:', error.message, error.stack);
+    throw error;
   }
-
-  const countries = await getCountries(admin.countryScopes);
-  
-  // Force JSON serialization to remove all Firestore Timestamps
-  return JSON.parse(JSON.stringify(countries));
 }
 
 export async function getCountryByIdAction(countryId: string): Promise<Country | null> {
@@ -357,15 +368,17 @@ export async function getCitiesByCountryAction(
 
     // Query users directly and group by city
     const phoneCode = COUNTRY_PHONE_CODES[countryCode];
-    const usersSnapshot = await db.collection('users')
-      .where('countryCode', '==', phoneCode)
-      .limit(1000)
-      .get();
+    const q = query(
+      collection(db, 'users'),
+      where('countryCode', '==', phoneCode),
+      limitFn(1000)
+    );
+    const usersSnapshot = await getDocs(q);
     
     // Group users by city (using standardized names)
     const cityMap = new Map<string, any>();
     
-    usersSnapshot.docs.forEach(doc => {
+    usersSnapshot.docs.forEach((doc: any) => {
       const user = doc.data();
       const rawCityName = user.city || user.homeCity || user.geo?.city;
       
@@ -448,7 +461,7 @@ export async function getAllCitiesAction(limit?: number): Promise<City[]> {
 
 export async function getBusinessesByCountryAction(
   countryCode: string,
-  limit: number = 100
+  limitNum: number = 100
 ): Promise<any[]> {
   try {
     const admin = await getAuthenticatedAdmin();
@@ -462,13 +475,15 @@ export async function getBusinessesByCountryAction(
     }
 
     const phoneCode = COUNTRY_PHONE_CODES[countryCode];
-    const usersSnapshot = await db.collection('users')
-      .where('countryCode', '==', phoneCode)
-      .where('role', '==', 'BUSINESS')
-      .limit(limit)
-      .get();
+    const q = query(
+      collection(db, 'users'),
+      where('countryCode', '==', phoneCode),
+      where('role', '==', 'BUSINESS'),
+      limitFn(limitNum)
+    );
+    const usersSnapshot = await getDocs(q);
     
-    const businesses = usersSnapshot.docs.map(doc => {
+    const businesses = usersSnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -497,7 +512,7 @@ export async function getBusinessesByCountryAction(
 
 export async function getCreatorsByCountryAction(
   countryCode: string,
-  limit: number = 100
+  limitNum: number = 100
 ): Promise<any[]> {
   try {
     const admin = await getAuthenticatedAdmin();
@@ -511,13 +526,15 @@ export async function getCreatorsByCountryAction(
     }
 
     const phoneCode = COUNTRY_PHONE_CODES[countryCode];
-    const usersSnapshot = await db.collection('users')
-      .where('countryCode', '==', phoneCode)
-      .where('role', '==', 'CREATOR')
-      .limit(limit)
-      .get();
+    const q = query(
+      collection(db, 'users'),
+      where('countryCode', '==', phoneCode),
+      where('role', '==', 'CREATOR'),
+      limitFn(limitNum)
+    );
+    const usersSnapshot = await getDocs(q);
     
-    const creators = usersSnapshot.docs.map(doc => {
+    const creators = usersSnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -563,14 +580,14 @@ export async function updateCountryMetadataAction(
       throw new Error('Access denied to this country');
     }
 
-    const countryRef = db.collection('countries').doc(countryCode);
-    const countryDoc = await countryRef.get();
+    const countryRef = doc(db, 'countries', countryCode);
+    const countryDoc = await getDoc(countryRef);
     
     if (!countryDoc.exists) {
       throw new Error('Country not found');
     }
 
-    await countryRef.update({
+    await updateDoc(countryRef, {
       ...metadata,
       needsReview: false, // Clear the review flag
       updatedAt: new Date(),

@@ -1,6 +1,7 @@
 'use server';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, addDoc } from '@/lib/firebase/firestoreCompat';
 import { getAdminById } from '@/lib/repositories/admins';
 import { writeAuditLog } from '@/lib/repositories/audit';
 import { ModerationReport, ModerationReportStatus } from '@/lib/types';
@@ -38,31 +39,32 @@ export async function getModerationReportsAction(
       throw new Error('Unauthorized');
     }
 
-    const adminDb = getAdminDb();
-    let query = adminDb.collection('moderationReports').orderBy('createdAt', 'desc');
+    // Using db from imports
+    let conditions: any[] = [orderBy('createdAt', 'desc')];
 
     // Apply country scope
     if (!admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', 'in', admin.countryScopes) as any;
+      conditions.push(where('countryId', 'in', admin.countryScopes));
     }
 
     // Apply filters
     if (filters?.countryId && admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', '==', filters.countryId) as any;
+      conditions.push(where('countryId', '==', filters.countryId));
     }
 
     if (filters?.status) {
-      query = query.where('status', '==', filters.status) as any;
+      conditions.push(where('status', '==', filters.status));
     }
 
     if (filters?.entityType) {
-      query = query.where('entityType', '==', filters.entityType) as any;
+      conditions.push(where('entityType', '==', filters.entityType));
     }
 
-    const snapshot = await query.get();
+    const q = query(collection(db, 'moderationReports'), ...conditions);
+    const snapshot = await getDocs(q);
     let reports: ModerationReport[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc: any) => {
       const data = doc.data();
       reports.push({
         id: doc.id,
@@ -104,9 +106,9 @@ export async function updateReportStatusAction(
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    const reportRef = adminDb.collection('moderationReports').doc(reportId);
-    const reportDoc = await reportRef.get();
+    // Using db from imports
+    const reportRef = doc(db, 'moderationReports', reportId);
+    const reportDoc = await getDoc(reportRef);
 
     if (!reportDoc.exists) {
       throw new Error('Report not found');
@@ -131,7 +133,7 @@ export async function updateReportStatusAction(
       updateData.strikesAdded = strikesAdded;
     }
 
-    await reportRef.update(updateData);
+    await updateDoc(reportRef, updateData);
 
     // Write audit log
     await writeAuditLog({
@@ -168,9 +170,9 @@ export async function deleteReportAction(reportId: string) {
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    const reportRef = adminDb.collection('moderationReports').doc(reportId);
-    const reportDoc = await reportRef.get();
+    // Using db from imports
+    const reportRef = doc(db, 'moderationReports', reportId);
+    const reportDoc = await getDoc(reportRef);
 
     if (!reportDoc.exists) {
       throw new Error('Report not found');
@@ -184,7 +186,7 @@ export async function deleteReportAction(reportId: string) {
     }
 
     // Delete the report
-    await reportRef.delete();
+    await deleteDoc(reportRef);
 
     // Write audit log
     await writeAuditLog({

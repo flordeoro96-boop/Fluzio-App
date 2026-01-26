@@ -1,6 +1,7 @@
 'use server';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { collection, doc, getDoc } from '@/lib/firebase/firestoreCompat';
 import { getAdminById } from '@/lib/repositories/admins';
 import { Mission } from '@/lib/types';
 import { cookies } from 'next/headers';
@@ -30,8 +31,7 @@ export async function getMissionByIdAction(missionId: string) {
       throw new Error('Unauthorized');
     }
 
-    const db = getAdminDb();
-    const missionDoc = await db.collection('missions').doc(missionId).get();
+    const missionDoc = await getDoc(doc(db, 'missions', missionId));
 
     if (!missionDoc.exists) {
       throw new Error('Mission not found');

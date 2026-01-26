@@ -1,23 +1,23 @@
 'use server';
 
-import { db } from '@/lib/firebase/admin';
-import { getAdminAuth } from '@/lib/firebase/admin';
+import { db, getAdminAuth } from '@/lib/firebase/admin';
+import { collection, doc, getDoc, getDocs, setDoc } from '@/lib/firebase/firestoreCompat';
 import { cookies } from 'next/headers';
 
 async function getAuthenticatedAdmin() {
   const cookieStore = await cookies();
-  const idToken = cookieStore.get('idToken')?.value;
+  const sessionCookie = cookieStore.get('session')?.value;
 
-  if (!idToken) {
-    throw new Error('Not authenticated');
+  if (!sessionCookie) {
+    throw new Error('Not authenticated - no session cookie');
   }
 
   const auth = getAdminAuth();
-  const decodedToken = await auth.verifyIdToken(idToken);
+  const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
   const uid = decodedToken.uid;
 
   // Get admin doc
-  const adminDoc = await db.collection('users').doc(uid).get();
+  const adminDoc = await getDoc(doc(db, 'users', uid));
   if (!adminDoc.exists) {
     throw new Error('Admin not found');
   }
@@ -65,7 +65,7 @@ export async function populateCitiesAction() {
     console.log('🏙️  Starting city metrics aggregation...');
     
     // Get all users
-    const usersSnapshot = await db.collection('users').get();
+    const usersSnapshot = await getDocs(collection(db, 'users'));
     console.log(`📊 Found ${usersSnapshot.size} total users`);
     
     // Group users by city and country
@@ -124,9 +124,9 @@ export async function populateCitiesAction() {
     const results = [];
     for (const [cityKey, data] of cityMap.entries()) {
       const cityId = cityKey.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const cityRef = db.collection('cities').doc(cityId);
+      const cityRef = doc(db, 'cities', cityId);
       
-      await cityRef.set({
+      await setDoc(cityRef, {
         name: data.name,
         countryCode: data.countryCode,
         status: 'ACTIVE',

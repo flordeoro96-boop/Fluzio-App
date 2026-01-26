@@ -1,7 +1,7 @@
 // Immutable Audit Logger
 import { getAdminDb } from '@/lib/firebase/admin';
 import { AuditLog, Admin } from '@/lib/types';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from '@/lib/firebase/firestoreCompat';
 
 /**
  * Write an immutable audit log entry

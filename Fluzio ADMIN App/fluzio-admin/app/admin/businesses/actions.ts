@@ -28,14 +28,14 @@ import { Business, BusinessTier, VerificationStatus } from '@/lib/types';
 async function getAuthenticatedAdmin() {
   try {
     const cookieStore = await cookies();
-    const idToken = cookieStore.get('idToken')?.value;
+    const sessionCookie = cookieStore.get('session')?.value;
 
-    if (!idToken) {
-      throw new Error('Not authenticated - no token');
+    if (!sessionCookie) {
+      throw new Error('Not authenticated - no session cookie');
     }
 
     const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
     const admin = await getAdminById(decodedToken.uid);
 
     if (!admin || admin.status !== 'ACTIVE') {
@@ -57,18 +57,24 @@ export async function getBusinessesAction(filters?: {
   searchQuery?: string;
 }): Promise<Business[]> {
   try {
+    console.log('[getBusinessesAction] Starting with filters:', filters);
     const admin = await getAuthenticatedAdmin();
+    console.log('[getBusinessesAction] Admin authenticated:', admin.uid);
 
     if (!canAccess(admin, Resource.BUSINESSES, Action.READ)) {
       throw new Error('Insufficient permissions to view businesses');
     }
 
+    console.log('[getBusinessesAction] Fetching businesses...');
     const businesses = await getBusinesses(admin.countryScopes, filters);
+    console.log('[getBusinessesAction] Found businesses:', businesses.length);
 
     // Serialize dates
-    return JSON.parse(JSON.stringify(businesses));
+    const serialized = JSON.parse(JSON.stringify(businesses));
+    console.log('[getBusinessesAction] Successfully serialized');
+    return serialized;
   } catch (error: any) {
-    console.error('Get businesses error:', error);
+    console.error('[getBusinessesAction] Error:', error.message, error.stack);
     throw new Error(error.message || 'Failed to fetch businesses');
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getCreatorsAction } from './actions';
+import { bulkVerifyCreatorsAction, bulkSuspendCreatorsAction, bulkDeleteCreatorsAction } from './bulk-actions';
 import { Creator, VerificationStatus, UserRole } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Download, Trash2, UserX, UserCheck, ShieldCheck } from 'lucide-react';
+import { exportToCSV } from '@/lib/utils/csvExport';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -35,6 +39,10 @@ export default function CreatorsPage() {
     useState<string>('all');
   const [payoutFilter, setPayoutFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Bulk selection
+  const [selectedCreators, setSelectedCreators] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   // Load creators
   useEffect(() => {
@@ -77,8 +85,6 @@ export default function CreatorsPage() {
       filtered = filtered.filter(
         (c) =>
           c.displayName?.toLowerCase().includes(query) ||
-          c.instagramHandle?.toLowerCase().includes(query) ||
-          c.tiktokHandle?.toLowerCase().includes(query) ||
           c.youtubeHandle?.toLowerCase().includes(query)
       );
     }
@@ -114,8 +120,6 @@ export default function CreatorsPage() {
         verified: user.creatorProfile?.verified || user.verified || false,
         verificationStatus: (user.verificationStatus || user.approvalStatus || 'PENDING') as VerificationStatus,
         status: user.status || 'ACTIVE',
-        instagramHandle: user.creatorProfile?.instagramHandle,
-        instagramFollowers: user.creatorProfile?.instagramFollowers || 0,
         trustScore: user.creatorProfile?.trustScore || 50,
         riskScore: 0,
         stats: {
@@ -146,6 +150,132 @@ export default function CreatorsPage() {
       setError(err.message || 'Failed to load creators');
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleExportCSV() {
+    const exportData = filteredCreators.map(creator => ({
+      id: creator.id,
+      displayName: creator.displayName || '',
+      youtubeHandle: creator.youtubeHandle || '',
+      verified: creator.verified ? 'Yes' : 'No',
+      verificationStatus: creator.verificationStatus,
+      status: creator.status,
+      trustScore: creator.trustScore || 0,
+      payoutFrozen: creator.payoutFrozen ? 'Yes' : 'No',
+      countryCode: creator.countryCode || '',
+      totalMissions: creator.stats?.totalMissions || 0,
+      totalEarnings: creator.stats?.totalEarnings || 0,
+      createdAt: creator.createdAt ? new Date(creator.createdAt).toLocaleDateString() : '',
+    }));
+
+    exportToCSV(exportData, 'fluzio_creators', [
+      { key: 'id', label: 'Creator ID' },
+      { key: 'displayName', label: 'Display Name' },
+      { key: 'youtubeHandle', label: 'YouTube' },
+      { key: 'verified', label: 'Verified' },
+      { key: 'verificationStatus', label: 'Verification Status' },
+      { key: 'status', label: 'Account Status' },
+      { key: 'trustScore', label: 'Trust Score' },
+      { key: 'payoutFrozen', label: 'Payout Frozen' },
+      { key: 'countryCode', label: 'Country' },
+      { key: 'totalMissions', label: 'Total Missions' },
+      { key: 'totalEarnings', label: 'Total Earnings' },
+      { key: 'createdAt', label: 'Joined Date' },
+    ]);
+  }
+
+  // Bulk selection handlers
+  function toggleSelectAll() {
+    if (selectedCreators.size === filteredCreators.length) {
+      setSelectedCreators(new Set());
+    } else {
+      setSelectedCreators(new Set(filteredCreators.map(c => c.id)));
+    }
+  }
+
+  function toggleSelectCreator(creatorId: string) {
+    const newSelected = new Set(selectedCreators);
+    if (newSelected.has(creatorId)) {
+      newSelected.delete(creatorId);
+    } else {
+      newSelected.add(creatorId);
+    }
+    setSelectedCreators(newSelected);
+  }
+
+  async function handleBulkVerify() {
+    if (selectedCreators.size === 0) return;
+    
+    if (!confirm(`Verify ${selectedCreators.size} selected creators?`)) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const creatorIds = Array.from(selectedCreators);
+      const result = await bulkVerifyCreatorsAction(creatorIds);
+      
+      if (result.success) {
+        alert(`Successfully verified ${result.successCount} creators.${result.failedCount > 0 ? ` Failed: ${result.failedCount}` : ''}`);
+        setSelectedCreators(new Set());
+        loadCreators();
+      } else {
+        alert('Failed to verify creators: ' + result.errors.join(', '));
+      }
+    } catch (err: any) {
+      console.error('Bulk verify error:', err);
+      alert('Failed to verify creators: ' + err.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function handleBulkSuspend() {
+    if (selectedCreators.size === 0) return;
+    
+    if (!confirm(`Suspend ${selectedCreators.size} selected creators?`)) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const creatorIds = Array.from(selectedCreators);
+      const result = await bulkSuspendCreatorsAction(creatorIds);
+      
+      if (result.success) {
+        alert(`Successfully suspended ${result.successCount} creators.${result.failedCount > 0 ? ` Failed: ${result.failedCount}` : ''}`);
+        setSelectedCreators(new Set());
+        loadCreators();
+      } else {
+        alert('Failed to suspend creators: ' + result.errors.join(', '));
+      }
+    } catch (err: any) {
+      console.error('Bulk suspend error:', err);
+      alert('Failed to suspend creators: ' + err.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedCreators.size === 0) return;
+    
+    if (!confirm(`⚠️ DELETE ${selectedCreators.size} selected creators? This action cannot be undone!`)) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const creatorIds = Array.from(selectedCreators);
+      const result = await bulkDeleteCreatorsAction(creatorIds);
+      
+      if (result.success) {
+        alert(`Successfully deleted ${result.successCount} creators.${result.failedCount > 0 ? ` Failed: ${result.failedCount}` : ''}`);
+        setSelectedCreators(new Set());
+        loadCreators();
+      } else {
+        alert('Failed to delete creators: ' + result.errors.join(', '));
+      }
+    } catch (err: any) {
+      console.error('Bulk delete error:', err);
+      alert('Failed to delete creators: ' + err.message);
+    } finally {
+      setBulkActionLoading(false);
     }
   }
 
@@ -193,6 +323,14 @@ export default function CreatorsPage() {
             Manage content creators and influencers
           </p>
         </div>
+        <Button
+          onClick={handleExportCSV}
+          disabled={filteredCreators.length === 0}
+          className="bg-green-600 hover:bg-green-700 text-white"
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV ({filteredCreators.length})
+        </Button>
       </div>
 
       {/* Filters */}
@@ -271,7 +409,59 @@ export default function CreatorsPage() {
       {/* Results count */}
       <div className="mb-4 text-sm text-gray-600">
         Showing {filteredCreators.length} of {creators.length} creators
+        {selectedCreators.size > 0 && (
+          <span className="ml-2 text-blue-600 font-medium">
+            ({selectedCreators.size} selected)
+          </span>
+        )}
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedCreators.size > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-blue-900">
+              {selectedCreators.size} creator{selectedCreators.size !== 1 ? 's' : ''} selected
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedCreators(new Set())}
+            >
+              Clear Selection
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={handleBulkVerify}
+              disabled={bulkActionLoading}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <ShieldCheck className="w-4 h-4 mr-1" />
+              Verify
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleBulkSuspend}
+              disabled={bulkActionLoading}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              <UserX className="w-4 h-4 mr-1" />
+              Suspend
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={bulkActionLoading}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Creators table */}
       <Card>
@@ -280,6 +470,12 @@ export default function CreatorsPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <Checkbox
+                      checked={selectedCreators.size === filteredCreators.length && filteredCreators.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Creator
                   </th>
@@ -303,13 +499,19 @@ export default function CreatorsPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredCreators.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       No creators found
                     </td>
                   </tr>
                 ) : (
                   filteredCreators.map((creator) => (
                     <tr key={creator.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Checkbox
+                          checked={selectedCreators.has(creator.id)}
+                          onCheckedChange={() => toggleSelectCreator(creator.id)}
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
@@ -339,32 +541,6 @@ export default function CreatorsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm space-y-1">
-                          {creator.instagramHandle && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500">IG:</span>
-                              <span className="font-medium">
-                                @{creator.instagramHandle}
-                              </span>
-                              {creator.instagramFollowers && (
-                                <span className="text-gray-400 text-xs">
-                                  ({(creator.instagramFollowers / 1000).toFixed(1)}K)
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {creator.tiktokHandle && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500">TT:</span>
-                              <span className="font-medium">
-                                @{creator.tiktokHandle}
-                              </span>
-                              {creator.tiktokFollowers && (
-                                <span className="text-gray-400 text-xs">
-                                  ({(creator.tiktokFollowers / 1000).toFixed(1)}K)
-                                </span>
-                              )}
-                            </div>
-                          )}
                           {creator.youtubeHandle && (
                             <div className="flex items-center gap-2">
                               <span className="text-gray-500">YT:</span>

@@ -1,6 +1,7 @@
 'use server';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, addDoc } from '@/lib/firebase/firestoreCompat';
 import { getAdminById } from '@/lib/repositories/admins';
 import { writeAuditLog } from '@/lib/repositories/audit';
 import { Event, EventStatus } from '@/lib/types';
@@ -43,8 +44,8 @@ export async function getEventsAction(
     console.log('[getEventsAction] Admin authenticated:', admin.uid, 'role:', admin.role);
     console.log('[getEventsAction] Country scopes:', admin.countryScopes);
 
-    const adminDb = getAdminDb();
-    let query = adminDb.collection('events').orderBy('createdAt', 'desc');
+    // Using db from imports
+    let conditions: any[] = [orderBy('createdAt', 'desc')];
 
     // Apply country scope if not super admin
     const countryScopes = admin.countryScopes || [];
@@ -52,26 +53,27 @@ export async function getEventsAction(
     
     if (!countryScopes.includes('GLOBAL') && countryScopes.length > 0) {
       console.log('[getEventsAction] Filtering by country scopes:', countryScopes);
-      query = query.where('countryId', 'in', countryScopes) as any;
+      conditions.push(where('countryId', 'in', countryScopes));
     }
 
     // Apply filters
     if (filters?.countryId && countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', '==', filters.countryId) as any;
+      conditions.push(where('countryId', '==', filters.countryId));
     }
 
     if (filters?.status) {
-      query = query.where('status', '==', filters.status) as any;
+      conditions.push(where('status', '==', filters.status));
     }
 
     if (filters?.type) {
-      query = query.where('type', '==', filters.type) as any;
+      conditions.push(where('type', '==', filters.type));
     }
 
-    const snapshot = await query.get();
+    const q = query(collection(db, 'events'), ...conditions);
+    const snapshot = await getDocs(q);
     let events: Event[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc: any) => {
       try {
         const data = doc.data();
         events.push({
@@ -121,9 +123,9 @@ export async function updateEventStatusAction(
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    const eventRef = adminDb.collection('events').doc(eventId);
-    const eventDoc = await eventRef.get();
+    // Using db from imports
+    const eventRef = doc(db, 'events', eventId);
+    const eventDoc = await getDoc(eventRef);
 
     if (!eventDoc.exists) {
       throw new Error('Event not found');
@@ -139,7 +141,7 @@ export async function updateEventStatusAction(
     const oldStatus = event.status;
 
     // Update event status
-    await eventRef.update({
+    await updateDoc(eventRef, {
       status: newStatus,
       updatedAt: new Date(),
     });
@@ -179,9 +181,9 @@ export async function deleteEventAction(eventId: string) {
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    const eventRef = adminDb.collection('events').doc(eventId);
-    const eventDoc = await eventRef.get();
+    // Using db from imports
+    const eventRef = doc(db, 'events', eventId);
+    const eventDoc = await getDoc(eventRef);
 
     if (!eventDoc.exists) {
       throw new Error('Event not found');
@@ -195,7 +197,7 @@ export async function deleteEventAction(eventId: string) {
     }
 
     // Delete the event
-    await eventRef.delete();
+    await deleteDoc(eventRef);
 
     // Write audit log
     await writeAuditLog({
@@ -244,6 +246,11 @@ export async function createEventAction(eventData: {
   ticketing: {
     mode: 'FREE' | 'PAID';
     price?: number;
+    paymentOptions?: {
+      acceptMoney?: boolean;
+      acceptPoints?: boolean;
+      pointsPrice?: number;
+    };
   };
   highlights?: string[];
   requirements?: string;
@@ -265,11 +272,12 @@ export async function createEventAction(eventData: {
       throw new Error('Cannot create events in this country');
     }
 
-    const adminDb = getAdminDb();
-    const eventRef = adminDb.collection('events').doc();
+    // Using db from imports
+    const eventId = crypto.randomUUID();
+    const eventRef = doc(db, 'events', eventId);
 
     const event: any = {
-      id: eventRef.id,
+      id: eventId,
       title: eventData.title,
       description: eventData.description || '',
       type: eventData.type,
@@ -301,14 +309,14 @@ export async function createEventAction(eventData: {
       updatedAt: new Date(),
     };
 
-    await eventRef.set(event);
+    await setDoc(eventRef, event);
 
     // Write audit log
     await writeAuditLog({
       adminId: admin.uid,
       action: 'CREATE_EVENT',
       resource: 'EVENT',
-      resourceId: eventRef.id,
+      resourceId: eventId,
       details: {
         actorRole: admin.role,
         countryScopeUsed: eventData.countryId,
@@ -319,7 +327,7 @@ export async function createEventAction(eventData: {
       userAgent: 'admin-app',
     });
 
-    return { success: true, eventId: eventRef.id };
+    return { success: true, eventId: eventId };
   } catch (error: any) {
     console.error('[createEventAction] Error:', error);
     throw new Error(error.message || 'Failed to create event');
@@ -344,6 +352,11 @@ export async function updateEventAction(
     ticketing?: {
       mode: 'FREE' | 'PAID';
       price?: number;
+      paymentOptions?: {
+        acceptMoney?: boolean;
+        acceptPoints?: boolean;
+        pointsPrice?: number;
+      };
     };
   }
 ) {
@@ -358,9 +371,9 @@ export async function updateEventAction(
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    const eventRef = adminDb.collection('events').doc(eventId);
-    const eventDoc = await eventRef.get();
+    // Using db from imports
+    const eventRef = doc(db, 'events', eventId);
+    const eventDoc = await getDoc(eventRef);
 
     if (!eventDoc.exists) {
       throw new Error('Event not found');
@@ -391,7 +404,7 @@ export async function updateEventAction(
     if (eventData.imageUrl !== undefined) updateData.imageUrl = eventData.imageUrl;
     if (eventData.ticketing !== undefined) updateData.ticketing = eventData.ticketing;
 
-    await eventRef.update(updateData);
+    await updateDoc(eventRef, updateData);
 
     // Write audit log
     await writeAuditLog({

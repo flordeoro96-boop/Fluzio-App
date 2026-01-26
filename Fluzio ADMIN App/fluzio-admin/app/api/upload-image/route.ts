@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import getAdminApp from '@/lib/firebase/admin';
-import { getAdminAuth } from '@/lib/firebase/admin';
-import { getStorage } from 'firebase-admin/storage';
+import { getAdminClient, getAdminAuth } from '@/lib/firebase/admin';
+import { storage } from '@/lib/firebase/storageCompat';
 import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
@@ -52,11 +51,17 @@ export async function POST(request: NextRequest) {
     const ext = file.name.split('.').pop();
     const filename = `events/${timestamp}-${randomStr}.${ext}`;
 
-    // Upload to Firebase Storage
+    // TODO: Implement Supabase Storage upload
+    // Use: supabase.storage.from('images').upload(filename, buffer)
+    return NextResponse.json(
+      { error: 'Image upload needs Supabase Storage implementation' },
+      { status: 501 }
+    );
+    
+    /* Firebase Storage implementation (needs migration)
     const app = getAdminApp();
     const bucket = getStorage(app).bucket();
     const fileRef = bucket.file(filename);
-
     await fileRef.save(buffer, {
       metadata: {
         contentType: file.type,
@@ -67,17 +72,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Make file publicly accessible
     await fileRef.makePublic();
-
-    // Get public URL
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
 
-    return NextResponse.json({
+    return NextResponse.json({ 
       success: true,
-      url: publicUrl,
-      filename: filename,
+      url: publicUrl 
     });
+    */
   } catch (error: any) {
     console.error('[upload-image] Error:', error);
     return NextResponse.json(

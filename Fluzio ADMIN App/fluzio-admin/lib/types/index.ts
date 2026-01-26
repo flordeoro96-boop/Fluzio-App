@@ -1,5 +1,5 @@
 // Core TypeScript types for Fluzio Admin
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '../firebase/firestoreCompat';
 
 // ============ ADMIN ROLES ============
 export enum AdminRole {
@@ -391,6 +391,11 @@ export interface Event {
     mode: TicketMode;
     price?: number;
     tierGate?: string[];
+    paymentOptions?: {
+      acceptMoney?: boolean;
+      acceptPoints?: boolean;
+      pointsPrice?: number;
+    };
   };
   attendanceCount: number;
   status: EventStatus;

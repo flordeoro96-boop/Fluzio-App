@@ -1,6 +1,6 @@
 // Server-side Firestore repository functions
 import { getAdminDb } from '@/lib/firebase/admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from '@/lib/firebase/firestoreCompat';
 import {
   Country,
   Business,

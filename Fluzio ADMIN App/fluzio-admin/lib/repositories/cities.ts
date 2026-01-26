@@ -1,4 +1,5 @@
 import { db } from '@/lib/firebase/admin';
+import { collection, query, where, orderBy, limit as limitFn, getDocs } from '@/lib/firebase/firestoreCompat';
 import { City, CityStatus } from '@/lib/types';
 
 export async function getCitiesByCountry(
@@ -8,22 +9,18 @@ export async function getCitiesByCountry(
   try {
     console.log(`[getCitiesByCountry] Querying cities for country: ${countryCode}, status: ${status || 'all'}`);
     
-    let query = db.collection('cities').where('countryCode', '==', countryCode);
+    let q = status 
+      ? query(collection(db, 'cities'), where('countryCode', '==', countryCode), where('status', '==', status), orderBy('name', 'asc'))
+      : query(collection(db, 'cities'), where('countryCode', '==', countryCode), orderBy('name', 'asc'));
 
-    if (status) {
-      query = query.where('status', '==', status) as any;
-    }
+    const snapshot = await getDocs(q);
+    console.log(`[getCitiesByCountry] Found ${snapshot.docs?.length || 0} cities`);
     
-    query = query.orderBy('name', 'asc') as any;
-
-    const snapshot = await query.get();
-    console.log(`[getCitiesByCountry] Found ${snapshot.size} cities`);
-    
-    if (snapshot.empty) {
+    if (!snapshot.docs || snapshot.docs.length === 0) {
       return [];
     }
     
-    return snapshot.docs.map((doc) => {
+    return snapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -43,24 +40,22 @@ export async function getCitiesByCountry(
   }
 }
 
-export async function getAllCities(limit?: number): Promise<City[]> {
+export async function getAllCities(limitNum?: number): Promise<City[]> {
   try {
-    console.log(`[getAllCities] Querying all cities, limit: ${limit || 'none'}`);
+    console.log(`[getAllCities] Querying all cities, limit: ${limitNum || 'none'}`);
     
-    let query = db.collection('cities').orderBy('name', 'asc');
+    let q = limitNum
+      ? query(collection(db, 'cities'), orderBy('name', 'asc'), limitFn(limitNum))
+      : query(collection(db, 'cities'), orderBy('name', 'asc'));
 
-    if (limit) {
-      query = query.limit(limit) as any;
-    }
-
-    const snapshot = await query.get();
-    console.log(`[getAllCities] Found ${snapshot.size} cities`);
+    const snapshot = await getDocs(q);
+    console.log(`[getAllCities] Found ${snapshot.docs?.length || 0} cities`);
     
-    if (snapshot.empty) {
+    if (!snapshot.docs || snapshot.docs.length === 0) {
       return [];
     }
     
-    return snapshot.docs.map((doc) => {
+    return snapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,

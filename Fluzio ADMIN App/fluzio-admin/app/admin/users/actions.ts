@@ -28,14 +28,14 @@ import { User, UserRole } from '@/lib/types';
 async function getAuthenticatedAdmin() {
   try {
     const cookieStore = await cookies();
-    const idToken = cookieStore.get('idToken')?.value;
+    const sessionCookie = cookieStore.get('session')?.value;
 
-    if (!idToken) {
-      throw new Error('Not authenticated - no token');
+    if (!sessionCookie) {
+      throw new Error('Not authenticated - no session cookie');
     }
 
     const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
     const admin = await getAdminById(decodedToken.uid);
 
     if (!admin || admin.status !== 'ACTIVE') {
@@ -56,18 +56,24 @@ export async function getUsersAction(filters?: {
   searchQuery?: string;
 }): Promise<User[]> {
   try {
+    console.log('[getUsersAction] Starting with filters:', filters);
     const admin = await getAuthenticatedAdmin();
+    console.log('[getUsersAction] Admin authenticated:', admin.uid);
 
     if (!canAccess(admin, Resource.USERS, Action.READ)) {
       throw new Error('Insufficient permissions to view users');
     }
 
+    console.log('[getUsersAction] Fetching users...');
     const users = await getUsers(admin.countryScopes, filters);
+    console.log('[getUsersAction] Found users:', users.length);
 
     // Serialize dates
-    return JSON.parse(JSON.stringify(users));
+    const serialized = JSON.parse(JSON.stringify(users));
+    console.log('[getUsersAction] Successfully serialized');
+    return serialized;
   } catch (error: any) {
-    console.error('Get users error:', error);
+    console.error('[getUsersAction] Error:', error.message, error.stack);
     throw new Error(error.message || 'Failed to fetch users');
   }
 }

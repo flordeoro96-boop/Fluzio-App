@@ -1,66 +1,90 @@
-// Server-side Firebase Admin SDK configuration
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+// Server-side Supabase Admin configuration
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-let adminApp: App;
+let adminClient: SupabaseClient;
 
-// Initialize Firebase Admin (singleton)
-function getAdminApp(): App {
-  if (adminApp) return adminApp;
+// Initialize Supabase Admin (singleton)
+function getAdminClient(): SupabaseClient {
+  if (adminClient) return adminClient;
 
-  if (getApps().length === 0) {
-    try {
-      // Parse private key (handles escaped newlines from .env)
-      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
-      
-      // Validate required environment variables
-      if (!process.env.FIREBASE_ADMIN_PROJECT_ID) {
-        throw new Error('FIREBASE_ADMIN_PROJECT_ID environment variable is required');
-      }
-      if (!process.env.FIREBASE_ADMIN_CLIENT_EMAIL) {
-        throw new Error('FIREBASE_ADMIN_CLIENT_EMAIL environment variable is required');
-      }
-      if (!privateKey || privateKey === 'undefined') {
-        throw new Error('FIREBASE_ADMIN_PRIVATE_KEY environment variable is required');
-      }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
 
-      console.log('Initializing Firebase Admin SDK...');
-      console.log('Project ID:', process.env.FIREBASE_ADMIN_PROJECT_ID);
-      console.log('Client Email:', process.env.FIREBASE_ADMIN_CLIENT_EMAIL);
-      console.log('Private Key length:', privateKey.length);
-
-      adminApp = initializeApp({
-        credential: cert({
-          projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-          privateKey: privateKey,
-        }),
-      });
-
-      console.log('✅ Firebase Admin SDK initialized successfully');
-    } catch (error) {
-      console.error('❌ Failed to initialize Firebase Admin SDK:', error);
-      throw error;
-    }
-  } else {
-    adminApp = getApps()[0];
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('Missing Supabase admin environment variables');
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL not configured');
   }
 
-  return adminApp;
+  console.log('Initializing Supabase Admin Client...');
+  
+  adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  console.log('✅ Supabase Admin Client initialized successfully');
+  return adminClient;
 }
 
-// Lazy initialization helpers
+// Export admin instances
+export const adminDb = getAdminClient();
+export const db = adminDb; // Alias for compatibility
+
+// Create auth wrapper with verifySessionCookie method
+export const adminAuth = {
+  ...getAdminClient(),
+  verifySessionCookie: async (sessionCookie: string, checkRevoked = true): Promise<{ uid: string; email?: string }> => {
+    try => {
+      const { data: { user }, error } = await getAdminClient().auth.getUser(sessionCookie);
+      if (error || !user) {
+        throw new Error('Invalid session cookie');
+      }
+      return { uid: user.id, email: user.email };
+    } catch (error) {
+      console.error('Session verification failed:', error);
+      throw error;
+    }
+  },
+};
+
+// Export compatibility layer functions for Firestore-style queries
+export {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
+  deleteField,
+  runTransaction,
+  writeBatch,
+  FieldValue,
+} from './firestoreCompat';
+
+export const db = getAdminClient(); // Shorthand export for backward compatibility
+export const auth = adminAuth; // Shorthand export
+
+// Export helper functions
 export function getAdminAuth() {
-  return getAuth(getAdminApp());
+  return adminAuth;
 }
 
 export function getAdminDb() {
-  return getFirestore(getAdminApp());
+  return getAdminClient();
 }
 
-// Export commonly used instances
-export const auth = getAdminAuth();
-export const db = getAdminDb();
-
-export default getAdminApp;
+// Export the client getter
+export { getAdminClient };

@@ -1,6 +1,6 @@
 import { db } from '@/lib/firebase/admin';
 import { Country, CountryStatus, LaunchChecklistItem } from '@/lib/types';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from '@/lib/firebase/firestoreCompat';
 
 // Map country ISO codes to phone codes (legacy fallback)
 const COUNTRY_PHONE_CODES: Record<string, string> = {

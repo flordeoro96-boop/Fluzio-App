@@ -13,15 +13,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the ID token
+    // TODO: Implement Supabase session verification if needed
+    // Supabase handles sessions automatically via auth.getSession()
+    return NextResponse.json(
+      { error: 'This endpoint is deprecated with Supabase' },
+      { status: 501 }
+    );
+    
+    /* Firebase implementation (not compatible with Supabase)
     const auth = getAdminAuth();
     const decodedToken = await auth.verifyIdToken(idToken);
-
-    // Create a session cookie (expires in 14 days)
-    const expiresIn = 60 * 60 * 24 * 14 * 1000; // 14 days
+    const expiresIn = 60 * 60 * 24 * 14 * 1000;
     const sessionCookie = await auth.createSessionCookie(idToken, { expiresIn });
-
-    // Set the session cookie
+    
     const cookieStore = await cookies();
     cookieStore.set('session', sessionCookie, {
       maxAge: expiresIn / 1000,
@@ -35,6 +39,7 @@ export async function POST(request: NextRequest) {
       success: true,
       uid: decodedToken.uid 
     });
+    */
   } catch (error: any) {
     console.error('Session creation error:', error);
     return NextResponse.json(

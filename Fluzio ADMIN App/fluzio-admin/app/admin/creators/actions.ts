@@ -34,14 +34,14 @@ import { Creator, VerificationStatus } from '@/lib/types';
 async function getAuthenticatedAdmin() {
   try {
     const cookieStore = await cookies();
-    const idToken = cookieStore.get('idToken')?.value;
+    const sessionCookie = cookieStore.get('session')?.value;
 
-    if (!idToken) {
-      throw new Error('Not authenticated - no token');
+    if (!sessionCookie) {
+      throw new Error('Not authenticated - no session cookie');
     }
 
     const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
     const admin = await getAdminById(decodedToken.uid);
 
     if (!admin || admin.status !== 'ACTIVE') {

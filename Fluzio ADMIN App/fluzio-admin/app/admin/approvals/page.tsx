@@ -39,8 +39,6 @@ export default function ApprovalsPage() {
         verified: user.creatorProfile?.verified || user.verified || false,
         verificationStatus: (user.verificationStatus || user.approvalStatus || 'PENDING') as VerificationStatus,
         status: user.status || 'ACTIVE',
-        instagramHandle: user.creatorProfile?.instagramHandle,
-        instagramFollowers: user.creatorProfile?.instagramFollowers || 0,
         trustScore: user.creatorProfile?.trustScore || 50,
         riskScore: 0,
         stats: {
@@ -197,13 +195,7 @@ export default function ApprovalsPage() {
                         
                         <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                           <div>
-                            <span className="font-medium">Instagram:</span> @{creator.instagramHandle || 'N/A'}
-                          </div>
-                          <div>
                             <span className="font-medium">Country:</span> {creator.countryCode}
-                          </div>
-                          <div>
-                            <span className="font-medium">Followers:</span> {creator.instagramFollowers?.toLocaleString() || 'N/A'}
                           </div>
                           <div>
                             <span className="font-medium">Submitted:</span>{' '}

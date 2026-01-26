@@ -1,6 +1,7 @@
 'use server';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, addDoc } from '@/lib/firebase/firestoreCompat';
 import { getAdminById } from '@/lib/repositories/admins';
 import { writeAuditLog } from '@/lib/repositories/audit';
 import { Admin, AdminStatus, Policy, AuditLog as AuditLogType } from '@/lib/types';
@@ -36,18 +37,21 @@ export async function getAdminsAction(filters?: { status?: AdminStatus; search?:
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    let query = adminDb.collection('admins');
+    // Using db from imports
+    let conditions: any[] = [];
 
     // Apply filters
     if (filters?.status) {
-      query = query.where('status', '==', filters.status) as any;
+      conditions.push(where('status', '==', filters.status));
     }
 
-    const snapshot = await query.get();
+    const q = conditions.length > 0 
+      ? query(collection(db, 'admins'), ...conditions)
+      : collection(db, 'admins');
+    const snapshot = await getDocs(q);
     let admins: Admin[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc: any) => {
       const data = doc.data();
       admins.push({
         uid: doc.id,
@@ -86,9 +90,9 @@ export async function updateAdminStatusAction(adminUid: string, newStatus: Admin
       throw new Error('Only super admin can update admin status');
     }
 
-    const adminDb = getAdminDb();
-    const targetAdminRef = adminDb.collection('admins').doc(adminUid);
-    const targetAdminDoc = await targetAdminRef.get();
+    // Using db from imports
+    const targetAdminRef = doc(db, 'admins', adminUid);
+    const targetAdminDoc = await getDoc(targetAdminRef);
 
     if (!targetAdminDoc.exists) {
       throw new Error('Admin not found');
@@ -98,7 +102,7 @@ export async function updateAdminStatusAction(adminUid: string, newStatus: Admin
     const oldStatus = targetAdmin.status;
 
     // Update admin status
-    await targetAdminRef.update({
+    await updateDoc(targetAdminRef, {
       status: newStatus,
       updatedAt: new Date(),
     });
@@ -137,13 +141,12 @@ export async function getAuditLogsAction(filters?: { search?: string; limit?: nu
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    let query = adminDb.collection('auditLogs').orderBy('timestamp', 'desc').limit(filters?.limit || 50);
-
-    const snapshot = await query.get();
+    // Using db from imports
+    const q = query(collection(db, 'auditLogs'), orderBy('timestamp', 'desc'), limit(filters?.limit || 50));
+    const snapshot = await getDocs(q);
     let logs: any[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc: any) => {
       const data = doc.data();
       logs.push({
         id: doc.id,
@@ -178,10 +181,11 @@ export async function getPolicyAction() {
       throw new Error('Unauthorized');
     }
 
-    const adminDb = getAdminDb();
-    const snapshot = await adminDb.collection('policies').orderBy('version', 'desc').limit(1).get();
+    // Using db from imports
+    const q = query(collection(db, 'policies'), orderBy('version', 'desc'), limit(1));
+    const snapshot = await getDocs(q);
 
-    if (snapshot.empty) {
+    if (!snapshot.docs || snapshot.docs.length === 0) {
       return { success: true, policy: null };
     }
 
@@ -217,11 +221,12 @@ export async function updatePolicyAction(thresholds: {
       throw new Error('Only super admin can update policy');
     }
 
-    const adminDb = getAdminDb();
+    // Using db from imports
 
     // Get current policy
-    const currentSnapshot = await adminDb.collection('policies').orderBy('version', 'desc').limit(1).get();
-    const currentVersion = currentSnapshot.empty ? 0 : currentSnapshot.docs[0].data().version;
+    const q = query(collection(db, 'policies'), orderBy('version', 'desc'), limit(1));
+    const currentSnapshot = await getDocs(q);
+    const currentVersion = (!currentSnapshot.docs || currentSnapshot.docs.length === 0) ? 0 : currentSnapshot.docs[0].data().version;
 
     // Create new policy version
     const newPolicy = {
@@ -231,7 +236,7 @@ export async function updatePolicyAction(thresholds: {
       updatedByAdminId: admin.uid,
     };
 
-    await adminDb.collection('policies').add(newPolicy);
+    await addDoc(collection(db, 'policies'), newPolicy);
 
     // Write audit log
     await writeAuditLog({

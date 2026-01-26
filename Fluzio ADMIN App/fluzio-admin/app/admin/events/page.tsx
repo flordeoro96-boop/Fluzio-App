@@ -37,6 +37,7 @@ import {
   Trash2,
   Sparkles,
   Edit,
+  BarChart3,
 } from 'lucide-react';
 import { Event, EventStatus } from '@/lib/types';
 import { getEventsAction, updateEventStatusAction, deleteEventAction } from './actions';
@@ -244,6 +245,10 @@ Event Configuration:
           <p className="text-gray-600 mt-2">Manage events and approval workflow</p>
         </div>
         <div className="flex gap-3">
+          <Button onClick={() => router.push('/admin/events/analytics')} variant="outline">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Payment Analytics
+          </Button>
           <Button onClick={() => setShowAIDialog(true)} variant="outline">
             <Sparkles className="w-4 h-4 mr-2" />
             AI Generate

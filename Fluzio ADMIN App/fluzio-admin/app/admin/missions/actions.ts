@@ -1,7 +1,7 @@
 'use server';
 
-import { getAdminAuth } from '@/lib/firebase/admin';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, addDoc } from '@/lib/firebase/firestoreCompat';
 import { getAdminById } from '@/lib/repositories/admins';
 import { writeAuditLog } from '@/lib/repositories/audit';
 import { Mission } from '@/lib/types';
@@ -10,18 +10,18 @@ import { cookies } from 'next/headers';
 async function getAuthenticatedAdmin() {
   try {
     const cookieStore = await cookies();
-    const idToken = cookieStore.get('idToken')?.value;
+    const sessionCookie = cookieStore.get('session')?.value;
 
-    if (!idToken) {
-      throw new Error('Not authenticated');
+    if (!sessionCookie) {
+      throw new Error('Not authenticated - no session cookie');
     }
 
     const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifySessionCookie(sessionCookie, true);
     const admin = await getAdminById(decodedToken.uid);
 
     if (!admin || admin.status !== 'ACTIVE') {
-      throw new Error('Not authorized');
+      throw new Error('Not authorized - admin not found or inactive');
     }
 
     return admin;
@@ -34,19 +34,21 @@ async function getAuthenticatedAdmin() {
 export async function getMissionsAction(): Promise<Mission[]> {
   try {
     const admin = await getAuthenticatedAdmin();
-    const db = getAdminDb();
+    // Using db from imports
 
     // Build query based on country scope
-    let query = db.collection('missions');
+    let q = query(collection(db, 'missions'));
 
     // Apply country scope filter
     if (!admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', 'in', admin.countryScopes) as any;
+      q = query(collection(db, 'missions'), where('countryId', 'in', admin.countryScopes), orderBy('createdAt', 'desc'));
+    } else {
+      q = query(collection(db, 'missions'), orderBy('createdAt', 'desc'));
     }
 
-    const snapshot = await query.orderBy('createdAt', 'desc').get();
+    const snapshot = await getDocs(q);
 
-    return snapshot.docs.map((doc) => ({
+    return snapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate?.() || new Date(),
@@ -65,11 +67,11 @@ export async function updateMissionStatusAction(
 ): Promise<void> {
   try {
     const admin = await getAuthenticatedAdmin();
-    const db = getAdminDb();
+    // Using db from imports
 
     // Get mission
-    const missionRef = db.collection('missions').doc(missionId);
-    const missionDoc = await missionRef.get();
+    const missionRef = doc(db, 'missions', missionId);
+    const missionDoc = await getDoc(missionRef);
 
     if (!missionDoc.exists) {
       throw new Error('Mission not found');
@@ -102,7 +104,7 @@ export async function updateMissionStatusAction(
       updateData.rejectionReason = rejectionReason;
     }
 
-    await missionRef.update(updateData);
+    await updateDoc(missionRef, updateData);
 
     // Write audit log
     await writeAuditLog({

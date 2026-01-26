@@ -1,6 +1,7 @@
 'use server';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, db } from '@/lib/firebase/admin';
+import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, addDoc } from '@/lib/firebase/firestoreCompat';
 import { getAdminById } from '@/lib/repositories/admins';
 import { writeAuditLog } from '@/lib/repositories/audit';
 import { Transaction, Payout, PayoutStatus } from '@/lib/types';
@@ -37,27 +38,28 @@ export async function getTransactionsAction(
       throw new Error('Unauthorized');
     }
 
-    const adminDb = getAdminDb();
-    let query = adminDb.collection('transactions').orderBy('createdAt', 'desc').limit(100);
+    // Using db from imports
+    let conditions: any[] = [orderBy('createdAt', 'desc'), limit(100)];
 
     // Apply country scope
     if (!admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', 'in', admin.countryScopes) as any;
+      conditions.push(where('countryId', 'in', admin.countryScopes));
     }
 
     // Apply filters
     if (filters?.countryId && admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', '==', filters.countryId) as any;
+      conditions.push(where('countryId', '==', filters.countryId));
     }
 
     if (filters?.type) {
-      query = query.where('type', '==', filters.type) as any;
+      conditions.push(where('type', '==', filters.type));
     }
 
-    const snapshot = await query.get();
+    const q = query(collection(db, 'transactions'), ...conditions);
+    const snapshot = await getDocs(q);
     let transactions: Transaction[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc: any) => {
       const data = doc.data();
       transactions.push({
         id: doc.id,
@@ -96,27 +98,28 @@ export async function getPayoutsAction(
       throw new Error('Unauthorized');
     }
 
-    const adminDb = getAdminDb();
-    let query = adminDb.collection('payouts').orderBy('createdAt', 'desc');
+    // Using db from imports
+    let conditions: any[] = [orderBy('createdAt', 'desc')];
 
     // Apply country scope
     if (!admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', 'in', admin.countryScopes) as any;
+      conditions.push(where('countryId', 'in', admin.countryScopes));
     }
 
     // Apply filters
     if (filters?.countryId && admin.countryScopes.includes('GLOBAL')) {
-      query = query.where('countryId', '==', filters.countryId) as any;
+      conditions.push(where('countryId', '==', filters.countryId));
     }
 
     if (filters?.status) {
-      query = query.where('status', '==', filters.status) as any;
+      conditions.push(where('status', '==', filters.status));
     }
 
-    const snapshot = await query.get();
+    const q = query(collection(db, 'payouts'), ...conditions);
+    const snapshot = await getDocs(q);
     let payouts: Payout[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc: any) => {
       const data = doc.data();
       payouts.push({
         id: doc.id,
@@ -157,9 +160,9 @@ export async function updatePayoutStatusAction(
       throw new Error('Insufficient permissions');
     }
 
-    const adminDb = getAdminDb();
-    const payoutRef = adminDb.collection('payouts').doc(payoutId);
-    const payoutDoc = await payoutRef.get();
+    // Using db from imports
+    const payoutRef = doc(db, 'payouts', payoutId);
+    const payoutDoc = await getDoc(payoutRef);
 
     if (!payoutDoc.exists) {
       throw new Error('Payout not found');
@@ -184,7 +187,7 @@ export async function updatePayoutStatusAction(
       updateData.failReason = failReason;
     }
 
-    await payoutRef.update(updateData);
+    await updateDoc(payoutRef, updateData);
 
     // Write audit log
     await writeAuditLog({
