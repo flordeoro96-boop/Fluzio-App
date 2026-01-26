@@ -108,6 +108,7 @@ import { AccessibilityModal } from './components/AccessibilityModal';
 import OnboardingModal from './components/OnboardingModal';
 import { AnalyticsDashboard } from './components/business/AnalyticsDashboard';
 import { CustomerCRM } from './components/business/CustomerCRM';
+import { supabase } from './services/supabaseClient';
 import { BusinessSquadScreen } from './components/business/BusinessSquadScreen';
 import { BusinessMarketScreen } from './components/business/BusinessMarketScreen';
 import { CreatorProfileScreen } from './components/business/CreatorProfileScreen';
