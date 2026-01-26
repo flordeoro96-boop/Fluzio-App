@@ -274,75 +274,86 @@ CREATE TRIGGER update_participations_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- 7. ADMIN USERS TABLE
+-- 7. ADMIN ROLE SYSTEM (Secure Pattern)
 -- ============================================
 
-CREATE TABLE IF NOT EXISTS adminUsers (
-  id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  email TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Create role enum if not exists
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE INDEX IF NOT EXISTS idx_admin_users_email ON adminUsers(email);
-
-ALTER TABLE adminUsers ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Admins can view admin users"
-ON adminUsers FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM users
-    WHERE id::text = auth.uid()::text
-    AND role = 'ADMIN'
-  )
-);
-
-GRANT SELECT ON adminUsers TO authenticated;
-
--- ============================================
--- 8. REVIEWS TABLE
--- ============================================
-
-CREATE TABLE IF NOT EXISTS reviews (
+-- Create user_roles table (replaces adminUsers)
+CREATE TABLE IF NOT EXISTS public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-  comment TEXT,
-  status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'HIDDEN', 'FLAGGED'
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  role app_role NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  UNIQUE (user_id, role)
 );
 
+-- Enable RLS
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+
+-- Create security definer function to check roles (prevents recursion)
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role = _role
+  )
+$$;
+
+-- RLS policy for user_roles
+CREATE POLICY "Admins can view all roles"
+ON public.user_roles FOR SELECT
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
+CREATE POLICY "Users can view their own roles"
+ON public.user_roles FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+-- Service role can manage roles
+CREATE POLICY "Service role can manage roles"
+ON public.user_roles FOR ALL
+USING (true)
+WITH CHECK (true);
+
+GRANT SELECT ON public.user_roles TO authenticated;
+
+-- ============================================
+-- 8. UPDATE REVIEWS TABLE
+-- ============================================
+
+-- Add business_id column if it doesn't exist
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS business_id UUID REFERENCES users(id) ON DELETE CASCADE;
+
+-- Add comment column if it doesn't exist  
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS comment TEXT;
+
+-- Add status column if it doesn't exist
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
+
+-- Create indexes
 CREATE INDEX IF NOT EXISTS idx_reviews_business_id ON reviews(business_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 
-ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-
+-- Drop old policies and create new ones
+DROP POLICY IF EXISTS "Anyone can view active reviews" ON reviews;
 CREATE POLICY "Anyone can view active reviews"
 ON reviews FOR SELECT
-USING (status = 'ACTIVE');
-
-CREATE POLICY "Users can create reviews"
-ON reviews FOR INSERT
-TO authenticated
-WITH CHECK (user_id::text = auth.uid()::text);
-
-CREATE POLICY "Users can update their reviews"
-ON reviews FOR UPDATE
-TO authenticated
-USING (user_id::text = auth.uid()::text);
-
-GRANT SELECT, INSERT, UPDATE ON reviews TO authenticated;
-
-DROP TRIGGER IF EXISTS update_reviews_updated_at ON reviews;
-CREATE TRIGGER update_reviews_updated_at
-    BEFORE UPDATE ON reviews
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+USING (status = 'ACTIVE' OR status IS NULL);
 
 -- ============================================
 -- 9. SQUADS TABLE
@@ -365,31 +376,59 @@ CREATE TABLE IF NOT EXISTS squads (
 CREATE INDEX IF NOT EXISTS idx_squads_leader_id ON squads(leader_id);
 CREATE INDEX IF NOT EXISTS idx_squads_members ON squads USING gin(members);
 CREATE INDEX IF NOT EXISTS idx_squads_is_active ON squads(is_active) WHERE is_active = true;
+UPDATE SQUADS TABLE
+-- ============================================
 
-ALTER TABLE squads ENABLE ROW LEVEL SECURITY;
+-- Add missing columns
+ALTER TABLE squads ADD COLUMN IF NOT EXISTS leader_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE squads ADD COLUMN IF NOT EXISTS members UUID[] DEFAULT '{}';
+ALTER TABLE squads ADD COLUMN IF NOT EXISTS max_members INTEGER DEFAULT 5;
+ALTER TABLE squads ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE squads ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE squads ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_squads_leader_id ON squads(leader_id);
+CREATE INDEX IF NOT EXISTS idx_squads_members ON squads USING gin(members);
+CREATE INDEX IF NOT EXISTS idx_squads_is_active ON squads(is_active) WHERE is_active = true;
+
+-- Update RLS policies
+DROP POLICY IF EXISTS "Anyone can view squads" ON squads;
+DROP POLICY IF EXISTS "Leaders can manage their squads" ON squads;
+DROP POLICY IF EXISTS "Members can view their squads" ON squads;
 
 CREATE POLICY "Anyone can view active squads"
 ON squads FOR SELECT
-USING (is_active = true);
+USING (is_active = true OR is_active IS NULL);
 
 CREATE POLICY "Leaders can manage their squads"
-ON squads FOR ALL
+ON 10. UPDATE ADMIN CHECKS IN EXISTING POLICIES
+-- ============================================
+
+-- Update missions admin policy to use has_role
+DROP POLICY IF EXISTS "Admins can manage all missions" ON missions;
+CREATE POLICY "Admins can manage all missions"
+ON missions FOR ALL
 TO authenticated
-USING (leader_id::text = auth.uid()::text);
+USING (public.has_role(auth.uid(), 'admin'));
 
-CREATE POLICY "Members can view their squads"
-ON squads FOR SELECT
+-- Update participations admin policy
+DROP POLICY IF EXISTS "Admins can manage all participations" ON participations;
+CREATE POLICY "Admins can manage all participations"
+ON participations FOR ALL
 TO authenticated
-USING (auth.uid()::text = ANY(members::text[]));
+USING (public.has_role(auth.uid(), 'admin'));
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON squads TO authenticated;
-
-DROP TRIGGER IF EXISTS update_squads_updated_at ON squads;
-CREATE TRIGGER update_squads_updated_at
-    BEFORE UPDATE ON squads
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+-- Update check_ins admin policy
+DROP POLICY IF EXISTS "Admins can manage all check-ins" ON check_ins;
+CREATE POLICY "Admins can manage all check-ins"
+ON check_ins FOR ALL
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
 
 -- ============================================
--- DONE! Your business tables are now configured
--- ============================================
+-- squads FOR ALL
+TO authenticated
+USING (leader_id = auth.uid());
+
+-- Update trigger
