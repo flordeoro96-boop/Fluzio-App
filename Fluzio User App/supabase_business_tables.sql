@@ -274,5 +274,122 @@ CREATE TRIGGER update_participations_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
+-- 7. ADMIN USERS TABLE
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS adminUsers (
+  id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_users_email ON adminUsers(email);
+
+ALTER TABLE adminUsers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can view admin users"
+ON adminUsers FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE id::text = auth.uid()::text
+    AND role = 'ADMIN'
+  )
+);
+
+GRANT SELECT ON adminUsers TO authenticated;
+
+-- ============================================
+-- 8. REVIEWS TABLE
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'HIDDEN', 'FLAGGED'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_business_id ON reviews(business_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
+
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view active reviews"
+ON reviews FOR SELECT
+USING (status = 'ACTIVE');
+
+CREATE POLICY "Users can create reviews"
+ON reviews FOR INSERT
+TO authenticated
+WITH CHECK (user_id::text = auth.uid()::text);
+
+CREATE POLICY "Users can update their reviews"
+ON reviews FOR UPDATE
+TO authenticated
+USING (user_id::text = auth.uid()::text);
+
+GRANT SELECT, INSERT, UPDATE ON reviews TO authenticated;
+
+DROP TRIGGER IF EXISTS update_reviews_updated_at ON reviews;
+CREATE TRIGGER update_reviews_updated_at
+    BEFORE UPDATE ON reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- 9. SQUADS TABLE
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS squads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  leader_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  members UUID[] DEFAULT '{}',
+  max_members INTEGER DEFAULT 5,
+  category TEXT,
+  image TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_squads_leader_id ON squads(leader_id);
+CREATE INDEX IF NOT EXISTS idx_squads_members ON squads USING gin(members);
+CREATE INDEX IF NOT EXISTS idx_squads_is_active ON squads(is_active) WHERE is_active = true;
+
+ALTER TABLE squads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view active squads"
+ON squads FOR SELECT
+USING (is_active = true);
+
+CREATE POLICY "Leaders can manage their squads"
+ON squads FOR ALL
+TO authenticated
+USING (leader_id::text = auth.uid()::text);
+
+CREATE POLICY "Members can view their squads"
+ON squads FOR SELECT
+TO authenticated
+USING (auth.uid()::text = ANY(members::text[]));
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON squads TO authenticated;
+
+DROP TRIGGER IF EXISTS update_squads_updated_at ON squads;
+CREATE TRIGGER update_squads_updated_at
+    BEFORE UPDATE ON squads
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
 -- DONE! Your business tables are now configured
 -- ============================================
