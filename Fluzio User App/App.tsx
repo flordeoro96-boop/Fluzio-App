@@ -2355,12 +2355,19 @@ const App: React.FC = () => {
       const checkAdminAndProceed = async () => {
         try {
           console.log('🔍 [App] Checking if user is admin...');
-          const adminDoc = await getDoc(doc(db, 'adminUsers', userProfile.uid));
           
-          if (adminDoc.exists() && adminDoc.data()?.isActive) {
+          // Check user_roles table in Supabase
+          const { data: roles, error } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userProfile.uid);
+          
+          const isAdmin = roles && roles.some((r: { role: string }) => r.role === 'admin');
+          
+          if (isAdmin) {
             console.log('🔴 [App] ADMIN USER DETECTED!');
-            console.log('   Admin Role:', adminDoc.data()?.role);
-            console.log('   Email:', adminDoc.data()?.email);
+            console.log('   Admin Roles:', roles?.map((r: { role: string }) => r.role).join(', '));
+            console.log('   Email:', userProfile.email);
             
             // Create minimal mock user for admin
             let mockUser = store.getUserByFirebaseUid(userProfile.uid);
